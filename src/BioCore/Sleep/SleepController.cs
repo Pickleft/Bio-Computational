@@ -52,9 +52,12 @@ public sealed class SleepController
         } * (float)pressureScale;
         SleepPressure = Math.Clamp(SleepPressure + dPressure, 0f, 1f);
 
-        // Arousal (surprise) wakes the brain instantly.
-        if (externalArousal > 0.5f && State != BrainState.Wake)
-            SetState(net, BrainState.Wake);
+        // Arousal (surprise) wakes the brain and holds it awake while sustained.
+        if (externalArousal > 0.5f)
+        {
+            if (State != BrainState.Wake) SetState(net, BrainState.Wake);
+            return; // homeostatic transitions are suspended under arousal; pressure still accrued above
+        }
 
         // Transitions with hysteresis.
         switch (State)

@@ -7,10 +7,13 @@ Runtime dependencies are added only as listed below, at the time they are introd
 |---|---|---|---|---|
 | .NET 9 SDK | 9.0.304 | MIT | platform | Oct 27 (scaffold) |
 | xunit + Microsoft.NET.Test.Sdk | (template) | Apache-2.0 / MIT | tests | Oct 27 (scaffold) |
+| OpenCvSharp4 | 4.13.0.20260627 | Apache-2.0 | webcam capture, resize, grayscale | Oct 27 (senses) |
+| OpenCvSharp4.runtime.win | 4.13.0.20260627 | Apache-2.0 | native OpenCV binaries for Windows | Oct 27 (senses) |
+| NAudio | 3.3.0 | MIT | microphone capture (16 kHz mono PCM) | Oct 27 (senses) |
 
-Planned (added here when installed - see docs/plan/RUNBOOK.md): OpenAI .NET SDK (MIT),
-OpenCvSharp4 (Apache-2.0), NAudio (MIT), System.Speech (MIT). Optional: BrainFlow (verify license
-at add time).
+Transitive dependencies (System.Memory, System.Numerics.Tensors, NAudio sub-packages) come with
+the above and carry the same licenses. Planned later: OpenAI .NET SDK (MIT) for the Meta model
+clients, System.Speech (MIT) for local text-to-speech.
 
 External services (configuration, not code): Meta Model API (dev.meta.ai), Baseten, Ollama
 (serves locally hosted open-weight models; MIT).

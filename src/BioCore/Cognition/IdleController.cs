@@ -16,6 +16,7 @@ public sealed class IdleController
     public SleepController Sleep { get; } = new();
     public ReplayScheduler Replay { get; } = new();
     public PopulationCorrelation DmnTaskPosCorrelation { get; } = new();
+    public BioComp.Core.Time.TimeSense Time { get; } = new();
 
     public readonly List<string> EventLog = [];
 
@@ -33,6 +34,9 @@ public sealed class IdleController
         _regionWindow = new uint[net.Regions.Count];
         _dmnIdx = IndexOf(net, "DMN");
         _taskPosIdx = IndexOf(net, "TaskPos");
+        int ca3 = IndexOf(net, "CA3");
+        _ca3Start = net.Regions[ca3].Start;
+        _ca3Count = net.Regions[ca3].Count;
         _nextAmbientEncodeMs = net.TimeMs + AmbientEncodeIntervalMs;
         _lastLogged = Sleep.State;
     }
@@ -50,7 +54,13 @@ public sealed class IdleController
             _lastLogged = Sleep.State;
         }
 
-        // Ambient episodic encoding while awake.
+        // Ambient episodic encoding while awake, plus any pending event encode.
+        if (_pendingEvent is { } pending && net.TimeMs >= pending.DueMs)
+        {
+            net.EpisodeStore.Encode(net, "CA3", pending.Tags, pending.Valence, minMeanRateHz: 0.005f);
+            _pendingEvent = null;
+        }
+        if (net.TimeMs < _noveltyBurstUntil) NoveltyBurst(net);
         if (net.TimeMs >= _nextAmbientEncodeMs && Sleep.State == BrainState.Wake)
         {
             net.EpisodeStore.Encode(net, "CA3", ["ambient"], valence: 0f);
@@ -71,14 +81,39 @@ public sealed class IdleController
             _nextCorrelationSample = net.TickIndex + 100;
         }
 
+        Time.Tick(net); // subjective clock: dopamine and noradrenaline set the pace
         net.Tick(); // the idle loop owns time
     }
 
-    /// <summary>Encode an externally tagged event (person entered, sound, reward...).</summary>
-    public Episode? OnEvent(SpikingNetwork net, string[] tags, float valence, float arousal = 0.8f)
+    /// <summary>
+    /// Register an externally tagged event (person entered, sound, reward...). Wakes the
+    /// brain immediately; the episode itself encodes ~250 ms later so sensory activity
+    /// has time to propagate into CA3 (memory forms after experience, not at stimulus
+    /// onset).
+    /// </summary>
+    public void OnEvent(SpikingNetwork net, string[] tags, float valence, float arousal = 0.8f)
     {
-        if (arousal >= 0.5f) Sleep.ForceWake(net);
-        return net.EpisodeStore.Encode(net, "CA3", tags, valence);
+        if (arousal >= 0.5f)
+        {
+            Sleep.ForceWake(net);
+            _noveltyBurstUntil = net.TimeMs + 60f; // novelty projection into CA3
+        }
+        Time.OnEvent();
+        // the first deadline sticks: repeated arousal frames must not push the encode
+        // out past the event they belong to
+        _pendingEvent ??= (tags, valence, net.TimeMs + 250f);
+    }
+
+    private (string[] Tags, float Valence, float DueMs)? _pendingEvent;
+    private float _noveltyBurstUntil = -1f;
+    private readonly int _ca3Start, _ca3Count;
+
+    private void NoveltyBurst(SpikingNetwork net)
+    {
+        // Locus-coeruleus/VTA-style novelty projection into CA3: salient events tag the
+        // hippocampus directly, not only via the cortical pathway.
+        for (int i = _ca3Start; i < _ca3Start + _ca3Count; i += 3)
+            net.InjectCurrent(i, 10f);
     }
 
     private static uint RegionTotal(uint[] counts, RegionInfo r)

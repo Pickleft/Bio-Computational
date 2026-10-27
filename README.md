@@ -59,7 +59,7 @@ Built Oct 27 - Nov 4, 2026 (daily log in DEVLOG.md):
 - [x] Dopamine-gated learning, homeostasis, bit-identical checkpoint/resume
 - [x] Criticality-verified idle state, avalanche metrics, compressed day simulation
 - [x] Episodic memory, replay with consolidation, two-process sleep (NREM slow oscillations, REM)
-- [ ] Event-based senses, predictive coding, wake-on-surprise (this week)
+- [x] Event-based senses, predictive coding, wake-on-surprise (verified end to end with a mock camera; live webcam via --camera)
 - [ ] Global workspace ignition, PCI, self-model, feelings, autonomous actions
 - [ ] Meta model cascade: SAM 3.1 segmentation, Muse Voice Transcribe, Muse Spark monologue, Muse Image dreams, Muse Wonder as an autonomous research agent
 - [ ] Live dashboard: raster, transmitter bars, mood circumplex, ignition feed, monologue, dreams

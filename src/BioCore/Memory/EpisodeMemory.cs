@@ -30,8 +30,11 @@ public sealed class EpisodeMemory
     public IReadOnlyList<Episode> Episodes => _episodes;
     public int MaxEpisodes { get; set; } = 500;
 
-    /// <summary>Snapshot-driven encode: rate is measured between snapshots of cumulative counters.</summary>
-    public Episode? Encode(SpikingNetwork net, string regionName, string[] tags, float valence)
+    /// <summary>Snapshot-driven encode: rate is measured between snapshots of cumulative counters.
+    /// <paramref name="minMeanRateHz"/> gates against storing pure noise; event encodes pass a
+    /// lower gate than ambient ones because event salience justifies a sparse code.</summary>
+    public Episode? Encode(SpikingNetwork net, string regionName, string[] tags, float valence,
+        float minMeanRateHz = 0.05f)
     {
         int region = -1;
         for (int i = 0; i < net.Regions.Count; i++)
@@ -57,7 +60,7 @@ public sealed class EpisodeMemory
         float meanRate = 0f;
         for (int i = 0; i < count; i++) meanRate += rates[i].Rate;
         meanRate /= count;
-        if (meanRate < 0.05f) return null; // nothing meaningful happening; do not store noise
+        if (meanRate < minMeanRateHz) return null; // nothing meaningful happening; do not store noise
 
         var code = new int[Math.Min(CodeSize, count)];
         for (int i = 0; i < code.Length; i++) code[i] = rates[i].Neuron;

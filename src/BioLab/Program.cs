@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using BioComp.Core.Abstractions;
 using BioComp.Core.Cognition;
 using BioComp.Core.Network;
 using BioComp.Core.Neuromodulators;
+using BioComp.Core.Senses;
 using BioComp.Core.Sleep;
 
 // BioLab - headless experiment CLI. Commands grow with milestones (docs/plan/RUNBOOK.md).
@@ -13,6 +15,61 @@ switch (cmd)
     {
         double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
         RunAndReport(new SpikingNetwork(BrainConfig.Default()), seconds, "resting");
+        return 0;
+    }
+    case "surprise":
+    {
+        // Wake-on-surprise demo: the brain lives in a quiet room (mock or real camera),
+        // falls asleep on its own, and must wake unprompted when someone enters.
+        bool liveCamera = args.Contains("--camera");
+        double seconds = args.FirstOrDefault(a => a.EndsWith("s") && a != "resting") is string s && double.TryParse(s.TrimEnd('s'), out var v) ? v : 60;
+
+        var net = new SpikingNetwork(BrainConfig.Default(seed: 61));
+        var idle = new IdleController(net);
+        idle.Sleep.DayLengthMs = 30_000;
+        var encoder = new EventVisionEncoder(64, 64);
+        var salience = new SalienceMonitor();
+        var retina = net.Regions.First(r => r.Name == "Retina");
+
+        IFrameSource camera;
+        if (liveCamera)
+        {
+            try { camera = new BioComp.Senses.OpenCvCameraSource(); Console.WriteLine("camera: live"); }
+            catch (Exception ex) { Console.WriteLine($"camera unavailable ({ex.Message}); using mock"); camera = new MockFrameSource(62, personAtMs: 100_000); }
+        }
+        else camera = new MockFrameSource(62, personAtMs: 100_000);
+        using var cam = camera;
+
+        long personAt = (long)(seconds * 1000 * 0.55); // person enters past the halfway point
+        var sw = Stopwatch.StartNew();
+        int frameCount = 0;
+        for (long t = 0; t < (long)(seconds * 1000); t++)
+        {
+            if (camera is MockFrameSource mock)
+            {
+                mock.Advance(1);
+                if (t == personAt) mock.TriggerPerson();
+            }
+            if (camera.TryReadNext(out var frame))
+            {
+                frameCount++;
+                var events = encoder.Process(frame);
+                encoder.Inject(net, retina.Start, retina.Count, events);
+                salience.OnVisionFrame(net, encoder.ChangeEnergyLastFrame);
+                if (salience.SurpriseEvents > 0 && salience.ExternalArousal > 0.5f)
+                    idle.OnEvent(net, [salience.SurpriseLog[^1].Tag], 0.2f, salience.ExternalArousal);
+            }
+            idle.Tick(net, salience.ExternalArousal);
+            if (t > 0 && t % 5_000 == 0)
+                Console.WriteLine($"t={t / 1000.0:F0}s state={idle.Sleep.State} novelty={salience.VisionModel.Novelty:F2} " +
+                                  $"na={net.Modulators.Get(NeuromodulatorKind.Noradrenaline):F2} " +
+                                  $"episodes={net.EpisodeStore.Episodes.Count} surprises={salience.SurpriseEvents}");
+        }
+        sw.Stop();
+        Console.WriteLine($"[surprise] sim_s={seconds} wall_s={sw.Elapsed.TotalSeconds:F1} frames={frameCount} " +
+                          $"states={string.Join(">", idle.Sleep.Transitions.Select(tr => tr.State))}");
+        Console.WriteLine($"surprises={salience.SurpriseEvents} ({string.Join(", ", salience.SurpriseLog.Select(x => x.Tag + "@" + (x.TimeMs / 1000) + "s"))}) " +
+                          $"episodes={net.EpisodeStore.Episodes.Count}");
         return 0;
     }
     case "day":
@@ -70,9 +127,10 @@ switch (cmd)
     default:
         Console.WriteLine("""
             BioLab commands:
-              resting <sec>   run the default brain headless, report rates + trajectory hash
-              tune <sec>      sweep noise x gaba gain, report rate/branching/avalanches
-              day <sec>       compressed full day: wake, episodes, sleep with replay, wake
+              resting <sec>       run the default brain headless, report rates + trajectory hash
+              tune <sec>          sweep noise x gaba gain, report rate/branching/avalanches
+              day <sec>           compressed full day: wake, episodes, sleep with replay, wake
+              surprise <sec>      quiet room, sleep, then wake-on-surprise (add --camera for a live webcam)
             """);
         return cmd == "help" ? 0 : 1;
 }

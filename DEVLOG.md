@@ -19,6 +19,17 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (night) - subjective time, senses, wake-on-surprise
+
+- Subjective time: internal clock whose rate rises with dopamine and noradrenaline (Treisman 1963; Meck 1996) plus a log-spaced time-cell population giving a temporal-context code that resets on salient events (Howard and Kahana 2002; Kraus et al. 2013). Wired into the idle loop; the feelings milestone consumes it for boredom, impatience and anticipation.
+- Senses, mock-first: deterministic mock camera (static room, walking-in person) and mock microphone (silence, voice-like window) behind IFrameSource/IAudioSource; real wrappers in BioComp.Senses (OpenCvSharp4 webcam, NAudio WaveIn mic, Win32 interoception via GetSystemPowerStatus/GlobalMemoryStatusEx/GetSystemTimes, no extra dependencies).
+- Event vision: temporal-contrast encoder with per-pixel adaptive thresholds (habituation to sensor noise, burst on change), retinotopic injection into the retina region. A static room produces almost no events.
+- Cochlea: 20-band ERB-spaced biquad bank approximating a gammatone filterbank (true kernels are a calibration TODO), positive spectral-flux onsets with adaptive threshold, absolute floor and refractory, energy-based voice-activity hint.
+- Predictive coding: fast/slow EMA predictors with running error statistics per channel; standardized surprise and a slow novelty trace. Habituation and dishabituation fall out of the statistics.
+- Salience monitor: sustained surprise releases noradrenaline and dopamine and reports external arousal; the sleep controller holds wake while arousal is high. Wake-on-surprise verified end to end with the mock camera: brain asleep in a quiet room, person enters, noradrenaline rises, brain wakes with no command, a "person"-tagged episode is stored (novelty burst into CA3, locus-coeruleus-style), and it dozes again once the room is static. `biolab surprise 45s` demonstrates it; `--camera` switches to the real webcam.
+- Bug hunt worth recording: a first-frame temporal-contrast artifact poisoned the error statistics; an int.MaxValue refractory counter overflowed negative; a ulong arithmetic wrap made the mock "silence" full-scale noise; repeated event frames kept pushing the delayed encode deadline past the event. All fixed and covered by tests.
+- Tests: 50/50 green (added time sense, event vision burst/habituation, cochlea silence/voice/band-peak, predictive habituation, wake-on-surprise integration).
+
 ## 2026-10-27 (late) - episodic memory, replay, sleep, idle loop
 
 - Episodic memory: sparse-code snapshots of CA3 activity (top-rate winner set), tagged, valenced, with neuromodulator context; recall ranks by tag overlap, recency and valence; jsonl persistence. Ambient encoding every 30 s of wake plus explicit event encoding.

@@ -21,11 +21,11 @@
 - T2.6 Boredom/novelty drive; slow mood drift (needs senses, moved to workspace milestone)
 
 ## WS3 Senses (Oct 30)
-- T3.1 Webcam capture (OpenCvSharp) + event-vision encoder + fovea/periphery
-- T3.2 Mic capture (NAudio) + gammatone bank + onset + local VAD
-- T3.3 Interoception: battery (GetSystemPowerStatus), CPU/RAM, thermal best-effort
-- T3.4 Predictive coding + novelty/habituation/dishabituation
-- T3.5 Thalamic gate + arousal; wake-on-surprise (mock segmenter)
+- T3.1 [x]  Webcam capture (OpenCvSharp) + event-vision encoder (uniform retinotopy; fovea weighting pending)
+- T3.2 [x]  Mic capture (NAudio) + ERB bandpass cochlea (gammatone-inspired) + onset + local VAD
+- T3.3 [x]  Interoception: battery, RAM, CPU load via Win32 P/Invoke (thermal best-effort pending)
+- T3.4 [x]  Predictive coding + novelty/habituation/dishabituation
+- T3.5 [x]  Salience monitor (thalamic-gate precursor) + wake-on-surprise with episode tagging
 
 ## WS4 Cognition (Oct 31)
 - T4.1 GWS salience/coalition/ignition/broadcast + ignition log
@@ -34,6 +34,7 @@
 - T4.4 Feelings (circumplex + named states) + narrative builder
 - T4.5 Action portfolio + social inhibition + quiet hours + TTS output
 - T4.6 Recall query over episodes
+- T4.7 [x]  Subjective time: dopamine/noradrenaline-modulated clock + time cells (feelings consume it in T4.4)
 
 ## WS5 Meta integration (Nov 1)
 - T5.1 Abstractions + mocks (segmenter/transcriber/monologue/interpreter/imager/agent) + CostGovernor + logging
