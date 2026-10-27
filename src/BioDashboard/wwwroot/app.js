@@ -60,12 +60,16 @@ function render(s) {
   $("meta-badge").textContent = s.MetaLive ? "live" : "mock";
 
   drawRegionGraph(s);
+  drawConsciousness(s);
+  drawJourney(s);
   drawSpectrogram(s);
   drawCircumplex(s);
   drawSleep(s);
   drawMods(s);
   drawDreams(s);
   drawChat(s);
+
+  $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
 
   setFeed($("plain"), s.PlainThoughts);
   setFeed($("monologue"), s.Monologues);
@@ -146,6 +150,122 @@ function drawRegionGraph(s) {
     ctx.fillStyle = "#5a6474";
     ctx.fillText((rate * 1000).toFixed(0) + "/s", x + 14, y + 14);
   }
+}
+
+// ---- consciousness gauge: a single dramatic dial ----
+function drawConsciousness(s) {
+  const c = $("consciousness");
+  const f = fitCanvas(c);
+  if (!f) return;
+  const { ctx, w, h } = f;
+  ctx.fillStyle = "#0d1017";
+  ctx.fillRect(0, 0, w, h);
+
+  const score = s.Consciousness || 0;
+  const cx = w / 2, cy = h * 0.42, r = Math.min(w, h) * 0.32;
+
+  // arc background (track)
+  ctx.strokeStyle = "#1c222e";
+  ctx.lineWidth = 12;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 2.25);
+  ctx.stroke();
+
+  // arc fill (score)
+  const frac = Math.PI * 1.5 * score;
+  const color = score > 0.5 ? "#3ddbb8" : score > 0.25 ? "#f0b45c" : "#5a6474";
+  const grad = ctx.createLinearGradient(cx - r, 0, cx + r, 0);
+  grad.addColorStop(0, color + "44");
+  grad.addColorStop(1, color);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 0.75 + frac);
+  ctx.stroke();
+
+  // score text
+  ctx.fillStyle = color;
+  ctx.font = `700 ${Math.round(r * 0.5)}px ${UI}`;
+  ctx.textAlign = "center";
+  ctx.fillText((score * 100).toFixed(0), cx, cy + r * 0.15);
+  ctx.fillStyle = "#5a6474";
+  ctx.font = `500 10px ${MONO}`;
+  ctx.fillText("consciousness", cx, cy + r * 0.35);
+  ctx.textAlign = "left";
+}
+
+// ---- emotional journey: valence/arousal flowing through time ----
+function drawJourney(s) {
+  const c = $("journey");
+  const f = fitCanvas(c);
+  if (!f) return;
+  const { ctx, w, h } = f;
+  ctx.fillStyle = "#0d1017";
+  ctx.fillRect(0, 0, w, h);
+
+  const journey = s.FeelingJourney || [];
+  if (journey.length < 2) return;
+
+  const tMin = journey[0][0], tMax = journey[journey.length - 1][0];
+  const timeSpan = Math.max(1, tMax - tMin);
+  const midY = h / 2;
+
+  // zero lines
+  ctx.strokeStyle = "#1c222e";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 4]);
+  ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(w, midY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // valence ribbon (positive above, negative below)
+  ctx.beginPath();
+  ctx.moveTo(0, midY);
+  for (const [t, valence] of journey) {
+    const x = ((t - tMin) / timeSpan) * w;
+    const y = midY - valence * midY * 0.8;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(w, midY);
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(61, 219, 184, 0.25)");
+  grad.addColorStop(0.5, "rgba(0, 0, 0, 0)");
+  grad.addColorStop(1, "rgba(240, 112, 128, 0.25)");
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // valence line
+  ctx.beginPath();
+  for (let i = 0; i < journey.length; i++) {
+    const [t, valence] = journey[i];
+    const x = ((t - tMin) / timeSpan) * w;
+    const y = midY - valence * midY * 0.8;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "#3ddbb8";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // arousal dots (size = arousal intensity)
+  for (let i = 0; i < journey.length; i += 3) {
+    const [t, valence, arousal] = journey[i];
+    const x = ((t - tMin) / timeSpan) * w;
+    const y = midY - valence * midY * 0.8;
+    const r = 1 + arousal * 3;
+    ctx.fillStyle = `rgba(240, 180, 92, ${0.3 + arousal * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // labels
+  ctx.font = `500 9px ${MONO}`;
+  ctx.fillStyle = "#5a6474";
+  ctx.fillText("positive", 6, 12);
+  ctx.fillText("negative", 6, h - 6);
+  ctx.fillText(`last ${timeSpan.toFixed(0)}s`, w - 50, h - 6);
 }
 
 // ---- EEG spectrogram ----

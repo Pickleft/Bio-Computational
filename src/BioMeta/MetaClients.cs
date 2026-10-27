@@ -29,8 +29,9 @@ public sealed class MetaClients : ILanguageModel, ISegmenter, ITranscriber, IIma
 
     public async Task<string> CompleteAsync(string system, string user, int maxTokens = 120, CancellationToken ct = default)
     {
-        // reasoning models consume tokens invisibly; generous headroom prevents null content
-        int effectiveTokens = Math.Max(maxTokens * 4, 300);
+        // reasoning models think extensively before speaking; 1000 tokens gives
+        // plenty of room for internal reasoning plus a full conversational reply
+        int effectiveTokens = Math.Max(maxTokens, 1000);
         string? text = await _cost.RunAsync(MetaTier.Chat, async () =>
         {
             using var resp = await _http.PostAsJsonAsync($"{_opts.BaseUrl}/chat/completions", new

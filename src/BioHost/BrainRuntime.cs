@@ -63,6 +63,9 @@ public sealed class BrainSnapshot
     public float LfpSlope { get; set; }
     public float AlphaRatio { get; set; }
     public float[] RegionRates { get; set; } = [];   // Hz per region, last second
+    public float Consciousness { get; set; }          // 0..1 composite awareness gauge
+    public string ConsciousnessLabel { get; set; } = "";
+    public List<float[]> FeelingJourney { get; set; } = []; // [tSec, valence, arousal] history
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -120,6 +123,7 @@ public sealed class BrainRuntime : IDisposable
     private readonly List<string> _dreams = [];
     private readonly List<string> _chat = [];
     private readonly List<string> _plain = [];
+    private readonly List<float[]> _feelingJourney = [];
     private float _lastReplyMs = -1e9f;
     private long _nextAmbientMs = 8_000;
 
@@ -734,6 +738,17 @@ public sealed class BrainRuntime : IDisposable
             _regionLastCounts[r] = (uint)total;
         }
         snap.RegionRates = rates;
+
+        // consciousness gauge and feeling journey
+        float consciousness = BioComp.Core.Metrics.ConsciousnessMeter.Measure(_net, _idle);
+        snap.Consciousness = consciousness;
+        snap.ConsciousnessLabel = BioComp.Core.Metrics.ConsciousnessMeter.Label(consciousness);
+        if (_net.TickIndex % 200 == 0) // sample every 200ms
+        {
+            _feelingJourney.Add([_net.TimeMs / 1000f, snap.Valence, snap.Arousal]);
+            if (_feelingJourney.Count > 300) _feelingJourney.RemoveAt(0); // ~1 minute of history
+        }
+        snap.FeelingJourney = [.. _feelingJourney];
 
         lock (_snapGate) _latest = snap;
     }
