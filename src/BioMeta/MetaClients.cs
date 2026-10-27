@@ -29,28 +29,32 @@ public sealed class MetaClients : ILanguageModel, ISegmenter, ITranscriber, IIma
 
     public async Task<string> CompleteAsync(string system, string user, int maxTokens = 120, CancellationToken ct = default)
     {
-        // reasoning models think extensively before speaking; 1000 tokens gives
-        // plenty of room for internal reasoning plus a full conversational reply
-        int effectiveTokens = Math.Max(maxTokens, 1000);
-        string? text = await _cost.RunAsync(MetaTier.Chat, async () =>
+        // Try with the requested budget first; if the model exhausts tokens on
+        // internal reasoning (content = null), retry with double. This handles
+        // short/ambiguous prompts that trigger long reasoning chains.
+        for (int attempt = 0; attempt < 2; attempt++)
         {
-            using var resp = await _http.PostAsJsonAsync($"{_opts.BaseUrl}/chat/completions", new
+            int effectiveTokens = Math.Max(maxTokens, attempt == 0 ? 1000 : 3000);
+            string? text = await _cost.RunAsync(MetaTier.Chat, async () =>
             {
-                model = _opts.SparkModel,
-                messages = new object[]
+                using var resp = await _http.PostAsJsonAsync($"{_opts.BaseUrl}/chat/completions", new
                 {
-                    new { role = "system", content = system },
-                    new { role = "user", content = user },
-                },
-                max_tokens = effectiveTokens,
-            }, ct);
-            resp.EnsureSuccessStatusCode();
-            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message")
-                .GetProperty("content").GetString();
-            return content ?? "(model produced no visible output - try more tokens)";
-        }, t => !string.IsNullOrWhiteSpace(t));
-        return text ?? throw new InvalidOperationException("chat call failed or budget refused");
+                    model = _opts.SparkModel,
+                    messages = new object[]
+                    {
+                        new { role = "system", content = system },
+                        new { role = "user", content = user },
+                    },
+                    max_tokens = effectiveTokens,
+                }, ct);
+                resp.EnsureSuccessStatusCode();
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                return doc.RootElement.GetProperty("choices")[0].GetProperty("message")
+                    .GetProperty("content").GetString();
+            }, t => !string.IsNullOrWhiteSpace(t));
+            if (!string.IsNullOrWhiteSpace(text)) return text!;
+        }
+        throw new InvalidOperationException("model produced no visible output after retry");
     }
 
     // ---- SAM 3.1 segmentation -------------------------------------------------------
