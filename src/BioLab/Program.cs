@@ -156,16 +156,19 @@ switch (cmd)
         var cost = new CostGovernor();
         var clients = new MetaClients(opts, cost);
         Console.WriteLine($"key loaded (prefix {opts.ApiKey![..8]}...), testing chat auth");
+        Console.WriteLine($"budget: TryBook={cost.TryBook(BioComp.Meta.MetaTier.Chat)} spent={cost.SpentTodayUsd}");
         try
         {
             var sw = Stopwatch.StartNew();
             string reply = await clients.CompleteAsync(
-                "Reply with exactly the word OK and nothing else.", "ping", 10);
+                "Reply with exactly the word OK and nothing else.", "ping", 100);
             Console.WriteLine($"chat: OK in {sw.Elapsed.TotalSeconds:F1}s -> \"{reply.Trim()}\"");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"chat FAILED: {ex.Message}`" + (cost.LastError is { } e ? $" (endpoint: {e})`" : "") + (cost.RefusedCalls > 0 ? " [budget refused]" : ""));
+            Console.WriteLine($"chat FAILED: {ex.Message}");
+            Console.WriteLine($"cost.LastError: {cost.LastError}");
+            Console.WriteLine($"cost.Refused: {cost.RefusedCalls}, spent: {cost.SpentTodayUsd}");
             return 1;
         }
 

@@ -29,6 +29,8 @@ public sealed class MetaClients : ILanguageModel, ISegmenter, ITranscriber, IIma
 
     public async Task<string> CompleteAsync(string system, string user, int maxTokens = 120, CancellationToken ct = default)
     {
+        // reasoning models consume tokens invisibly; 2x headroom prevents null content
+        int effectiveTokens = Math.Max(maxTokens * 2, 100);
         string? text = await _cost.RunAsync(MetaTier.Chat, async () =>
         {
             using var resp = await _http.PostAsJsonAsync($"{_opts.BaseUrl}/chat/completions", new
@@ -39,12 +41,13 @@ public sealed class MetaClients : ILanguageModel, ISegmenter, ITranscriber, IIma
                     new { role = "system", content = system },
                     new { role = "user", content = user },
                 },
-                max_tokens = maxTokens,
+                max_tokens = effectiveTokens,
             }, ct);
             resp.EnsureSuccessStatusCode();
             using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            return doc.RootElement.GetProperty("choices")[0].GetProperty("message")
+            var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message")
                 .GetProperty("content").GetString();
+            return content ?? "(model produced no visible output - try more tokens)";
         }, t => !string.IsNullOrWhiteSpace(t));
         return text ?? throw new InvalidOperationException("chat call failed or budget refused");
     }
