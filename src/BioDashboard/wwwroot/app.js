@@ -37,7 +37,9 @@ function render(s) {
   drawSleep(s);
   drawMods(s);
   drawDreams(s);
+  drawChat(s);
 
+  setFeed($("plain"), s.PlainThoughts);
   setFeed($("thought"), s.Thought);
   setFeed($("monologue"), s.Monologues);
   setFeed($("episodes"), s.RecentEpisodes);
@@ -65,6 +67,43 @@ function drawDreams(s) {
   }
 }
 
+function drawChat(s) {
+  const log = $("chat");
+  const msgs = s.Chat || [];
+  const last = msgs.length ? msgs[msgs.length - 1] : "";
+  if (log.childElementCount === msgs.length && log.lastElementChild &&
+      log.lastElementChild.dataset.raw === last) return;
+  log.innerHTML = "";
+  for (const m of msgs) {
+    const div = document.createElement("div");
+    const you = m.startsWith("You:");
+    div.className = "msg " + (you ? "you" : "brain");
+    div.dataset.raw = m;
+    const who = document.createElement("div");
+    who.className = "who";
+    who.textContent = you ? "you" : "brain";
+    div.appendChild(who);
+    div.appendChild(document.createTextNode(you ? m.slice(5) : m.slice(7)));
+    log.appendChild(div);
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+$("chatform").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const box = $("chatbox");
+  const text = box.value.trim();
+  if (!text) return;
+  box.value = "";
+  try {
+    await fetch("/api/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  } catch (e) { console.warn("say failed", e); }
+});
+
 function setFeed(ul, lines) {
   if (!lines || lines.length === 0) return;
   ul.innerHTML = "";
@@ -89,17 +128,47 @@ function drawRaster(s) {
   const now = Math.max(1, s.SimSeconds);
   const windowSec = 12;
   const t0 = Math.max(0, now - windowSec);
+  const labelW = 46;
+
+  // region bands with labels; neuron fraction maps inside its band
+  const regions = s.Regions || [];
+  const total = regions.reduce((a, r) => a + r[1], 0) || 1;
+  let y0 = 0;
+  ctx.font = "9px Consolas";
+  for (let i = 0; i < regions.length; i++) {
+    const h = (regions[i][1] / total) * c.height;
+    if (i % 2 === 1) {
+      ctx.fillStyle = "#0a0f17";
+      ctx.fillRect(labelW, y0, c.width - labelW, h);
+    }
+    ctx.strokeStyle = "#141c28";
+    ctx.beginPath();
+    ctx.moveTo(labelW, y0);
+    ctx.lineTo(c.width, y0);
+    ctx.stroke();
+    ctx.fillStyle = "#4d5c73";
+    ctx.fillText(regions[i][0].slice(0, 6), 4, y0 + Math.min(h, 10));
+    regions[i]._y0 = y0;
+    regions[i]._h = h;
+    y0 += h;
+  }
+
   for (const p of s.Raster || []) {
     const [tSec, frac, region] = p;
     if (tSec < t0) continue;
-    const x = ((tSec - t0) / windowSec) * c.width;
-    const y = (1 - frac) * c.height;
+    const x = labelW + ((tSec - t0) / windowSec) * (c.width - labelW);
+    const r = regions[region];
+    if (!r || !r._h) continue;
+    // frac is global neuron fraction; re-map into this region's band
+    const before = regions.slice(0, region).reduce((a, q) => a + q[1], 0);
+    const inBand = (frac * total - before) / r[1];
+    const yy = r._y0 + (1 - Math.min(0.999, Math.max(0, inBand))) * r._h;
     ctx.fillStyle = regionColors[region % regionColors.length];
-    ctx.fillRect(x, y, 1.6, 1.6);
+    ctx.fillRect(x, yy, 1.4, 1.4);
   }
   ctx.fillStyle = "#33445c";
   ctx.font = "10px Consolas";
-  ctx.fillText("last " + windowSec + "s   |   " + s.Raster.length + " spikes", 8, 12);
+  ctx.fillText("last " + windowSec + "s   |   " + (s.Raster || []).length + " spikes", labelW + 8, 12);
 }
 
 function drawCircumplex(s) {

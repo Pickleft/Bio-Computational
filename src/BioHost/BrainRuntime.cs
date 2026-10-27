@@ -11,15 +11,17 @@ namespace BioComp.Host;
 
 public sealed class BrainRuntimeConfig
 {
-    public bool LiveCamera { get; init; }
-    public bool LiveMic { get; init; }
+    /// <summary>null = auto: use the real device when present, fall back to the mock.</summary>
+    public bool? LiveCamera { get; init; }
+    public bool? LiveMic { get; init; }
     public bool LiveMeta { get; init; }
     public bool DemoMode { get; init; }
     public ulong Seed { get; init; } = 42;
+
     public static BrainRuntimeConfig Parse(string[] args) => new()
     {
-        LiveCamera = args.Contains("--camera"),
-        LiveMic = args.Contains("--mic"),
+        LiveCamera = args.Contains("--mock-cam") ? false : args.Contains("--camera") ? true : null,
+        LiveMic = args.Contains("--mock-mic") ? false : args.Contains("--mic") ? true : null,
         LiveMeta = args.Contains("--live-meta"),
         DemoMode = args.Contains("--demo"),
         Seed = ulong.TryParse(args.FirstOrDefault(a => a.StartsWith("--seed="))?["--seed=".Length..], out var s) ? s : 42,
@@ -53,6 +55,9 @@ public sealed class BrainSnapshot
     public bool MetaLive { get; set; }
     public string LastMonologue { get; set; } = "";
     public List<string> Dreams { get; set; } = [];
+    public List<string> PlainThoughts { get; set; } = [];
+    public List<string> Chat { get; set; } = [];
+    public List<object[]> Regions { get; set; } = [];
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -74,8 +79,8 @@ public sealed class BrainRuntime : IDisposable
     private readonly SalienceMonitor _salience;
     private readonly EventVisionEncoder _vision;
     private readonly Cochlea _cochlea;
-    private readonly IFrameSource _camera;
-    private readonly IAudioSource _mic;
+    private readonly IFrameSource _camera = null!;
+    private readonly IAudioSource _mic = null!;
     private readonly IInteroceptionSource _body;
     private readonly ILanguageModel _lm;
     private readonly ITranscriber _transcriber;
@@ -104,6 +109,10 @@ public sealed class BrainRuntime : IDisposable
     private long _lastDemoCycle = -1;
     private volatile bool _dreamBusy;
     private readonly List<string> _dreams = [];
+    private readonly List<string> _chat = [];
+    private readonly List<string> _plain = [];
+    private float _lastReplyMs = -1e9f;
+    private (bool Cam, bool Mic) _devicesLive;
     private int _lastIgnition, _lastSurprise, _lastReplayCount;
     private BrainState _lastSleepState;
     private double _simSecondsAtSnapshot;
@@ -128,20 +137,25 @@ public sealed class BrainRuntime : IDisposable
         var a1 = _net.Regions.First(r => r.Name == "A1");
         (_a1Start, _a1Count) = (a1.Start, a1.Count);
 
-        // senses: live where available, deterministic mocks otherwise
-        if (cfg.LiveCamera)
+        // senses: real devices when present (auto by default), deterministic mocks otherwise
+        bool camLive = false;
+        if (_cfg.LiveCamera != false)
         {
-            try { _camera = new BioComp.Senses.OpenCvCameraSource(); }
-            catch (Exception ex) { Note($"camera unavailable ({ex.Message}); using mock"); _camera = _mockCamera = new MockFrameSource(62, personAtMs: 100_000); }
+            try { _camera = new BioComp.Senses.OpenCvCameraSource(); camLive = true; }
+            catch (Exception ex) { Note($"camera unavailable ({ex.Message}); using mock"); }
         }
-        else _camera = _mockCamera = new MockFrameSource(62, personAtMs: 100_000);
+        if (!camLive)
+            _camera = _mockCamera = new MockFrameSource(62, personAtMs: 100_000);
 
-        if (cfg.LiveMic)
+        bool micLive = false;
+        if (_cfg.LiveMic != false)
         {
-            try { _mic = new BioComp.Senses.NAudioMicSource(); }
-            catch (Exception ex) { Note($"microphone unavailable ({ex.Message}); using mock"); _mic = _mockMic = new MockAudioSource(63, voiceAtMs: 100_000); }
+            try { _mic = new BioComp.Senses.NAudioMicSource(); micLive = true; }
+            catch (Exception ex) { Note($"microphone unavailable ({ex.Message}); using mock"); }
         }
-        else _mic = _mockMic = new MockAudioSource(63, voiceAtMs: 100_000);
+        if (!micLive)
+            _mic = _mockMic = new MockAudioSource(63, voiceAtMs: 100_000);
+        _devicesLive = (camLive, micLive);
 
         _body = OperatingSystem.IsWindows() && !cfg.DemoMode
             ? new BioComp.Senses.WindowsInteroception()
@@ -439,7 +453,51 @@ public sealed class BrainRuntime : IDisposable
         {
             _thought.Add($"[{_net.TimeMs / 1000:F1}s] {line}");
             if (_thought.Count > 60) _thought.RemoveAt(0);
+            string plain = ThoughtNarrator.Narrate(line, _idle.Feelings.Last);
+            if (plain.Length > 0)
+            {
+                _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
+                if (_plain.Count > 60) _plain.RemoveAt(0);
+            }
         }
+    }
+
+    /// <summary>A human typed into the chat box: treat as direct speech to the brain.</summary>
+    public void HumanSaid(string text)
+    {
+        text = text.Trim();
+        if (text.Length == 0) return;
+        if (text.Length > 200) text = text[..200];
+        lock (_snapGate) _chat.Add($"You: {text}");
+        Note($"HEARD \"{text}\" (typed)");
+        _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
+        _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
+        _ = ReplyAsync(text);
+    }
+
+    private async Task ReplyAsync(string userText)
+    {
+        if (_net.TimeMs - _lastReplyMs < 3_000) return; // small guard, humans deserve answers
+        _lastReplyMs = _net.TimeMs;
+        try
+        {
+            var feeling = _idle.Feelings.Last;
+            string system =
+                "You are the inner voice of a small artificial brain. A person is talking to you directly. " +
+                "Answer them in one warm, short sentence, first person, using ONLY your own state and memories. " +
+                "Plain language, no lists.";
+            string user =
+                $"they said: \"{userText}\"\n" +
+                $"my state: feeling={feeling.Name}, sleep={_idle.Sleep.State}, " +
+                $"subjective idle {_idle.Time.SubjectiveSinceEventMs / 60_000.0:F1} min\n" +
+                $"my recent episodes: {_idle.AnswerWhatHappened(_net, 3).ReplaceLineEndings(" | ")}";
+            string reply = await _lm.CompleteAsync(system, user, 90);
+            lock (_snapGate) _chat.Add($"Brain: {reply}");
+            _monologueLog.Add(reply);
+            if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
+            Note($"REPLY \"{Trunc(reply, 90)}\"");
+        }
+        catch (Exception ex) { Note($"reply failed: {ex.Message}"); }
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
@@ -486,11 +544,14 @@ public sealed class BrainRuntime : IDisposable
             Surprises = _salience.SurpriseEvents,
             Replays = _idle.Replay.ReplayCount,
             Episodes = _net.EpisodeStore.Episodes.Count,
-            CameraLive = _mockCamera is null,
-            MicLive = _mockMic is null,
+            CameraLive = _devicesLive.Cam,
+            MicLive = _devicesLive.Mic,
             MetaLive = MetaLive,
             LastMonologue = _monologueLog.Count > 0 ? _monologueLog[^1] : "",
             Dreams = [.. _dreams],
+            PlainThoughts = [.. _plain],
+            Chat = [.. _chat.TakeLast(20)],
+            Regions = [.. _net.Regions.Select(r => new object[] { r.Name, r.Count })],
             Thought = [.. _thought],
             Monologues = [.. _monologueLog.TakeLast(8)],
             RecentEpisodes = [.. _net.EpisodeStore.Episodes.TakeLast(8)

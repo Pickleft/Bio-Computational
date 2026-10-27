@@ -42,7 +42,12 @@
   </section>
 
   <section class="panel wide tall">
-    <h2>thought process</h2>
+    <h2>thoughts (plain english)</h2>
+    <ul id="plain" class="feed plain"></ul>
+  </section>
+
+  <section class="panel wide tall">
+    <h2>thought process (raw events)</h2>
     <ul id="thought" class="feed"></ul>
   </section>
 
@@ -68,6 +73,15 @@
   <section class="panel">
     <h2>episodes</h2>
     <ul id="episodes" class="feed small"></ul>
+  </section>
+
+  <section class="panel wide">
+    <h2>talk to it</h2>
+    <div id="chat" class="chatlog"></div>
+    <form id="chatform">
+      <input id="chatbox" placeholder="say something to the brain..." autocomplete="off" maxlength="200">
+      <button type="submit">say</button>
+    </form>
   </section>
 </main>
 

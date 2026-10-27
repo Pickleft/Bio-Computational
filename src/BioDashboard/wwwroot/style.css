@@ -75,15 +75,30 @@ canvas { width: 100%; background: #070a10; border-radius: 4px; }
 #circumplex-wrap { display: flex; gap: 10px; align-items: center; }
 #feeling-narrative { flex: 1; color: var(--text); line-height: 1.5; font-size: 12px; }
 
-#mods .mod { margin: 6px 0; }
-#mods .mod .label { display: flex; justify-content: space-between; }
-#mods .bar { height: 8px; background: #101826; border-radius: 4px; overflow: hidden; }
-#mods .bar i { display: block; height: 100%; border-radius: 4px; }
+#mods .mod { margin: 8px 0; }
+#mods .mod .label { display: flex; justify-content: space-between; margin-bottom: 3px; }
+#mods .bar { height: 12px; background: #101826; border-radius: 6px; overflow: hidden; }
+#mods .bar i { display: block; height: 100%; border-radius: 6px; min-width: 4px; }
 
 .feed { list-style: none; overflow-y: auto; max-height: 210px; }
 .feed li { padding: 3px 0; border-bottom: 1px solid #10161f; line-height: 1.45; }
 .feed.small { font-size: 12px; }
 .feed .t { color: var(--dim); margin-right: 6px; }
+.feed.plain li { font-size: 14px; color: #dbe7f5; font-style: italic; }
+
+.chatlog { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; margin-bottom: 8px; }
+.chatlog .msg { max-width: 78%; padding: 6px 10px; border-radius: 10px; line-height: 1.4; }
+.chatlog .you { align-self: flex-end; background: #14202f; border: 1px solid var(--line); }
+.chatlog .brain { align-self: flex-start; background: #0e2420; border: 1px solid #1d3a33; color: #b8ece0; }
+.chatlog .who { font-size: 10px; color: var(--dim); margin-bottom: 2px; }
+
+#chatform { display: flex; gap: 8px; }
+#chatbox { flex: 1; background: #101826; border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 8px 12px; font-family: inherit; font-size: 13px; }
+#chatbox:focus { outline: 1px solid var(--accent); }
+#chatform button { background: #14202f; color: var(--accent); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 16px; font-family: inherit; cursor: pointer; }
+#chatform button:hover { background: #1a2a3d; }
 
 .mini { margin-top: 8px; color: var(--dim); display: grid; gap: 4px; }
 

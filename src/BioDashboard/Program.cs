@@ -4,7 +4,7 @@ using BioComp.Host;
 
 // The dashboard process: runs the brain daemon in-proc and serves the live UI.
 //   biodashboard [--camera] [--mic] [--live-meta] [--demo] [--voice] [--seed=N] [--urls=http://localhost:8080]
-// Same flags as the headless host; --demo paces the day for recording.
+// Camera and microphone auto-detect by default; --mock-cam/--mock-mic force the mock world.
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
@@ -27,6 +27,15 @@ runtime.Start();
 Console.WriteLine($"brain running (meta live={runtime.MetaLive}); UI on the bound URL");
 
 app.MapGet("/api/snapshot", () => Results.Json(runtime.Snapshot()));
+
+app.MapPost("/api/say", async (HttpContext ctx) =>
+{
+    var body = await ctx.Request.ReadFromJsonAsync<SayRequest>();
+    if (body is null || string.IsNullOrWhiteSpace(body.Text))
+        return Results.BadRequest(new { error = "text required" });
+    runtime.HumanSaid(body.Text);
+    return Results.Ok(new { ok = true });
+});
 
 app.UseWebSockets();
 app.Map("/ws", async context =>
@@ -56,3 +65,5 @@ finally
 {
     runtime.Dispose();
 }
+
+record SayRequest(string Text);

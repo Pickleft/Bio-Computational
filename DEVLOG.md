@@ -19,6 +19,14 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (late) - real senses by default, plain thoughts, chat, readable viz
+
+- Real stimuli by default: camera and microphone auto-detect (mock only as fallback, or forced with --mock-cam/--mock-mic). The brain now runs on the actual room whenever devices exist.
+- Plain-English thoughts (ThoughtNarrator): every internal event also renders as a first-person sentence (ignitions, sightings, heard speech, replay, sleep, dreams, actions), shown in its own dashboard panel above the raw event feed.
+- Chat: /api/say treats typed text as direct speech - wake, episode, attention - and the brain replies in one sentence from its own state and memories (mock interpreter keyless; Spark with a key). Verified live: "hello, are you there?" woke it from NREM and it answered.
+- Visualization fixes: spike raster now renders region bands with labels (structure instead of dot noise), neuromodulator bars are taller with a minimum width so baseline values read as bars, not dots.
+- Tests: 70/70 green.
+
 ## 2026-10-27 (final block of day one) - wonder agent, docs, privacy indicator
 
 - Wonder research agent: JSON tool-calling loop (criticality sweep, oddball, discounting, report) against the language tier. With a key the model plans the protocol and writes its own summary; keyless the identical tool battery runs in a fixed order with a template narrative, sharing tools, files and cost accounting. First run caught a real methodological bug: the branching-ratio estimator reads ~1 both at criticality and in the runaway endless-avalanche regime, so the sweep now excludes runaway via max-avalanche fraction and correctly reports noise 3 mV as the bounded critical point. Report: reports/report-*.md with figures.

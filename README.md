@@ -58,13 +58,13 @@ dotnet run --project src/BioLab -- resting 30s     # spontaneous activity at cri
 dotnet run --project src/BioDashboard -- --urls=http://localhost:8080 --demo
 ```
 
-Open http://localhost:8080 (append `?demo=1` for the large-font recording mode). Flags:
-`--demo` compressed day plus a scripted mock world with a visitor; `--camera`/`--mic`
-real webcam and microphone (falls back to mocks when absent); `--voice` speaks through
-Windows TTS; `--live-meta` uses the real Meta models when a key is present. The
-dashboard shows the spike raster, feeling circumplex, neuromodulators, the
-thought-process feed, inner voice, episodes, sleep timeline and dreams, and which
-tiers are live versus mocked.
+Open http://localhost:8080 (append `?demo=1` for the large-font recording mode). The
+webcam and microphone are used automatically when present (the dashboard shows a REC
+indicator with a live camera and which tiers are live); `--mock-cam`/`--mock-mic` force
+the deterministic mock world, `--demo` compresses the day and schedules a visitor,
+`--voice` speaks through Windows TTS, `--live-meta` uses the real Meta models when a
+key is present. You can talk to it in the chat box: typing counts as direct speech -
+it wakes, stores the exchange as an episode, and answers from its own state.
 
 **Headless experiments:**
 
