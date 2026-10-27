@@ -509,6 +509,8 @@ public sealed class BrainRuntime : IDisposable
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\"{(tr.FromLiveApi ? " (voice api)" : " (mock)")}");
+                // recognize the speaker by their speech pattern
+                ProcessVisitor(IdentifyVisitor("speaker", tr.Transcript));
                 _idle.OnEvent(_net, ["voice", Trunc(tr.Transcript, 40)], 0.3f, 0.8f);
                 _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
             }
@@ -526,6 +528,7 @@ public sealed class BrainRuntime : IDisposable
                 var b = seg.Boxes[0];
                 string kind = (b.Y2 - b.Y1) > (b.X2 - b.X1) * 1.2 ? "person" : "object";
                 Note($"SIGHT {kind} {(seg.FromLiveApi ? "(sam 3.1)" : "(mock)")} box {b.X1},{b.Y1}..{b.X2},{b.Y2}");
+                if (kind == "person") ProcessVisitor($"visual:{b.X1 / 50}:{b.Y1 / 50}"); // spatial identity
                 _idle.OnEvent(_net, [kind], 0.2f, 0.7f);
             }
         }
@@ -580,6 +583,42 @@ public sealed class BrainRuntime : IDisposable
 
     public sealed record MapData(string[] Names, float[][] Anchors, float[][] Edges);
 
+    /// <summary>
+    /// Person recognition: track unique visitors by their visual/audio signature.
+    /// Returning visitors get a warmer greeting (higher OXT) and faster processing
+    /// (the brain recognizes them). Strangers get a stronger surprise response.
+    /// </summary>
+    private readonly Dictionary<string, int> _knownVisitors = [];
+    private string _lastVisitorId = "";
+
+    private string IdentifyVisitor(string tag, string transcript = "")
+    {
+        // use the transcript words as a crude identity (each person has characteristic speech)
+        return string.IsNullOrWhiteSpace(transcript) ? tag : $"{tag}:{transcript[..Math.Min(20, transcript.Length)]}";
+    }
+
+    private void ProcessVisitor(string visitorId)
+    {
+        if (_knownVisitors.TryGetValue(visitorId, out int visits))
+        {
+            _knownVisitors[visitorId] = visits + 1;
+            // RECOGNIZED: warm response (more OXT, less surprise)
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f);
+            Note($"RECOGNIZED {visitorId} (visit #{visits + 1}) — I know them");
+        }
+        else
+        {
+            _knownVisitors[visitorId] = 1;
+            // STRANGER: strong surprise response
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.5f);
+            Note($"NEW PERSON {visitorId} — first meeting");
+        }
+        _lastVisitorId = visitorId;
+    }
+    /// The DA tick is small — it's the internal reward of agency, not the full
+    /// novelty pathway (that fires through SalienceMonitor when the stimulation
+    /// produces actual sensory change).</summary>
     /// <summary>Curiosity self-stimulation: the brain pokes itself and feels it.
     /// The DA tick is small — it's the internal reward of agency, not the full
     /// novelty pathway (that fires through SalienceMonitor when the stimulation

@@ -20,6 +20,8 @@ public static class ThoughtNarrator
             "SURPRISE" => $"Something unexpected just happened ({Clean(rest)}) - I snap alert.",
             "SIGHT" when rest.StartsWith("person") => "I can see someone there.",
             "SIGHT" => "I notice something in view.",
+            "RECOGNIZED" => "I recognize them - we've met before. That feels good.",
+            "NEW PERSON" => "Someone new. I don't know them yet.",
             "HEARD" => $"I hear someone say: {Quoted(rest).TrimEnd('.')}.",
             "IGNITION" => IgnitionLine(rest, feeling),
             "REPLAY" => $"A memory comes back: {Clean(rest)}.",

@@ -10,7 +10,17 @@ public sealed class PredictiveModel
 {
     public float FastTauMs { get; set; } = 1_000f;
     public float SlowTauMs { get; set; } = 30_000f;
-    public float NoveltyTauMs { get; set; } = 2_000f; // seconds-scale surprise memory
+    public float NoveltyTauMs { get; set; } = 2_000f;
+
+    /// <summary>
+    /// State-dependent novelty decay: when arousal is high, novelty persists longer
+    /// (the LC-NA system modulates sensory processing depth — engaged brains hold
+    /// curiosity; disengaged brains drop it fast). Call SetEngagement before Observe.
+    /// </summary>
+    public float Engagement { get; set; } = 0f; // 0=disengaged, 1=fully engaged
+
+    private float EffectiveNoveltyTau =>
+        NoveltyTauMs + Engagement * 12_000f; // 2s disengaged → 14s fully engaged
 
     public float Prediction { get; private set; }
     public float SlowContext { get; private set; }
@@ -29,13 +39,15 @@ public sealed class PredictiveModel
     {
         _fastDecay = MathF.Exp(-1f / FastTauMs);
         _slowDecay = MathF.Exp(-1f / SlowTauMs);
-        _noveltyDecay = MathF.Exp(-1f / NoveltyTauMs);
         _varDecay = MathF.Exp(-1f / 5_000f);
     }
 
     /// <summary>Feed one observation at 1 ms cadence; returns the standardized surprise.</summary>
     public float Observe(float x)
     {
+        // recompute novelty decay each call (it depends on engagement level)
+        _noveltyDecay = MathF.Exp(-1f / EffectiveNoveltyTau);
+
         float err = MathF.Abs(x - Prediction);
         ErrorStd = MathF.Sqrt(ErrorStd * ErrorStd * _varDecay + err * err * (1f - _varDecay));
         float surprise = err / MathF.Max(ErrorStd, 1e-4f); // floor guards division, not the estimate

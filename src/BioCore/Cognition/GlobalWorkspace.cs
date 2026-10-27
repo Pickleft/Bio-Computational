@@ -25,6 +25,13 @@ public sealed class GlobalWorkspace
     public float IntegrationTauMs { get; set; } = 100f;
     public int RefractoryMs { get; set; } = 300;
 
+    /// <summary>
+    /// Attention persistence: how much slower the winning module's salience decays
+    /// vs the losers. High engagement = the brain LOCKS ON to the stimulus source
+    /// and keeps processing it (top-down PFC attention). Default 0 = no persistence.
+    /// </summary>
+    public float AttentionPersistence { get; set; } = 0.5f;
+
     public int IgnitionCount { get; private set; }
     public WorkspaceModule? Broadcasting { get; private set; }
     public (float TimeMs, WorkspaceModule Winner, float Salience, string Tag) LastIgnition { get; private set; }
@@ -43,10 +50,22 @@ public sealed class GlobalWorkspace
         float sum = 0;
         for (int i = 0; i < ModuleCount; i++) sum += _integrated[i];
 
+        // find the current leader for attention persistence
+        int leader = 0;
+        for (int i = 1; i < ModuleCount; i++)
+            if (_integrated[i] > _integrated[leader]) leader = i;
+
         for (int i = 0; i < ModuleCount; i++)
         {
             float drive = Salience[i] - CrossInhibition * (sum - _integrated[i]);
-            _integrated[i] += (drive - _integrated[i]) * (1f - decay);
+
+            // attention persistence: the leader integrates more slowly toward zero
+            // (top-down attention holds the focus), challengers decay normally
+            float effectiveDecay = (i == leader && _integrated[i] > 0.3f)
+                ? MathF.Exp(-1f / (IntegrationTauMs * (1f + AttentionPersistence * 3f)))
+                : decay;
+
+            _integrated[i] += (drive - _integrated[i]) * (1f - effectiveDecay);
         }
 
         Broadcasting = net.TimeMs < _broadcastUntil ? Broadcasting : null;

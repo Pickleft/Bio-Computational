@@ -58,13 +58,21 @@ public sealed class SalienceMonitor
 
     /// <summary>
     /// Automatic neuromodulator release from prediction error: the core pathway.
-    /// Surprise → NA (arousal/gain up, Aston-Jones and Cohen 2005).
-    /// Novelty → DA (the brain finds novelty rewarding, Schultz 1997 / Kakade and Dayan 2002).
-    /// Sustained low novelty → DA sinks below baseline (boredom as dopamine underflow).
+    /// Also sets the engagement level on the predictive models so novelty persists
+    /// longer during sustained interaction (state-dependent processing).
     /// </summary>
     private void ReleaseFromSurprise(SpikingNetwork net, float surprise, string tag)
     {
         var mods = net.Modulators;
+
+        // engagement = how activated the brain is right now (NA + novelty)
+        float novelty = (VisionModel.Novelty + AudioModel.Novelty) / 2f;
+        float na = mods.Get(NeuromodulatorKind.Noradrenaline);
+        float engagement = Math.Clamp(na * 1.5f + novelty * 0.5f, 0f, 1f);
+
+        // engagement makes novelty persist longer: engaged brains hold curiosity
+        VisionModel.Engagement = engagement;
+        AudioModel.Engagement = engagement;
 
         // noradrenaline: proportional to surprise magnitude (the LC responds to
         // stimulus intensity, not just binary detection)
@@ -73,27 +81,35 @@ public sealed class SalienceMonitor
             float naAmount = Math.Clamp(surprise * 0.04f, 0.05f, 0.8f);
             mods.Release(NeuromodulatorKind.Noradrenaline, naAmount);
             // surprising events are also rewarding: the brain wants to understand
-            // them (VTA responds to stimulus novelty, not just reward — Schultz 1997;
-            // Kakade and Dayan 2002 "novelty as reward")
+            // them (VTA responds to stimulus novelty — Kakade and Dayan 2002)
             float daAmount = Math.Clamp(surprise * 0.02f, 0.02f, 0.4f);
             mods.Release(NeuromodulatorKind.Dopamine, daAmount);
         }
 
-        // dopamine: novelty is intrinsically rewarding (Kakade and Dayan 2002)
-        float novelty = (VisionModel.Novelty + AudioModel.Novelty) / 2f;
+        // novelty is intrinsically rewarding (sustained: doesn't die in 2s when engaged)
         if (novelty > 0.3f)
             mods.Release(NeuromodulatorKind.Dopamine, novelty * 0.08f);
-        else if (novelty < 0.05f)
+        else if (novelty < 0.05f && engagement < 0.1f)
         {
-            // sustained low novelty: DA sinks below baseline — this is real boredom,
-            // not a timer; it resets the moment anything novel happens
+            // only when truly disengaged: DA sinks below baseline (boredom)
             mods.Release(NeuromodulatorKind.Dopamine, -0.002f);
         }
 
-        // arousal for the workspace: sharp from surprise, slow from novelty
+        // SOCIAL ENGAGEMENT FLOOR: ongoing interaction maintains DA and novelty
+        // (social bonding is intrinsically rewarding — not just novel)
+        if (engagement > 0.3f)
+        {
+            // keep DA at least at baseline during sustained engagement
+            float da = mods.Get(NeuromodulatorKind.Dopamine);
+            if (da < 0.35f)
+                mods.Release(NeuromodulatorKind.Dopamine, 0.05f);
+        }
+
+        // arousal for the workspace: sharp from surprise, sustained from engagement
         Arousal = Math.Clamp(
-            0.7f * Math.Min(surprise / SurpriseThreshold, 1f) +
-            0.3f * Math.Min(novelty, 1f),
+            0.5f * Math.Min(surprise / SurpriseThreshold, 1f) +
+            0.3f * Math.Min(novelty, 1f) +
+            0.2f * engagement,
             0f, 1f);
     }
 
