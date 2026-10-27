@@ -45,7 +45,7 @@
 - T5.6 Section 7 language-feedback flag (default OFF, provenance-logged)
 
 ## WS6 Dreams + Wonder + paradigms (Nov 2)
-- T6.1 Muse Image dreamer (deterministic prompts from episode state) + vision re-entry flag
+- T6.1 [x]  Dream generator: salient-episode prompts (deterministic), Muse Image / mock, REM-gated, with vision re-entry and dashboard gallery
 - T6.2 [x]  Stimulus injection framework (tonotopic tone bursts, rewards) + exports (CSV/SVG)
 - T6.3 Wonder tool API (paradigm/sweep/logs/episodes/plot/report) + auto-report - blocked on a working API key
 - T6.4 Paradigm suite: [x]  MMN/oddball (roving, +12 sigma deviance), [x]  conditioning/extinction (Schultz predictor curve), [x]  delay discounting x serotonin; pending: masking, blink, stroop

@@ -19,6 +19,14 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (night 2, later) - REM dreams
+
+- DreamGenerator: during REM, the most emotionally salient recent episode becomes a dream. The prompt is a deterministic function of episode tags and the current feeling (same memory, same dream); imagery comes from the image tier (Muse Image live, deterministic mock keyless) and lands in dreams/. Rate limited per REM phase.
+- Dream re-entry: the rendered image is decoded, downscaled and pushed back through the event-vision encoder into the retina with a self-generated tag (efference copy window), so the brain sees its own dream - the imagery loop from the architecture doc.
+- Dashboard: dreams panel with the images served at /dreams (and paradigm figures at /exports); runtime artifacts browsable.
+- Verified live: dream-61s-ep1.png rendered from the visitor episode during REM and appeared on the dashboard next to the replays of the same episode.
+- Tests: 68/68 green (dream file written as PNG, prompt deterministic and grounded in episode plus feeling, rate limited).
+
 ## 2026-10-27 (night 2) - psychology paradigms
 
 - Paradigm infrastructure: `biolab paradigm <name>`, seeded runs, CSV plus zero-dependency SVG figures into exports/.

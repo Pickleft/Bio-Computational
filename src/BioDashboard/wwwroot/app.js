@@ -35,10 +35,33 @@ function render(s) {
   drawCircumplex(s);
   drawSleep(s);
   drawMods(s);
+  drawDreams(s);
 
   setFeed($("thought"), s.Thought);
   setFeed($("monologue"), s.Monologues);
   setFeed($("episodes"), s.RecentEpisodes);
+}
+
+function drawDreams(s) {
+  const wrap = $("dreams");
+  const dreams = s.Dreams || [];
+  if (dreams.length === wrap.childElementCount && dreams.length > 0 &&
+      (wrap.lastElementChild && wrap.lastElementChild.title === dreams[dreams.length - 1])) return;
+  wrap.innerHTML = "";
+  for (const d of dreams) {
+    const div = document.createElement("div");
+    if (d.endsWith(".mock.png") || d.includes("mock")) {
+      div.className = "mock";
+      div.textContent = "dream (mock tier)";
+    } else {
+      const img = document.createElement("img");
+      img.src = "/dreams/" + d;
+      img.title = d;
+      div.appendChild(img);
+    }
+    div.title = d;
+    wrap.appendChild(div);
+  }
 }
 
 function setFeed(ul, lines) {

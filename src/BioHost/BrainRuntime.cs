@@ -52,6 +52,7 @@ public sealed class BrainSnapshot
     public bool MicLive { get; set; }
     public bool MetaLive { get; set; }
     public string LastMonologue { get; set; } = "";
+    public List<string> Dreams { get; set; } = [];
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -82,6 +83,7 @@ public sealed class BrainRuntime : IDisposable
     private readonly IImageGenerator _imager;
     private readonly CostGovernor _cost = new() { DailyBudgetUsd = 20f };
     private readonly MonologueGenerator _monologue;
+    private readonly DreamGenerator _dreamer;
     private readonly ISpeechOutput _speech;
     private readonly Thread _thread;
     private readonly Stopwatch _wall = Stopwatch.StartNew();
@@ -100,6 +102,8 @@ public sealed class BrainRuntime : IDisposable
     private bool _wasVoice;
     private long _voiceCooldownUntil;
     private long _lastDemoCycle = -1;
+    private volatile bool _dreamBusy;
+    private readonly List<string> _dreams = [];
     private int _lastIgnition, _lastSurprise, _lastReplayCount;
     private BrainState _lastSleepState;
     private double _simSecondsAtSnapshot;
@@ -165,6 +169,10 @@ public sealed class BrainRuntime : IDisposable
         _monologue = new MonologueGenerator(_lm)
         {
             MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 8 : 120),
+        };
+        _dreamer = new DreamGenerator(_imager)
+        {
+            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 25 : 300),
         };
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
@@ -301,6 +309,10 @@ public sealed class BrainRuntime : IDisposable
                 Note("AWAKE");
         }
 
+        // ---- REM dreams: render the salient episode, show it, and re-enter vision ----
+        if (_idle.Sleep.State == BrainState.REM && !_dreamBusy)
+            _ = DreamAsync();
+
         // ---- actions ----
         if (_net.TickIndex % 250 == 0)
         {
@@ -320,6 +332,47 @@ public sealed class BrainRuntime : IDisposable
             _ = SegmentAsync(seg.Png, seg.Tms);
 
         _simSecondsAtSnapshot = _net.TimeMs / 1000.0;
+    }
+
+    private async Task DreamAsync()
+    {
+        _dreamBusy = true;
+        try
+        {
+            string? file = await _dreamer.MaybeDreamAsync(_net, _idle);
+            if (file is not null)
+            {
+                Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})");
+                _dreams.Add(Path.GetFileName(file));
+                if (_dreams.Count > 12) _dreams.RemoveAt(0);
+                await DreamReentryAsync(file);
+            }
+        }
+        catch (Exception ex) { Note($"dream failed: {ex.Message}"); }
+        finally { _dreamBusy = false; }
+    }
+
+    /// <summary>The dream re-enters the visual field as self-generated imagery.</summary>
+    private async Task DreamReentryAsync(string file)
+    {
+        try
+        {
+            byte[] png = await File.ReadAllBytesAsync(file);
+            using var src = OpenCvSharp.Cv2.ImDecode(png, OpenCvSharp.ImreadModes.Grayscale);
+            if (src.Empty()) return;
+            using var small = new OpenCvSharp.Mat();
+            OpenCvSharp.Cv2.Resize(src, small, new OpenCvSharp.Size(64, 64));
+            var pixels = new byte[64 * 64];
+            System.Runtime.InteropServices.Marshal.Copy(small.Data, pixels, 0, pixels.Length);
+
+            float until = _net.TimeMs + 1_500f;
+            _idle.Self.VisualOutput(until); // this imagery is self-produced
+            var frame = new GrayFrame(pixels, 64, 64);
+            var events = _vision.Process(frame);
+            _vision.Inject(_net, _retinaStart, _retinaCount, events);
+            Note($"DREAM-REENTRY {events.Count} visual events from own imagery");
+        }
+        catch (Exception ex) { Note($"dream re-entry failed: {ex.Message}"); }
     }
 
     private async Task HandleSpeechAsync(float t)
@@ -437,6 +490,7 @@ public sealed class BrainRuntime : IDisposable
             MicLive = _mockMic is null,
             MetaLive = MetaLive,
             LastMonologue = _monologueLog.Count > 0 ? _monologueLog[^1] : "",
+            Dreams = [.. _dreams],
             Thought = [.. _thought],
             Monologues = [.. _monologueLog.TakeLast(8)],
             RecentEpisodes = [.. _net.EpisodeStore.Episodes.TakeLast(8)

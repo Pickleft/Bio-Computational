@@ -10,6 +10,17 @@ var app = builder.Build();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+// runtime artifacts: dream imagery and paradigm figures are browsable
+foreach (var (dir, route) in new[] { ("dreams", "/dreams"), ("exports", "/exports") })
+{
+    string full = Path.GetFullPath(dir);
+    Directory.CreateDirectory(full);
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(full),
+        RequestPath = route,
+    });
+}
 
 var runtime = new BrainRuntime(BrainRuntimeConfig.Parse(args));
 runtime.Start();

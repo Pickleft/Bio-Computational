@@ -87,6 +87,10 @@ canvas { width: 100%; background: #070a10; border-radius: 4px; }
 
 .mini { margin-top: 8px; color: var(--dim); display: grid; gap: 4px; }
 
+.dreamgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-height: 210px; overflow-y: auto; }
+.dreamgrid img { width: 100%; border-radius: 4px; border: 1px solid var(--line); }
+.dreamgrid .mock { display: flex; align-items: center; justify-content: center; height: 60px; color: var(--dim); font-size: 11px; border: 1px dashed var(--line); border-radius: 4px; }
+
 footer {
   padding: 10px 16px;
   color: var(--dim);
