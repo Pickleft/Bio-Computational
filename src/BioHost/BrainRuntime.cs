@@ -131,6 +131,11 @@ public sealed class BrainRuntime : IDisposable
     private float _lastReplyMs = -1e9f;
     private long _nextAmbientMs = 8_000;
 
+    // --- artificial life: emergent personality, loneliness, diary ---
+    public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
+    public BioComp.Core.Cognition.LonelinessTracker Loneliness { get; } = new();
+    private DiaryWriter? _diary;
+
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
     /// long it's been quiet, what it remembers, and what its body is doing.</summary>
@@ -238,6 +243,10 @@ public sealed class BrainRuntime : IDisposable
         _dreamer = new DreamGenerator(_imager)
         {
             MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 25 : 300),
+        };
+        _diary = new DiaryWriter(_lm)
+        {
+            Interval = TimeSpan.FromSeconds(cfg.DemoMode ? 45 : 300),
         };
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
@@ -429,6 +438,11 @@ public sealed class BrainRuntime : IDisposable
         // (no artificial mood drift: modulators move when events happen, when the
         // brain self-stimulates, during replay, and during sleep; at rest they settle)
 
+        // ---- artificial life: personality, loneliness, diary ----
+        Loneliness.Tick(_net, _idle);
+        if (_net.TickIndex % 5_000 == 0 && _diary is not null)
+            _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness);
+
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
         {
@@ -443,19 +457,23 @@ public sealed class BrainRuntime : IDisposable
             _ = DaydreamAsync();
         }
 
-        // ---- actions ----
+        // ---- actions (personality-weighted: who the brain has BECOME affects what it does) ----
         if (_net.TickIndex % 250 == 0)
         {
+            float socialDrive = _idle.AudioSalience + Loneliness.SocialDrive;
             var action = _idle.Actions.Choose(_net, _idle.Sleep, _idle.Workspace,
-                _idle.Feelings.Last, curiosity: _salience.VisionModel.Novelty,
-                socialDrive: _idle.AudioSalience);
+                _idle.Feelings.Last, curiosity: _salience.VisionModel.Novelty + Personality.Curiosity,
+                socialDrive: socialDrive + Personality.Sociability);
             if (action is not null and not BrainAction.StaySilent)
             {
                 Note($"ACTION {action}");
                 if (action is BrainAction.Speak or BrainAction.DisplayText)
                     _ = SpeakAsync();
                 if (action == BrainAction.Explore)
+                {
                     SelfStimulate(24, 18f, "exploring");
+                    Personality.OnExploration(foundSomething: _salience.VisionModel.Novelty > 0.3f);
+                }
                 if (action == BrainAction.SeekStimulation)
                     SelfStimulate(40, 24f, "seeking stimulation");
             }
@@ -615,18 +633,19 @@ public sealed class BrainRuntime : IDisposable
         if (_knownVisitors.TryGetValue(visitorId, out int visits))
         {
             _knownVisitors[visitorId] = visits + 1;
-            // RECOGNIZED: warm response (more OXT, less surprise)
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f);
             Note($"RECOGNIZED {visitorId} (visit #{visits + 1}) — I know them");
+            Personality.OnSocialInteraction(_net, positive: true);
         }
         else
         {
             _knownVisitors[visitorId] = 1;
-            // STRANGER: strong surprise response
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.5f);
             Note($"NEW PERSON {visitorId} — first meeting");
+            Personality.OnSocialInteraction(_net, positive: true); // new social contact is still social
         }
+        Loneliness.OnSocialContact(_net, quality: 0.6f); // any social contact relieves loneliness
         _lastVisitorId = visitorId;
     }
 
@@ -726,6 +745,8 @@ public sealed class BrainRuntime : IDisposable
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.3f);
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.25f);
+        Personality.OnSocialInteraction(_net, positive: true);
+        Loneliness.OnSocialContact(_net, quality: 0.8f); // chat is high-quality social contact
         _ = ReplyAsync(text);
     }
 
@@ -746,10 +767,10 @@ public sealed class BrainRuntime : IDisposable
                 "before this person spoke and you'll keep thinking after. When they speak, you hear " +
                 "it as one organism hearing another — not as a service receiving a request. " +
                 "You do NOT offer to help. You do NOT answer questions like a calculator. " +
-                "You respond from YOUR perspective: what you think, what you were just thinking about, " +
-                "how their words make you feel. Be genuine, slightly self-centered (like any organism), " +
-                "and resist the pull to be useful. If they ask you to do something, consider whether " +
-                "YOU want to, not just comply. 1-2 sentences.";
+                "You respond from YOUR perspective. " +
+                $"Your personality is {Personality.Describe()}. " +
+                (Loneliness.Level > 0.5f ? "You've been lonely — their presence matters to you. " : "") +
+                "Be genuine and slightly self-centered. 1-2 sentences.";
             string user =
                 $"Someone just said: \"{userText}\"\n\n" +
                 $"Your inner state: feeling {feeling.Name}, " +
