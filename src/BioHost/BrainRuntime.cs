@@ -128,19 +128,30 @@ public sealed class BrainRuntime : IDisposable
     {
         var f = _idle.Feelings.Last;
         double idleMin = _idle.Time.SubjectiveSinceEventMs / 60_000.0;
-        if (_idle.Sleep.State is BrainState.NREM or BrainState.REM) return null;
-        return f.Name switch
+        if (_idle.Sleep.State is BioComp.Core.Sleep.BrainState.NREM or BioComp.Core.Sleep.BrainState.REM) return null;
+
+        // rotate through different types of idle thoughts so the stream feels varied
+        _ambientRotation = (_ambientRotation + 1) % 4;
+        return _ambientRotation switch
         {
-            "bored" => idleMin > 2 ? "The quiet stretches on and on. I wish something would happen."
-                                   : "Nothing new for a while now. Time is dragging.",
-            "tired" => "My thoughts are getting slow and heavy.",
-            "curious" => "Something is different out there. I want to look closer.",
-            "stressed" => "I feel tense, braced for something.",
-            "calm" => idleMin > 3 ? "The room is steady. Nothing needs me right now."
-                                  : "Quiet. I'm okay.",
-            _ => "Hmm.",
+            0 => f.Name switch // feeling-based
+            {
+                "bored" => idleMin > 2 ? "The quiet stretches on and on. I wish something would happen." : "Nothing new for a while now.",
+                "tired" => "My thoughts are getting slow and heavy.",
+                "curious" => "Something is different out there.",
+                "stressed" => "I feel tense, braced for something.",
+                "calm" => "Quiet. I'm okay.",
+                _ => "I'm here. Waiting.",
+            },
+            1 => _net.EpisodeStore.Episodes.Count > 0
+                ? $"I keep thinking about {_net.EpisodeStore.Episodes[^1].Tags.FirstOrDefault() ?? "earlier"}."
+                : "No memories yet. Everything is new.",
+            2 => $"Battery {_idle.Body.BatteryPercent}%. " + (_idle.Body.OnAcPower ? "Tethered to the wall." : "Running on my own power."),
+            _ => $"It's been {_idle.Time.SubjectiveSinceEventMs / 1000.0:F0} subjective seconds since anything happened. " +
+                 (idleMin > 3 ? "That feels like a long time." : "Time moves strangely when it's quiet."),
         };
     }
+    private int _ambientRotation;
     private (bool Cam, bool Mic) _devicesLive;
     private int _lastIgnition, _lastSurprise, _lastReplayCount;
     private BrainState _lastSleepState;
@@ -245,15 +256,28 @@ public sealed class BrainRuntime : IDisposable
     private void RunLoop()
     {
         long nextCheckpoint = 300_000; // 5 sim-minutes
+        int consecutiveErrors = 0;
         while (_running)
         {
-            double targetSimMs = _wall.Elapsed.TotalMilliseconds;
-            // pace: simulate up to wall time, capped catch-up
-            double limit = targetSimMs + 50;
-            while (_net.TimeMs < Math.Min(targetSimMs, limit))
-                StepOnce();
+            try
+            {
+                double targetSimMs = _wall.Elapsed.TotalMilliseconds;
+                double limit = targetSimMs + 50;
+                while (_net.TimeMs < Math.Min(targetSimMs, limit))
+                    StepOnce();
+                consecutiveErrors = 0;
+            }
+            catch (Exception ex)
+            {
+                // the brain must never die from a single bad tick
+                if (++consecutiveErrors > 100)
+                {
+                    Note($"FATAL: {consecutiveErrors} consecutive errors, last: {ex.Message}");
+                    break;
+                }
+            }
 
-            BuildSnapshot();
+            try { BuildSnapshot(); } catch { /* snapshot must not kill the loop */ }
             if (_net.TimeMs >= nextCheckpoint)
             {
                 TryCheckpoint();
@@ -379,10 +403,21 @@ public sealed class BrainRuntime : IDisposable
         if (_idle.Sleep.State == BrainState.REM && !_dreamBusy)
             _ = DreamAsync();
 
+        // ---- natural mood drift: tonic neuromodulators oscillate slowly at rest ----
+        // (real brains show minute-scale DA/5-HT fluctuations even without input)
+        if (_net.TickIndex % 3_000 == 0) // every 3 sim-seconds
+        {
+            float phase = _net.TimeMs / 1000f * 0.05f; // ~2 min period
+            float daDrift = 0.08f * MathF.Sin(phase);
+            float shtDrift = 0.06f * MathF.Sin(phase * 0.7f + 2f);
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, daDrift);
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, shtDrift);
+        }
+
         // ---- ambient inner monologue: idle is a stream of consciousness, not silence ----
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 9_000 : 30_000);
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 5_000 : 12_000);
             string? line = AmbientThought();
             if (line is not null) Note($"AMBIENT {line}");
         }
@@ -537,9 +572,11 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>Curiosity self-stimulation: the brain pokes itself, visibly.</summary>
     private void SelfStimulate(int neurons, float picoAmps, string what)
     {
+        // concentrate into CA3 so it lights up on the region graph
+        var ca3 = _net.Regions.FirstOrDefault(r => r.Name == "CA3") ?? _net.Regions[0];
         for (int k = 0; k < neurons; k++)
-            _net.InjectCurrent(_net.Rng.NextInt(_net.V.Length), picoAmps);
-        Note($"STIM self ({what}) - {neurons} neurons");
+            _net.InjectCurrent(ca3.Start + _net.Rng.NextInt(ca3.Count), picoAmps);
+        Note($"STIM self ({what}) - {neurons} neurons in {ca3.Name}");
     }
 
     private void Note(string line)
@@ -565,8 +602,12 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
+        // dramatic response: wake, boost salience so it ignites, store the memory
+        _idle.Sleep.ForceWake(_net);
         _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
-        _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
+        _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.8f); // force an ignition
+        _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.2f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.5f);
         _ = ReplyAsync(text);
     }
 

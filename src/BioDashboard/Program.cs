@@ -49,12 +49,18 @@ app.Map("/ws", async context =>
         byte[] payload = JsonSerializer.SerializeToUtf8Bytes(runtime.Snapshot());
         try
         {
-            await ws.SendAsync(payload, WebSocketMessageType.Text, endOfMessage: true,
-                context.RequestAborted);
+            // 2s send timeout: a slow or gone client gets dropped instead of blocking the loop
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            await ws.SendAsync(payload, WebSocketMessageType.Text, endOfMessage: true, timeout.Token);
         }
         catch (WebSocketException) { break; }
-        await Task.Delay(25, context.RequestAborted); // 10 Hz
+        catch (OperationCanceledException) { break; }
+        try { await Task.Delay(100, context.RequestAborted); }
+        catch (OperationCanceledException) { break; }
     }
+    try { if (ws.State == WebSocketState.Open) await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None); }
+    catch { /* client already gone */ }
 });
 
 using var cts = new CancellationTokenSource();
