@@ -1,4 +1,5 @@
 using BioComp.Core.Energy;
+using BioComp.Core.Learning;
 using BioComp.Core.Metrics;
 using BioComp.Core.Neuromodulators;
 using BioComp.Core.Neurons;
@@ -26,20 +27,30 @@ public sealed class SpikingNetwork
     public TransmitterSystem Transmitters { get; }
     public EnergyLedger Energy { get; } = new();
     public SpikeRecorder Recorder { get; }
+    public NeuromodulatorSystem Modulators { get; }
+    public ThreeFactorStdp Learning { get; private set; } = null!;
+    public AvalancheMetrics Avalanches { get; } = new();
 
-    public readonly float[] V, U, Injected, NoiseBuf;
+    public readonly float[] V, U, Injected, NoiseBuf, LastPostSpikeMs;
+    public readonly uint[] WindowCounts;
     public readonly NeuronType[] Types;
     public readonly bool[] Inhibitory;
     public readonly ushort[] RegionOf;
     public readonly float[] PosX, PosY;
     public IReadOnlyList<RegionInfo> Regions { get; }
 
-    public long TickIndex { get; private set; }
+    public long TickIndex { get; internal set; }
     public float TimeMs => TickIndex;
+    public int SpikesThisTick { get; internal set; }
+    public float RewardPredictor { get; set; }
+
+    public const int HomeostasisIntervalTicks = 60_000;
 
     private readonly List<int>[] _ring;
     private readonly ulong _noiseSalt;
     private readonly float _transmitterPerSpike = 0.02f; // CALIBRATE (pool scale)
+    private float _achCaptureScale = 1f;
+    private float _noradrenalineGain = 0.2f;
 
     public SpikingNetwork(BrainConfig config)
     {
@@ -52,6 +63,8 @@ public sealed class SpikingNetwork
         RegionOf = new ushort[config.Regions.Sum(r => r.Size)];
         int n = RegionOf.Length;
         V = new float[n]; U = new float[n]; Injected = new float[n]; NoiseBuf = new float[n];
+        LastPostSpikeMs = new float[n]; WindowCounts = new uint[n];
+        Array.Fill(LastPostSpikeMs, -1e9f);
         Types = new NeuronType[n]; Inhibitory = new bool[n];
         PosX = new float[n]; PosY = new float[n];
 
@@ -150,6 +163,8 @@ public sealed class SpikingNetwork
         Cond = new ConductanceStack(n);
         Transmitters = new TransmitterSystem(config.Regions.Count);
         Recorder = new SpikeRecorder(n);
+        Modulators = new NeuromodulatorSystem();
+        Learning = new ThreeFactorStdp(Syn);
 
         _ring = new List<int>[RingSize];
         for (int i = 0; i < RingSize; i++) _ring[i] = [];
@@ -158,9 +173,36 @@ public sealed class SpikingNetwork
     /// <summary>External current injection (sensory encoders, perturbation tests). Persists for this tick.</summary>
     public void InjectCurrent(int neuron, float pA) => Injected[neuron] += pA;
 
+    /// <summary>Delay-ring access for checkpointing.</summary>
+    public List<int> RingAt(int slot) => _ring[slot];
+
+    /// <summary>
+    /// External reward (0..1). Computes a scalar reward prediction error against a running
+    /// expectation and releases dopamine accordingly: bursts on positive error, pauses on
+    /// negative (Schultz 1997). Positive prediction errors also nudge oxytocin.
+    /// </summary>
+    public void ApplyReward(float reward)
+    {
+        float rpe = reward - RewardPredictor;
+        RewardPredictor += 0.05f * rpe;
+        Modulators.Release(NeuromodulatorKind.Dopamine, 1.2f * rpe);
+        if (rpe > 0.05f) Modulators.Release(NeuromodulatorKind.Oxytocin, 0.15f * rpe);
+    }
+
+    /// <summary>Social feedback on the agent's own output (was speaking welcomed?).</summary>
+    public void ApplySocialFeedback(bool positive)
+    {
+        if (positive) Modulators.Release(NeuromodulatorKind.Oxytocin, 0.3f);
+        else Modulators.Release(NeuromodulatorKind.Dopamine, -0.3f);
+    }
+
     /// <summary>Advance the network by 1 ms of simulated time.</summary>
     public void Tick()
     {
+        SpikesThisTick = 0;
+        _achCaptureScale = 0.5f + Modulators.Get(NeuromodulatorKind.Acetylcholine);
+        _noradrenalineGain = Modulators.Get(NeuromodulatorKind.Noradrenaline);
+
         int slot = (int)(TickIndex % RingSize);
         var due = _ring[slot];
         _ring[slot] = [];
@@ -191,11 +233,22 @@ public sealed class SpikingNetwork
             }
         }
 
+        // Three-factor weight update: eligibility traces decay, dopamine tone gates.
+        Learning.DecayAndApply(Syn, Modulators.Get(NeuromodulatorKind.Dopamine),
+            Modulators.Get(NeuromodulatorKind.Serotonin));
+
         Cond.DecayAll();
         Transmitters.Step();
         float flux = 0f;
         for (int k = 0; k < TransmitterSystem.KindCount; k++) flux += Transmitters.LastUptakeFlux[k];
         Energy.AddReuptake(flux);
+        Modulators.Step();
+        Avalanches.OnTick(TickIndex, SpikesThisTick);
+        if (TickIndex > 0 && TickIndex % HomeostasisIntervalTicks == 0)
+        {
+            Learning.HomeostaticScaling(Syn, WindowCounts, HomeostasisIntervalTicks / 1000f);
+            Array.Clear(WindowCounts);
+        }
         Array.Clear(Injected);
         TickIndex++;
     }
@@ -211,7 +264,11 @@ public sealed class SpikingNetwork
             float amount = MathF.Abs(w) * release;
             int post = Syn.PostIdx[s];
             bool inhibitory = w < 0f;
-            float gated = inhibitory ? amount * Config.GlobalGabaGain : amount;
+            // Noradrenaline raises excitatory gain during surprise (arousal).
+            float gated = inhibitory
+                ? amount * Config.GlobalGabaGain
+                : amount * (0.7f + 0.6f * _noradrenalineGain);
+            Learning.OnPreDelivery(s, post, TickIndex, LastPostSpikeMs, _achCaptureScale);
             Cond.Deliver(post, Syn.Receptors[s], gated);
             Transmitters.AddRelease(
                 RegionOf[post],
@@ -223,8 +280,13 @@ public sealed class SpikingNetwork
 
     private void OnSpike(int neuron)
     {
-        Recorder.Record(TickIndex + 0.5f, neuron);
+        float t = TickIndex + 0.5f;
+        Recorder.Record(t, neuron);
         Energy.AddSpike();
+        SpikesThisTick++;
+        LastPostSpikeMs[neuron] = t;
+        WindowCounts[neuron]++;
+        Learning.OnPostSpike(neuron, t, Syn, _achCaptureScale);
         for (int s = Syn.RowPtr[neuron]; s < Syn.RowPtr[neuron + 1]; s++)
         {
             int slot = (int)((TickIndex + Syn.DelayMs[s]) % RingSize);

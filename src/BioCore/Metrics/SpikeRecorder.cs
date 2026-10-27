@@ -30,4 +30,12 @@ public sealed class SpikeRecorder
     /// <summary>Population mean firing rate over the whole recorded window.</summary>
     public float MeanRateHz(float windowMs) =>
         windowMs <= 0f ? 0f : TotalSpikes / (Counts.Length * windowMs * 0.001f);
+
+    /// <summary>Restore counters from a checkpoint (events and counts are then reloaded).</summary>
+    public void Restore(long totalSpikes, int eventHead, int eventCount)
+    {
+        TotalSpikes = totalSpikes;
+        EventHead = eventHead;
+        EventCount = eventCount;
+    }
 }

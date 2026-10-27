@@ -23,6 +23,10 @@ public sealed class TransmitterSystem
     /// <summary>Total uptake flux per kind during the last tick (for the energy ledger).</summary>
     public readonly float[] LastUptakeFlux = new float[KindCount];
 
+    /// <summary>Direct pool access for checkpointing and readouts.</summary>
+    public float[][] Pools => _pools;
+    public float[][] PendingRelease => _pendingRelease;
+
     public int RegionCount => _pools.Length;
 
     public TransmitterSystem(int regionCount)

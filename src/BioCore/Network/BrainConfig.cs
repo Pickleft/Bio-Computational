@@ -23,8 +23,10 @@ public sealed class BrainConfig
 {
     public ulong Seed { get; init; } = 42;
     // Tunables are mutable: BioLab sweeps (branching ratio, noise) adjust them before construction.
-    public float NoiseSigmaMv { get; set; } = 1.0f;   // CALIBRATE (self-sustained activity)
-    public float GlobalGabaGain { get; set; } = 1.0f; // CALIBRATE (branching ratio  to  ~1)
+    // 3 mV sits near criticality for the default wiring (biolab tune, Oct 27): branching ratio
+    // ~1.00 with discrete avalanches at 0.13 Hz population rate; 5 mV and above runs away.
+    public float NoiseSigmaMv { get; set; } = 3.0f;
+    public float GlobalGabaGain { get; set; } = 1.0f;
     public float InhibitoryFraction { get; init; } = 0.20f;
 
     public List<RegionSpec> Regions { get; } = [];

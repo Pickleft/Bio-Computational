@@ -22,4 +22,7 @@ public sealed class EnergyLedger
 
     /// <summary>Metabolic equivalent charge for an external (API) action. Tier-dependent.</summary>
     public void AddExternal(string tier, float units) => Spent += units;
+
+    /// <summary>Restore counters from a checkpoint.</summary>
+    public void Restore(float spent, long spikeCount) { Spent = spent; SpikeCount = spikeCount; }
 }

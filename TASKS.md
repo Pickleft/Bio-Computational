@@ -6,14 +6,14 @@
 - T1.3 [x]  CSR graph builder: seeded, distance-dependent, Dale, delays
 - T1.4 [x]  Conductance kernels AMPA/NMDA(+Mg block)/GABA-A/B
 - T1.5 [x]  TM vesicles + MM reuptake + regional pools (glu, GABA, DA, 5-HT)
-- T1.6 Three-factor STDP + eligibility; homeostatic scaling; intrinsic plasticity
-- T1.7 DA RPE source; 5-HT tone; optional NA/ACh
-- T1.8 Checkpoint/resume (binary, versioned)
-- T1.9 Metrics: raster, LFP proxy, PSD/bands, avalanches/branching, 1/f
-- Tests: determinism hash [x]  · TM [x]  · MM [x]  · Dale [x]  · CSR [x]  · rates [x] 
+- T1.6 [x]  Three-factor STDP + eligibility; homeostatic scaling; intrinsic plasticity
+- T1.7 [x]  DA RPE source; 5-HT tone; NA gain; ACh capture gate; oxytocin (social)
+- T1.8 [x]  Checkpoint/resume (binary, versioned, bit-identical resume test)
+- T1.9 Metrics: [x]  raster, [x]  avalanches/branching; pending: LFP proxy, PSD/bands, 1/f
+- Tests: determinism hash [x]  · TM [x]  · MM [x]  · Dale [x]  · CSR [x]  · rates [x]  · STDP [x]  · checkpoint [x]  · modulators [x]  · avalanches [x] 
 
 ## WS2 Idle/existence (Oct 28-Oct 29)
-- T2.1 Self-sustained activity tuning (noise σ, GABA gain)  to  criticality
+- T2.1 [x]  Self-sustained activity tuning for the default wiring (noise 3 mV, branching ~1; retune when wiring changes)
 - T2.2 DMN/TaskPos subnetworks + anti-correlation
 - T2.3 Episode schema + CA3/CA1 encode/recall (jsonl store)
 - T2.4 Replay scheduler (compressed, DA-gated consolidation)
