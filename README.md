@@ -90,6 +90,17 @@ Baseten endpoint for Spark Open (`meta-models/muse-spark-open-1026`) is configur
 **Daemon without the UI:** `dotnet run --project src/BioHost` (same flags, checkpoints
 to `data/brain.ckpt` and resumes on restart).
 
+## Efficiency (measured on the dev machine, 6-core desktop, full daemon + dashboard)
+
+| Metric | Value |
+|---|---|
+| CPU during idle existence | ~4% of 6 cores (one background thread + web server) |
+| RAM (whole daemon + UI server) | ~62 MB |
+| Population rate at rest | ~0.13 Hz across 6,016 neurons |
+| Realtime tracking | 1.00x wall clock sustained |
+| Headless lab runs | up to ~3.7x realtime (no pacing) |
+| API spend in mock mode | $0.000 (all tiers mocked) |
+
 ## Status and roadmap
 
 Built Oct 27 - Nov 4, 2026 (daily log in DEVLOG.md):
