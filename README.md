@@ -78,6 +78,7 @@ commit (Oct 27) contains only the empty scaffold plus pre-event planning notes i
 | Bit-identical checkpoint/resume | src/BioCore/Persistence | c919bbc |
 | Avalanche/branching metrics, criticality tuning (biolab tune) | src/BioCore/Metrics, src/BioLab | c919bbc |
 | Episodic memory, compressed replay, two-process sleep, idle controller, DMN/task-positive correlation | src/BioCore/{Memory,Replay,Sleep,Cognition} | 6135e0a |
+| Senses: event vision, ERB cochlea, predictive coding, wake-on-surprise, interoception, subjective time | src/BioCore/{Senses,Abstractions,Cognition,Time}, src/BioSenses | 22dab4e |
 | Test suite: 39 tests (determinism, Dale, STDP signs, checkpoint identity, sleep cycle, replay, episodes...) | tests/BioCore.Tests | all of the above |
 
 ## Documentation
