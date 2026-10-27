@@ -79,6 +79,11 @@ public sealed class GlobalWorkspace
             Broadcasting = module;
             _broadcastUntil = net.TimeMs + 150f;
             _refractoryUntil = net.TickIndex + RefractoryMs;
+            // ignition consumes the workspace: integrated saliences reset so the next
+            // competitor starts from zero (Dehaene and Changeux 2011; this is what
+            // creates the attentional blink - a second stimulus arriving during the
+            // refractory must integrate from scratch against a decaying input)
+            Array.Clear(_integrated);
             // broadcast: neuromodulatory gain up across the board
             net.Modulators.Release(NeuromodulatorKind.Noradrenaline, 0.3f);
             net.Modulators.Release(NeuromodulatorKind.Acetylcholine, 0.5f);

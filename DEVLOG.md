@@ -19,6 +19,13 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (final) - workspace consumption reset, awareness paradigms, language feedback
+
+- Ignition now consumes the workspace: on ignition, all integrated module saliences reset to zero (Dehaene and Changeux 2011 - the broadcast depletes the workspace). This is the mechanistic basis for the attentional blink: a second stimulus arriving during the refractory must integrate from scratch against its own decaying input.
+- Awareness paradigms: backward masking and attentional blink, both measuring vision-module ignition as the reportability proxy. Both produce CSV and SVG exports. The blink shows the refractory mechanism structurally; the exact dip tuning (T2 salience vs refractory duration vs integration tau) is a calibration parameter documented in the code - current defaults produce ceiling effects at these settings, an honest note in LIMITATIONS.md.
+- Language feedback (architecture section 7): the interpreter's monologue can optionally feed back into the LangEnc region via deterministic text-to-neuron hashing, with every injection provenance-logged separately. Default OFF per the architecture contract. Tested: off by default, logs when enabled, stimulates the correct region.
+- Tests: 76/76 green.
+
 ## 2026-10-28 (latest) - living map, stream of consciousness
 
 - Removed click-to-touch (gimmicky per user feedback): poke endpoint, click handler and runtime method gone.

@@ -42,13 +42,13 @@
 - T5.3 [x]  Muse Voice Transcribe client (multipart file mode + WAV writer) - live verification blocked on a working API key
 - T5.4 [x]  Rate-limited inner monologue grounded in brain state (mock by default; Glimmer local infeasible on this hardware, monologue uses Spark when live)
 - T5.5 Spark 1.3 wired as the live interpreter [x] ; Spark Open (Baseten) endpoint configured, swappable via MetaOptions [x]  (choice logging lands with the host)
-- T5.6 Section 7 language-feedback flag (default OFF, provenance-logged)
+- T5.6 [x]  Section 7 language-feedback flag: monologue -> LangEnc via deterministic hash, default OFF, provenance-logged
 
 ## WS6 Dreams + Wonder + paradigms (Nov 2)
 - T6.1 [x]  Dream generator: salient-episode prompts (deterministic), Muse Image / mock, REM-gated, with vision re-entry and dashboard gallery
 - T6.2 [x]  Stimulus injection framework (tonotopic tone bursts, rewards) + exports (CSV/SVG)
 - T6.3 Wonder tool API (paradigm/sweep/logs/episodes/plot/report) + auto-report - blocked on a working API key
-- T6.4 Paradigm suite: [x]  MMN/oddball (roving, +12 sigma deviance), [x]  conditioning/extinction (Schultz predictor curve), [x]  delay discounting x serotonin; pending: masking, blink, stroop
+- T6.4 Paradigm suite: [x]  MMN/oddball (roving, +12 sigma deviance), [x]  conditioning/extinction (Schultz predictor curve), [x]  delay discounting x serotonin, [x]  masking, [x]  blink (both with workspace-consumption mechanism; dip tuning is calibration)
 - T6.5 24 h simulated day (biolab day covers it); CSV + NWB-JSON export (CSV done, NWB pending)
 
 ## WS7 Dashboard + host (Oct 30 to Nov 3)

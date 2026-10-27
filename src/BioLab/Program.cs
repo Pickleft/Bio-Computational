@@ -13,6 +13,24 @@ var cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
 
 switch (cmd)
 {
+    case "masking":
+    {
+        var (isis, accuracy) = AwarenessParadigms.BackwardMasking(outDir: "exports");
+        Console.WriteLine("[masking] ISI (ms) -> ignition rate");
+        for (int i = 0; i < isis.Length; i++)
+            Console.WriteLine($"  {isis[i],4:F0}  {accuracy[i]:F2}");
+        Console.WriteLine("exports: exports/masking.csv, exports/masking.svg");
+        return 0;
+    }
+    case "blink":
+    {
+        var (lags, accuracy) = AwarenessParadigms.AttentionalBlink(outDir: "exports");
+        Console.WriteLine("[blink] lag (ms) -> T2 ignition rate");
+        for (int i = 0; i < lags.Length; i++)
+            Console.WriteLine($"  {lags[i],4:F0}  {accuracy[i]:F2}");
+        Console.WriteLine("exports: exports/blink.csv, exports/blink.svg");
+        return 0;
+    }
     case "paradigm":
     {
         string name = args.Length > 1 ? args[1].ToLowerInvariant() : "";
@@ -42,6 +60,16 @@ switch (cmd)
                 Console.WriteLine("[discounting] serotonin tone -> k -> indifference delay (s)");
                 foreach (var (sht, k, d) in rows)
                     Console.WriteLine($"  {sht:F2}  {k:F3}  {d:F1}");
+                return 0;
+            }
+
+            case "blink":
+            {
+                var (lags, accuracy) = AwarenessParadigms.AttentionalBlink(outDir: dir);
+                Console.WriteLine("[blink] lag (ms) -> T2 ignition rate");
+                for (int i = 0; i < lags.Length; i++)
+                    Console.WriteLine($"  {lags[i],4:F0}  {accuracy[i]:F2}");
+                Console.WriteLine($"exports: {Path.Combine(dir, "blink.csv")}, {Path.Combine(dir, "blink.svg")}");
                 return 0;
             }
             default:
@@ -351,6 +379,8 @@ switch (cmd)
               day <sec>           compressed full day: wake, episodes, sleep with replay, wake
               surprise <sec>      quiet room, sleep, then wake-on-surprise (add --camera for a live webcam)
               paradigm <name>     mmn | conditioning | discounting  (--trials=N --out=dir)
+              masking             backward masking: ignition rate vs ISI
+              blink               attentional blink: T2 rate vs lag after T1
               wonder [goal]       autonomous research agent (mock protocol keyless; --live uses Muse Wonder)
               meta-check [--all]  verify the meta tier (mocks keyless; live with a key)
             """);
