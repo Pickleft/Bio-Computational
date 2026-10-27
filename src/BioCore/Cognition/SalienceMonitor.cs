@@ -72,6 +72,11 @@ public sealed class SalienceMonitor
         {
             float naAmount = Math.Clamp(surprise * 0.04f, 0.05f, 0.8f);
             mods.Release(NeuromodulatorKind.Noradrenaline, naAmount);
+            // surprising events are also rewarding: the brain wants to understand
+            // them (VTA responds to stimulus novelty, not just reward — Schultz 1997;
+            // Kakade and Dayan 2002 "novelty as reward")
+            float daAmount = Math.Clamp(surprise * 0.02f, 0.02f, 0.4f);
+            mods.Release(NeuromodulatorKind.Dopamine, daAmount);
         }
 
         // dopamine: novelty is intrinsically rewarding (Kakade and Dayan 2002)

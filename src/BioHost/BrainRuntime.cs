@@ -597,16 +597,16 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
-        // wake the brain and register the event; the salience pathway handles
-        // the neuromodulator response automatically (OXT from social stimulus,
-        // NA from the surprise of being addressed)
+        // wake the brain: being addressed is a social stimulus AND a novel event
+        // (correct neuroscience: social interaction releases OXT for bonding,
+        // DA for the reward of engagement, NA for the surprise of being addressed)
         _idle.Sleep.ForceWake(_net);
         _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
         _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.2f);
         _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.5f);
-        // being addressed is a social reward in itself
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.3f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.25f);
         _ = ReplyAsync(text);
     }
 
