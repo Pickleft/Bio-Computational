@@ -19,6 +19,15 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (later) - cortex map, region graph, touch interaction, visible curiosity
+
+- Cortex map: every neuron rendered at its real sheet position (6,016 dots from the seeded wiring), flashing in region color when it spikes - avalanches visibly ripple across the sheet. Live from the spike ring, no aggregation.
+- Region/pathway graph: region nodes placed at their anchors, glow scales with the last second's firing rate, projection edges pulse with source-region traffic; each node shows live spikes/s.
+- Touch: clicking the cortex map converts the click to sheet coordinates and directly stimulates up to 40 nearby neurons (direct cortical stimulation, distinct from sensory input); the brain tags it as touch, stores an episode, and the narrator renders it ("A tingling spot lights up on my surface").
+- Visible curiosity: the Explore and SeekStimulation actions now produce real self-stimulation bursts (24-40 neurons), so an idle brain is seen to poke itself, not just log text. Narrator lines added for touch and self-stimulation.
+- Snapshot raster now carries true neuron indices (fraction derivable client-side); per-region one-second rates added. Fixed a region-rate indexing crash and the JSON casing of the map payload.
+- Verified live: map (6,016 neurons, 27 edges), poke end-to-end ("someone is touching me"), self-stimulation visible in thoughts. Tests 73/73.
+
 ## 2026-10-28 - eeg proxy: lfp spectrogram, thalamocortical alpha, 1/f verified
 
 - LFP proxy: net synaptic conductance of the thalamocortical channel (Thal + V1), Hann-windowed Goertzel band powers (delta/theta/alpha/beta/gamma) at 10 Hz, spectrogram history, log-log 1/f slope. Dashboard gained an EEG-proxy spectrogram panel with slope and alpha-ratio readouts.

@@ -19,6 +19,11 @@
 </header>
 
 <main>
+  <section class="panel wide hero">
+    <h2>cortex map - every neuron at its real position. click to touch it.</h2>
+    <canvas id="cortex" width="980" height="420"></canvas>
+  </section>
+
   <section class="panel wide">
     <h2>spikes (live raster)</h2>
     <canvas id="raster" width="980" height="220"></canvas>
@@ -47,6 +52,11 @@
       <div>energy <span id="energy" class="dim">0</span></div>
       <div>internal clock <span id="clockrate" class="dim">1.0x</span> subjective <span id="subj" class="dim">0 min</span></div>
     </div>
+  </section>
+
+  <section class="panel wide">
+    <h2>regions and pathways (node glow = firing rate, edge pulse = traffic)</h2>
+    <canvas id="regions" width="980" height="300"></canvas>
   </section>
 
   <section class="panel wide tall">

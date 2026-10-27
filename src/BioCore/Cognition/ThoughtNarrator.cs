@@ -32,6 +32,8 @@ public static class ThoughtNarrator
             "MONOLOGUE" => "",   // the monologue panel already shows it in plain English
             "REPLY" => "",       // shown in chat
             "ACTION" => ActionLine(rest, feeling),
+            "TOUCH" => "A tingling spot lights up on my surface - someone is touching me.",
+            "STIM" => "I nudge myself to feel something.",
             "resumed" => "Picking up where I left off.",
             _ => body,
         };

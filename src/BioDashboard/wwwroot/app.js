@@ -11,7 +11,133 @@ const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") +
 ws.onmessage = (ev) => render(JSON.parse(ev.data));
 ws.onclose = () => { $("state").textContent = "disconnected"; setTimeout(() => location.reload(), 2000); };
 
+// ---- cortex map state (static payload fetched once) ----
+let MAP = null;        // { Neurons: flat [x,y,...], Names, Anchors, Edges: [from,to,w] }
 let lastRasterT = 0;
+
+fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; drawCortexBase(); });
+
+function mapExtent() {
+  let maxX = 1, maxY = 1;
+  for (let i = 0; i < MAP.neurons.length; i += 2) {
+    if (MAP.neurons[i] > maxX) maxX = MAP.neurons[i];
+    if (MAP.neurons[i + 1] > maxY) maxY = MAP.neurons[i + 1];
+  }
+  return [maxX, maxY];
+}
+
+let baseCanvas = null;
+function drawCortexBase() {
+  baseCanvas = document.createElement("canvas");
+  baseCanvas.width = $("cortex").width;
+  baseCanvas.height = $("cortex").height;
+  const ctx = baseCanvas.getContext("2d");
+  ctx.fillStyle = "#070a10";
+  ctx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
+  const [mx, my] = mapExtent();
+  for (let i = 0; i < MAP.neurons.length; i += 2) {
+    const r = MAP.neurons[i] / mx, c = MAP.neurons[i + 1] / my;
+    const x = 30 + r * (baseCanvas.width - 60);
+    const y = baseCanvas.height - 20 - c * (baseCanvas.height - 40);
+    // region determined by lookup later; dim gray-blue base for all
+    ctx.fillStyle = "rgba(70, 90, 120, 0.35)";
+    ctx.fillRect(x, y, 1.5, 1.5);
+  }
+}
+
+function drawCortex(s) {
+  const c = $("cortex"), ctx = c.getContext("2d");
+  if (!MAP) return;
+  if (!baseCanvas) drawCortexBase();
+  ctx.drawImage(baseCanvas, 0, 0);
+
+  const [mx, my] = mapExtent();
+  const now = Math.max(1, s.SimSeconds);
+  // flash neurons that spiked in the last 0.4 s, brightness by recency
+  for (const p of (s.Raster || [])) {
+    const [tSec, neuronIdx, region] = p;
+    const age = now - tSec;
+    if (age > 0.4 || neuronIdx * 2 + 1 >= MAP.neurons.length) continue;
+    const x = 30 + (MAP.neurons[neuronIdx * 2] / mx) * (c.width - 60);
+    const y = c.height - 20 - (MAP.neurons[neuronIdx * 2 + 1] / my) * (c.height - 40);
+    const glow = 1 - age / 0.4;
+    ctx.fillStyle = regionColors[region % regionColors.length];
+    ctx.globalAlpha = 0.25 + 0.75 * glow;
+    const size = 2 + 3 * glow;
+    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#33445c";
+  ctx.font = "10px Consolas";
+  ctx.fillText((s.Raster || []).length + " recent spikes - click anywhere to touch the brain", 36, 14);
+}
+
+// click = poke: convert canvas coords back to sheet coords
+$("cortex").addEventListener("click", async (ev) => {
+  if (!MAP) return;
+  const rect = ev.target.getBoundingClientRect();
+  const px = (ev.clientX - rect.left) * (ev.target.width / rect.width);
+  const py = (ev.clientY - rect.top) * (ev.target.height / rect.height);
+  const [mx, my] = mapExtent();
+  const sheetX = ((px - 30) / (ev.target.width - 60)) * mx;
+  const sheetY = ((ev.target.height - 20 - py) / (ev.target.height - 40)) * my;
+  try {
+    await fetch("/api/poke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ x: sheetX, y: sheetY }),
+    });
+  } catch (e) { console.warn("poke failed", e); }
+});
+
+function drawRegionGraph(s) {
+  const c = $("regions"), ctx = c.getContext("2d");
+  if (!MAP) return;
+  ctx.fillStyle = "#070a10";
+  ctx.fillRect(0, 0, c.width, c.height);
+  const [mx, my] = mapExtent();
+  const rates = s.RegionRates || [];
+  const maxRate = Math.max(0.05, ...rates);
+  const P = (i) => {
+    const [ax, ay] = MAP.anchors[i];
+    return [
+      60 + (ax / mx) * (c.width - 120) + (mx / 2.5) * 6,   // spread anchors apart a little
+      c.height - 50 - (ay / my) * (c.height - 100) - (my / 2.5) * 4,
+    ];
+  };
+  // edges: opacity by source region rate (traffic)
+  for (const [from, to, w] of MAP.edges) {
+    const [x1, y1] = P(from), [x2, y2] = P(to);
+    const traffic = rates[from] / maxRate;
+    ctx.strokeStyle = `rgba(70, 224, 192, ${0.05 + 0.5 * traffic})`;
+    ctx.lineWidth = 0.6 + Math.min(2, w / 15);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  // nodes: glow by rate
+  ctx.font = "11px Consolas";
+  for (let i = 0; i < MAP.names.length; i++) {
+    const [x, y] = P(i);
+    const rate = rates[i] || 0;
+    const glow = rate / maxRate;
+    const r = 8 + 16 * glow;
+    const grad = ctx.createRadialGradient(x, y, 1, x, y, r);
+    grad.addColorStop(0, regionColors[i % regionColors.length]);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = 0.35 + 0.65 * glow;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#c9d6e8";
+    ctx.fillText(MAP.names[i], x + 12, y + 3);
+    ctx.fillStyle = "#5c6c84";
+    ctx.fillText((rate * 1000).toFixed(0) + " sp/s", x + 12, y + 15);
+  }
+}
 
 function render(s) {
   $("clock").textContent = "t=" + s.SimSeconds.toFixed(0) + "s (" + s.RealtimeFactor.toFixed(2) + "x)";
@@ -32,6 +158,8 @@ function render(s) {
   $("replays").textContent = s.Replays;
   $("meta-badge").textContent = "meta tier: " + (s.MetaLive ? "live" : "mock");
 
+  drawCortex(s);
+  drawRegionGraph(s);
   drawRaster(s);
   drawSpectrogram(s);
   drawCircumplex(s);
@@ -125,6 +253,11 @@ function setFeed(ul, lines) {
   }
 }
 
+function totalNeurons(s) {
+  const regions = s.Regions || [];
+  return regions.reduce((a, r) => a + r[1], 0) || 1;
+}
+
 function drawRaster(s) {
   const c = $("raster"), ctx = c.getContext("2d");
   ctx.fillStyle = "#070a10";
@@ -158,14 +291,15 @@ function drawRaster(s) {
   }
 
   for (const p of s.Raster || []) {
-    const [tSec, frac, region] = p;
+    const [tSec, neuronIdx, region] = p;
     if (tSec < t0) continue;
     const x = labelW + ((tSec - t0) / windowSec) * (c.width - labelW);
     const r = regions[region];
     if (!r || !r._h) continue;
+    const frac = neuronIdx / totalNeurons(s);
     // frac is global neuron fraction; re-map into this region's band
     const before = regions.slice(0, region).reduce((a, q) => a + q[1], 0);
-    const inBand = (frac * total - before) / r[1];
+    const inBand = (frac * totalNeurons(s) - before) / r[1];
     const yy = r._y0 + (1 - Math.min(0.999, Math.max(0, inBand))) * r._h;
     ctx.fillStyle = regionColors[region % regionColors.length];
     ctx.fillRect(x, yy, 1.4, 1.4);

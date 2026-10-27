@@ -62,6 +62,7 @@ public sealed class BrainSnapshot
     public List<float[]> LfpHistory { get; set; } = [];
     public float LfpSlope { get; set; }
     public float AlphaRatio { get; set; }
+    public float[] RegionRates { get; set; } = [];   // Hz per region, last second
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -103,6 +104,8 @@ public sealed class BrainRuntime : IDisposable
     private readonly MockAudioSource? _mockMic;
     private readonly int _retinaStart, _retinaCount, _a1Start, _a1Count;
     private readonly int _thalStart, _thalCount, _v1Start, _v1Count;
+    private readonly uint[] _regionLastCounts;
+    private MapData? _mapData;
     public BioComp.Core.Metrics.LfpProxy Lfp { get; } = new();
     private readonly List<short> _audioBuffer = [];
     private readonly List<string> _thought = [];
@@ -148,6 +151,7 @@ public sealed class BrainRuntime : IDisposable
         var v1 = _net.Regions.First(r => r.Name == "V1");
         _v1Start = v1.Start;
         _v1Count = v1.Count;
+        _regionLastCounts = new uint[_net.Regions.Count];
 
         // senses: real devices when present (auto by default), deterministic mocks otherwise
         bool camLive = false;
@@ -366,6 +370,10 @@ public sealed class BrainRuntime : IDisposable
                 Note($"ACTION {action}");
                 if (action is BrainAction.Speak or BrainAction.DisplayText)
                     _ = SpeakAsync();
+                if (action == BrainAction.Explore)
+                    SelfStimulate(24, 18f, "exploring");
+                if (action == BrainAction.SeekStimulation)
+                    SelfStimulate(40, 24f, "seeking stimulation");
             }
         }
 
@@ -473,6 +481,61 @@ public sealed class BrainRuntime : IDisposable
         _speech.Speak(line);
         _idle.Actions.OnOutcome(_net, BrainAction.Speak, welcomed: true); // human response detection is future work
         await Task.CompletedTask;
+    }
+
+    /// <summary>A human poked the cortex map: direct stimulation near (x,y) sheet coords.</summary>
+    public void Poke(float x, float y, float strength = 1f)
+    {
+        int hits = 0;
+        for (int i = 0; i < _net.V.Length && hits < 40; i++)
+        {
+            float dx = _net.PosX[i] - x, dy = _net.PosY[i] - y;
+            if (dx * dx + dy * dy < 1.0f)
+            {
+                _net.InjectCurrent(i, 22f * strength);
+                hits++;
+            }
+        }
+        if (hits == 0) return;
+        Note($"TOUCH poke at ({x:F1},{y:F1}) - {hits} neurons stimulated");
+        _idle.OnEvent(_net, ["touch"], 0.3f, 0.7f);
+    }
+
+    /// <summary>Static map payload for the dashboard: every neuron's sheet position and
+    /// region index, plus the projection graph (region edges with weights).</summary>
+    public MapData GetMapData()
+    {
+        if (_mapData is not null) return _mapData;
+        var neurons = new float[_net.V.Length * 2];
+        for (int i = 0; i < _net.V.Length; i++)
+        {
+            neurons[2 * i] = _net.PosX[i];
+            neurons[2 * i + 1] = _net.PosY[i];
+        }
+        var anchors = _net.Config.Regions.Select(r => new[] { r.SheetX, r.SheetY }).ToArray();
+        var names = _net.Config.Regions.Select(r => r.Name).ToArray();
+        var edges = _net.Config.Projections
+            .GroupBy(p => (p.Pre, p.Post))
+            .Select(g =>
+            {
+                int from = Array.IndexOf(names, g.Key.Pre);
+                int to = Array.IndexOf(names, g.Key.Post);
+                return new[] { from, to, g.Sum(p => p.OutDegree * p.WeightMean) };
+            })
+            .Where(e => e[0] >= 0 && e[1] >= 0)
+            .ToArray();
+        _mapData = new MapData(neurons, names, anchors, edges);
+        return _mapData;
+    }
+
+    public sealed record MapData(float[] Neurons, string[] Names, float[][] Anchors, float[][] Edges);
+
+    /// <summary>Curiosity self-stimulation: the brain pokes itself, visibly.</summary>
+    private void SelfStimulate(int neurons, float picoAmps, string what)
+    {
+        for (int k = 0; k < neurons; k++)
+            _net.InjectCurrent(_net.Rng.NextInt(_net.V.Length), picoAmps);
+        Note($"STIM self ({what}) - {neurons} neurons");
     }
 
     private void Note(string line)
@@ -597,7 +660,8 @@ public sealed class BrainRuntime : IDisposable
         snap.Modulators[3] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
         snap.Modulators[4] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin);
 
-        // raster: last ~600 spikes mapped to [tSec, neuronFrac, region]
+        // raster: last ~600 spikes as [tSec, neuronIdx, regionIdx] (idx lets the map
+        // flash the exact neuron; frac derivable client-side)
         var rec = _net.Recorder;
         int ringLen = rec.Events.Length;
         int n = Math.Min(600, rec.EventCount);
@@ -606,9 +670,23 @@ public sealed class BrainRuntime : IDisposable
         {
             int idx = (((rec.EventHead - k) % ringLen) + ringLen) % ringLen;
             var (tMs, neuron) = rec.Events[idx];
-            raster.Add([tMs / 1000f, neuron / (float)_net.V.Length, _net.RegionOf[neuron]]);
+            raster.Add([tMs / 1000f, neuron, _net.RegionOf[neuron]]);
         }
         snap.Raster = raster;
+
+        // per-region rates over the last second (node glow + edge traffic)
+        var rates = new float[_net.Regions.Count];
+        for (int r = 0; r < rates.Length; r++)
+        {
+            var reg = _net.Regions[r];
+            double total = 0;
+            for (int i = reg.Start; i < reg.Start + reg.Count; i++)
+                total += _net.Recorder.Counts[i];
+            double spikes = total - _regionLastCounts[r];
+            rates[r] = (float)(spikes / reg.Count); // spikes/neuron in the window
+            _regionLastCounts[r] = (uint)total;
+        }
+        snap.RegionRates = rates;
 
         lock (_snapGate) _latest = snap;
     }

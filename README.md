@@ -59,12 +59,17 @@ dotnet run --project src/BioDashboard -- --urls=http://localhost:8080 --demo
 ```
 
 Open http://localhost:8080 (append `?demo=1` for the large-font recording mode). The
-webcam and microphone are used automatically when present (the dashboard shows a REC
-indicator with a live camera and which tiers are live); `--mock-cam`/`--mock-mic` force
-the deterministic mock world, `--demo` compresses the day and schedules a visitor,
-`--voice` speaks through Windows TTS, `--live-meta` uses the real Meta models when a
-key is present. You can talk to it in the chat box: typing counts as direct speech -
-it wakes, stores the exchange as an episode, and answers from its own state.
+hero panel is a live cortex map: all 6,016 neurons at their real positions, flashing
+as they spike - avalanches visibly ripple, and clicking anywhere touches the brain
+(direct stimulation it tags as touch). A region/pathway graph shows firing rates as
+node glow and traffic as edge pulses. The webcam and microphone are used
+automatically when present (REC indicator with a live camera); `--mock-cam`/`--mock-mic`
+force the deterministic mock world, `--demo` compresses the day and schedules a
+visitor, `--voice` speaks through Windows TTS, `--live-meta` uses the real Meta
+models when a key is present. You can talk to it in the chat box: typing counts as
+direct speech - it wakes, stores the exchange as an episode, and answers from its
+own state. An idle brain is visibly alive: curiosity-driven self-stimulation bursts
+light up the map between events.
 
 **Headless experiments:**
 

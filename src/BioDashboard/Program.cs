@@ -28,6 +28,16 @@ Console.WriteLine($"brain running (meta live={runtime.MetaLive}); UI on the boun
 
 app.MapGet("/api/snapshot", () => Results.Json(runtime.Snapshot()));
 
+app.MapGet("/api/map", () => Results.Json(runtime.GetMapData()));
+
+app.MapPost("/api/poke", async (HttpContext ctx) =>
+{
+    var body = await ctx.Request.ReadFromJsonAsync<PokeRequest>();
+    if (body is null) return Results.BadRequest(new { error = "x,y required" });
+    runtime.Poke(body.X, body.Y, body.Strength is > 0 and <= 3 ? body.Strength.Value : 1f);
+    return Results.Ok(new { ok = true });
+});
+
 app.MapPost("/api/say", async (HttpContext ctx) =>
 {
     var body = await ctx.Request.ReadFromJsonAsync<SayRequest>();
@@ -67,3 +77,4 @@ finally
 }
 
 record SayRequest(string Text);
+record PokeRequest(float X, float Y, float? Strength);

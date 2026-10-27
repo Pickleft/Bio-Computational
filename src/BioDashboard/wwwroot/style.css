@@ -61,6 +61,7 @@ main {
 
 .panel.wide { grid-column: span 3; }
 .panel.tall { max-height: 260px; }
+.panel.hero canvas { cursor: crosshair; }
 
 h2 {
   font-size: 11px;
