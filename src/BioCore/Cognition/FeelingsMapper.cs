@@ -44,22 +44,24 @@ public sealed class FeelingsMapper
 
         // dopamine is the seeking system: bursts raise activation as well as valence
         float daDrive = Math.Clamp((da - NeuromodulatorSystem.BaselineOf(NeuromodulatorKind.Dopamine)) * 1.5f, 0f, 1f);
+        // noradrenaline is the primary arousal driver: events push it well above baseline
+        // (the weight is high enough that a surprise NA burst crosses the curious threshold)
         float arousal = Math.Clamp(
-            0.45f * na +
-            0.35f * daDrive +
-            0.20f * Math.Clamp(novelty, 0f, 2f) / 2f +
-            0.30f * stress,
+            0.70f * na +
+            0.25f * daDrive +
+            0.10f * Math.Clamp(novelty, 0f, 2f) / 2f +
+            0.25f * stress,
             0f, 1f);
 
         // subjective boredom: low novelty sustained over SUBJECTIVE time (the internal
         // clock runs slow when under-stimulated, so boredom accumulates at true pace)
         double subjectiveIdleMinutes = time.SubjectiveSinceEventMs / 60_000.0;
-        bool bored = valence < 0.15f && arousal < 0.35f && novelty < 0.25f && subjectiveIdleMinutes > 1.0;
+        bool bored = valence < 0.15f && arousal < 0.30f && novelty < 0.25f && subjectiveIdleMinutes > 1.0;
         bool tired = sleep.SleepPressure > 0.65f || sleep.State is BrainState.Drowsy or BrainState.NREM or BrainState.REM;
 
         string name = tired && arousal < 0.5f ? "tired"
             : bored ? "bored"
-            : arousal > 0.55f && valence > 0.1f ? "curious"
+            : arousal > 0.40f && valence > 0.1f ? "curious"
             : arousal > 0.55f && valence <= 0.1f ? "stressed"
             : valence > 0.15f ? "calm"
             : "restless";

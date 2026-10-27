@@ -607,7 +607,8 @@ public sealed class BrainRuntime : IDisposable
         _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
         _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.8f); // force an ignition
         _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.2f);
-        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.5f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.8f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);
         _ = ReplyAsync(text);
     }
 
