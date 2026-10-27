@@ -38,10 +38,23 @@ function initAvatar() {
   requestAnimationFrame(animateAvatar);
 }
 
+// stimulus tracking: the avatar looks at what the brain sees
+let stimulusTarget = null; // [x, y] normalized, null = no stimulus
+let isSpeaking = false;
+let mouthOpen = 0;
+
 function updateAvatarState(s) {
   if (!s) return;
   lastSnapshot = s;
-  const k = 0.08; // smoothing factor
+
+  // stimulus position for eye tracking
+  if (s.StimulusPosition && s.StimulusPosition.length === 2) {
+    stimulusTarget = s.StimulusPosition;
+  }
+
+  isSpeaking = !!s.IsSpeaking;
+
+  const k = 0.08;
   const m = s.Modulators || [0.3, 0.5, 0.3, 0.2, 0.15, 0.6, 0.1];
   smoothing.da += (m[0] - smoothing.da) * k;
   smoothing.sht += (m[1] - smoothing.sht) * k;
@@ -143,15 +156,25 @@ function animateAvatar() {
   // widen on high arousal (surprise)
   if (smoothing.arousal > 0.6) eyeState.widen = Math.min(1, eyeState.widen + 0.1);
 
-  // eye movement: lonely = searching (random darting), engaged = focused (center)
-  if (smoothing.lonely > 0.5) {
+  // eye movement: PRIORITY ORDER
+  // 1. stimulus tracking (look at what the brain sees)
+  // 2. lonely searching (darting)
+  // 3. engaged focus (center)
+  // 4. calm wandering (lazy drift)
+  if (stimulusTarget && smoothing.hist > 0.3) {
+    // look at the stimulus position (normalized 0-1 → screen coordinates)
+    const targetX = (stimulusTarget[0] - 0.5) * 2; // -1 to 1
+    const targetY = (stimulusTarget[1] - 0.5) * 2;
+    eyeState.x += (targetX - eyeState.x) * 0.15;
+    eyeState.y += (targetY - eyeState.y) * 0.15;
+  } else if (smoothing.lonely > 0.5) {
     eyeState.x = Math.sin(avatarTime * 0.7) * 0.3;
     eyeState.y = Math.cos(avatarTime * 0.5) * 0.15;
   } else if (smoothing.arousal > 0.4) {
-    eyeState.x += (0 - eyeState.x) * 0.1; // focus on center when engaged
+    eyeState.x += (0 - eyeState.x) * 0.1;
     eyeState.y += (0 - eyeState.y) * 0.1;
   } else {
-    eyeState.x = Math.sin(avatarTime * 0.15) * 0.1; // lazy drift when calm
+    eyeState.x = Math.sin(avatarTime * 0.15) * 0.1;
     eyeState.y = 0;
   }
 
@@ -185,18 +208,39 @@ function animateAvatar() {
     ctx.restore();
   }
 
-  // === MOUTH (emotional expression) ===
+  // === MOUTH (emotional expression + speaking animation) ===
   // valence drives curvature: positive = smile, negative = frown
+  // when speaking, the mouth opens and closes rhythmically
   const mouthY = cy + baseR * 0.25;
   const mouthW = baseR * 0.4;
   const curve = smoothing.valence * baseR * 0.15;
 
-  ctx.beginPath();
-  ctx.moveTo(cx - mouthW, mouthY);
-  ctx.quadraticCurveTo(cx, mouthY + curve * 2, cx + mouthW, mouthY);
-  ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light + 25}%, ${0.5 * smoothing.hist})`;
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // speaking animation: mouth opens/closes rapidly
+  if (isSpeaking) {
+    mouthOpen = 0.5 + Math.sin(avatarTime * 15) * 0.5; // oscillate at speech rate
+  } else {
+    mouthOpen = Math.max(0, mouthOpen - 0.05); // close smoothly
+  }
+
+  // draw the mouth as a filled shape when speaking, or a line when silent
+  if (mouthOpen > 0.05) {
+    // open mouth (speaking): an ellipse that varies with mouthOpen
+    const mo = mouthOpen * baseR * 0.12;
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, mouthY + curve * 0.5, mouthW * 0.7, mo, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light + 15}%, ${0.6 * smoothing.hist})`;
+    ctx.fill();
+    ctx.restore();
+  } else {
+    // closed mouth (line, curves with valence)
+    ctx.beginPath();
+    ctx.moveTo(cx - mouthW, mouthY);
+    ctx.quadraticCurveTo(cx, mouthY + curve * 2, cx + mouthW, mouthY);
+    ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light + 25}%, ${0.5 * smoothing.hist})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   // === SPIKE BURSTS (neural activity radiating outward) ===
   // when the brain ignites or is surprised, energy radiates from the body

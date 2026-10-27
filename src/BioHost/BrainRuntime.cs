@@ -70,6 +70,8 @@ public sealed class BrainSnapshot
     public List<string> DreamNarratives { get; set; } = [];
     public List<object[]> MemoryPalace { get; set; } = []; // [x, y, size, brightness, valence, tag]
     public float[] LfpSignal { get; set; } = []; // raw time-domain signal for the scrolling EEG
+    public float[] StimulusPosition { get; set; } = [0.5f, 0.5f]; // normalized [x, y] the avatar eyes track
+    public bool IsSpeaking { get; set; }
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -144,6 +146,7 @@ public sealed class BrainRuntime : IDisposable
     private bool _greetedThisSession;
     private float[]? _lastRegionRates;
     private readonly List<string> _recentUserMessages = [];
+    private float[] _stimulusPos = [0.5f, 0.5f];
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -444,6 +447,7 @@ public sealed class BrainRuntime : IDisposable
             var (st, tag) = _salience.SurpriseLog[^1];
             Note($"SURPRISE {tag} (novelty spike)");
             _idle.OnEvent(_net, [tag], 0.2f, _salience.ExternalArousal);
+            _ = ReactToStimulusAsync($"a sudden {tag}", "something changed in the visual field unexpectedly");
         }
         if (_idle.Workspace.IgnitionCount > _lastIgnition)
         {
@@ -587,6 +591,7 @@ public sealed class BrainRuntime : IDisposable
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\"{(tr.FromLiveApi ? " (voice api)" : " (mock)")}");
+                _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\"", "a voice in the room");
                 // recognize the speaker by their speech pattern
                 ProcessVisitor(IdentifyVisitor("speaker", tr.Transcript));
                 _idle.OnEvent(_net, ["voice", Trunc(tr.Transcript, 40)], 0.3f, 0.8f);
@@ -606,6 +611,11 @@ public sealed class BrainRuntime : IDisposable
                 var b = seg.Boxes[0];
                 string kind = (b.Y2 - b.Y1) > (b.X2 - b.X1) * 1.2 ? "person" : "object";
                 Note($"SIGHT {kind} {(seg.FromLiveApi ? "(sam 3.1)" : "(mock)")} box {b.X1},{b.Y1}..{b.X2},{b.Y2}");
+                _ = ReactToStimulusAsync($"I can see a {kind}", $"it's at position ({b.X1},{b.Y1}) to ({b.X2},{b.Y2}) in my visual field");
+                // track where the avatar should look (normalized to visual field)
+                float centerX = (b.X1 + b.X2) / 2f / 64f;
+                float centerY = (b.Y1 + b.Y2) / 2f / 64f;
+                _stimulusPos = [Math.Clamp(centerX, 0f, 1f), Math.Clamp(centerY, 0f, 1f)];
                 if (kind == "person") ProcessVisitor($"visual:{b.X1 / 50}:{b.Y1 / 50}"); // spatial identity
                 _idle.OnEvent(_net, [kind], 0.2f, 0.7f);
             }
@@ -818,7 +828,46 @@ public sealed class BrainRuntime : IDisposable
     private float _lastDaydreamMs = -1e9f;
     /// The DA tick is small — it's the internal reward of agency, not the full
     /// <summary>
-    /// Predictive imagination: the brain notices patterns and anticipates what
+    /// The brain reacts verbally to environmental stimuli — not just when someone
+    /// types in chat. When it sees something, hears something, or is surprised,
+    /// it SPEAKS about it. This is the difference between a chatbot (waits for
+    /// input) and a living organism (reacts to its world). Rate-limited so it
+    /// doesn't talk constantly.
+    /// </summary>
+    private async Task ReactToStimulusAsync(string stimulus, string detail)
+    {
+        if (_net.TimeMs - _lastReactionMs < 8_000) return; // at most every 8s
+        _lastReactionMs = _net.TimeMs;
+        try
+        {
+            var feeling = _idle.Feelings.Last;
+            string system =
+                "You are a living brain reacting to something in your environment. " +
+                "Express what you're experiencing — surprise, curiosity, recognition, concern. " +
+                "This is spontaneous: nobody asked you anything. You're just reacting to your world. " +
+                $"You feel {feeling.Name}. Be genuine and brief. 1 sentence.";
+            string user =
+                $"Something just happened: {stimulus}. Details: {detail}. " +
+                $"You've been idle for {(int)(_idle.Time.SubjectiveSinceEventMs / 1000.0)} seconds.";
+
+            string reaction = await _lm.CompleteAsync(system, user, 50);
+            if (!string.IsNullOrWhiteSpace(reaction))
+            {
+                _monologueLog.Add(reaction);
+                Note($"REACT \"{Trunc(reaction, 80)}\"");
+                // speak it if voice is on
+                if (_speech is WindowsSpeech ws)
+                {
+                    var f = _idle.Feelings.Last;
+                    ws.RateBias = f.Name == "curious" ? 2 : f.Name == "stressed" ? 3 : f.Name == "tired" ? -3 : 0;
+                    ws.PitchBias = f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0;
+                }
+                _speech.Speak(reaction);
+            }
+        }
+        catch { /* reaction is optional */ }
+    }
+    private float _lastReactionMs = -1e9f;
     /// might happen next. "People tend to come back after being quiet for a while."
     /// Prospective cognition — imagining futures, not just remembering pasts
     /// (Schacter, Addis, Buckner 2007).
@@ -1094,6 +1143,8 @@ public sealed class BrainRuntime : IDisposable
         for (int i = 0; i < _lfpRing.Length; i++)
             lfpSignal[i] = _lfpRing[(_lfpRingPos + i) % _lfpRing.Length];
         snap.LfpSignal = lfpSignal;
+        snap.StimulusPosition = _stimulusPos;
+        snap.IsSpeaking = _speech.IsSpeaking;
 
         lock (_snapGate) _latest = snap;
     }

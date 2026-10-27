@@ -4,10 +4,12 @@ namespace BioComp.Host;
 public interface ISpeechOutput
 {
     void Speak(string text);
+    bool IsSpeaking { get; }
 }
 
 public sealed class ConsoleSpeech : ISpeechOutput
 {
+    public bool IsSpeaking => false;
     public void Speak(string text) => Console.WriteLine($"[spoken] {text}");
 }
 
@@ -35,9 +37,11 @@ public sealed class WindowsSpeech : ISpeechOutput, IDisposable
     }
 
     /// <summary>Speak with emotional modulation. Call SetEmotionalState before this.</summary>
+    public bool IsSpeaking => _synth.State == System.Speech.Synthesis.SynthesizerState.Speaking;
+
     public void Speak(string text)
     {
-        if (_synth.State == System.Speech.Synthesis.SynthesizerState.Speaking) return;
+        if (IsSpeaking) return;
         // apply emotional pitch/rate (Windows TTS uses SSML for pitch)
         int clampedPitch = Math.Clamp((int)PitchBias, -10, 10);
         int clampedRate = Math.Clamp((int)RateBias, -5, 5);
