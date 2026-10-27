@@ -19,6 +19,12 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (late, 2) - judge-path verification and demo script
+
+- Verified the exact judge path: fresh clone from GitHub builds clean and passes 70/70 keyless; resting smoke deterministic at 3.7x realtime.
+- Second API key also returns 401 on every endpoint and auth-header style; key format is clean (no hidden characters, correct structure), so the rejection is account-side (key status, billing provisioning, or verification) - documented, awaiting a working key.
+- demo/SCRIPT.md: full 3-minute video timeline with narration, setup commands, the 30-second viral clip recipe, and the recording checklist.
+
 ## 2026-10-27 (late) - real senses by default, plain thoughts, chat, readable viz
 
 - Real stimuli by default: camera and microphone auto-detect (mock only as fallback, or forced with --mock-cam/--mock-mic). The brain now runs on the actual room whenever devices exist.
