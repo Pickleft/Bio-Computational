@@ -69,6 +69,7 @@ function render(s) {
   drawMods(s);
   drawDreams(s);
   drawChat(s);
+  if (typeof brainMusicTick === "function") brainMusicTick(s);
 
   $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
 

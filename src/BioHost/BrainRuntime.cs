@@ -135,8 +135,11 @@ public sealed class BrainRuntime : IDisposable
     // --- artificial life: emergent personality, loneliness, diary ---
     public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
     public BioComp.Core.Cognition.LonelinessTracker Loneliness { get; } = new();
+    public BioComp.Core.Cognition.ThoughtFormation ThoughtTracer { get; } = new();
     private DiaryWriter? _diary;
+    private NeuralArtist? _artist;
     private bool _greetedThisSession;
+    private float[]? _lastRegionRates;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -249,6 +252,10 @@ public sealed class BrainRuntime : IDisposable
         _diary = new DiaryWriter(_lm)
         {
             Interval = TimeSpan.FromSeconds(cfg.DemoMode ? 45 : 300),
+        };
+        _artist = new NeuralArtist(_imager, _lm)
+        {
+            Interval = TimeSpan.FromSeconds(cfg.DemoMode ? 60 : 600),
         };
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
@@ -464,13 +471,17 @@ public sealed class BrainRuntime : IDisposable
         // (no artificial mood drift: modulators move when events happen, when the
         // brain self-stimulates, during replay, and during sleep; at rest they settle)
 
-        // ---- artificial life: personality, loneliness, diary, identity persistence ----
+        // ---- artificial life: personality, loneliness, diary, identity, art, thought tracing ----
         Loneliness.Tick(_net, _idle);
-        if (_net.TickIndex % 5_000 == 0 && _diary is not null)
+        if (_net.TickIndex % 100 == 0)
+            ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
+        if (_net.TickIndex % 5_000 == 0)
         {
-            _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness);
+            if (_diary is not null) _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness);
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds());
         }
+        if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
+            _ = _artist.MaybeCreateAsync(_net, _idle);
 
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
@@ -619,6 +630,57 @@ public sealed class BrainRuntime : IDisposable
         _speech.Speak(line);
         _idle.Actions.OnOutcome(_net, BrainAction.Speak, welcomed: true); // human response detection is future work
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// PORTABLE BRAIN: export the complete brain state as a single downloadable file.
+    /// Anyone can import this and run THE SAME BRAIN — learned synapses, memories,
+    /// personality, and social bonds. This is a portable consciousness file.
+    /// </summary>
+    public string ExportPortableBrain()
+    {
+        Directory.CreateDirectory("exports");
+        string checkpointPath = Path.Combine("data", "brain.ckpt");
+        TryCheckpoint();
+
+        var bundle = new
+        {
+            format = "bio-computational-brain-v1",
+            exportedAt = DateTime.UtcNow.ToString("o"),
+            simTimeMs = _net.TimeMs,
+            seed = _cfg.Seed,
+            personality = Personality.Describe(),
+            socialBonds = GetSocialBonds(),
+            loneliness = Loneliness.Level,
+            episodeCount = _net.EpisodeStore.Episodes.Count,
+            ignitionCount = _idle.Workspace.IgnitionCount,
+            dreamCount = _dreams.Count,
+            neuralState = File.Exists(checkpointPath) ? Convert.ToBase64String(File.ReadAllBytes(checkpointPath)) : null,
+        };
+
+        string path = Path.Combine("exports", $"brain-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(bundle, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        Note($"PORTABLE BRAIN exported to {Path.GetFileName(path)}");
+        return path;
+    }
+
+    /// <summary>Import a portable brain file and restore its neural state.</summary>
+    public bool ImportPortableBrain(string path)
+    {
+        try
+        {
+            var doc = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(File.ReadAllText(path));
+            string? neural = doc.GetProperty("neuralState").GetString();
+            if (!string.IsNullOrEmpty(neural))
+            {
+                Directory.CreateDirectory("data");
+                File.WriteAllBytes(Path.Combine("data", "brain.ckpt"), Convert.FromBase64String(neural));
+                TryResume();
+            }
+            Note($"PORTABLE BRAIN imported from {Path.GetFileName(path)}");
+            return true;
+        }
+        catch (Exception ex) { Note($"import failed: {ex.Message}"); return false; }
     }
 
     /// <summary>Region graph payload for the dashboard: region anchors, names, and
@@ -967,6 +1029,7 @@ public sealed class BrainRuntime : IDisposable
             _regionLastCounts[r] = (uint)total;
         }
         snap.RegionRates = rates;
+        _lastRegionRates = rates;
 
         // consciousness gauge and feeling journey
         float consciousness = BioComp.Core.Metrics.ConsciousnessMeter.Measure(_net, _idle);

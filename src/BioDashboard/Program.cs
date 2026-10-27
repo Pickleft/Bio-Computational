@@ -30,6 +30,25 @@ app.MapGet("/api/snapshot", () => Results.Json(runtime.Snapshot()));
 
 app.MapGet("/api/map", () => Results.Json(runtime.GetMapData()));
 
+app.MapGet("/api/export-brain", () =>
+{
+    string path = runtime.ExportPortableBrain();
+    return Results.File(path, "application/json", Path.GetFileName(path));
+});
+
+app.MapPost("/api/import-brain", async (HttpContext ctx) =>
+{
+    var file = ctx.Request.Form.Files.FirstOrDefault();
+    if (file is null) return Results.BadRequest(new { error = "file required" });
+    using var ms = new MemoryStream();
+    await file.CopyToAsync(ms);
+    string tempPath = Path.Combine("data", "imported-brain.json");
+    Directory.CreateDirectory("data");
+    await File.WriteAllBytesAsync(tempPath, ms.ToArray());
+    bool ok = runtime.ImportPortableBrain(tempPath);
+    return ok ? Results.Ok(new { ok = true }) : Results.BadRequest(new { error = "invalid brain file" });
+});
+
 app.MapPost("/api/say", async (HttpContext ctx) =>
 {
     var body = await ctx.Request.ReadFromJsonAsync<SayRequest>();

@@ -447,7 +447,33 @@ footer {
   border-top: 1px solid var(--border-subtle);
   font-size: 11px;
   color: var(--text-dim);
+  gap: 12px;
 }
+
+#music-toggle {
+  background: var(--bg-inset);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+#music-toggle:hover { background: var(--bg-card-hover); }
+#music-toggle.active { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px rgba(61,219,184,0.2); }
+
+#export-brain {
+  color: var(--purple);
+  text-decoration: none;
+  font-size: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: var(--transition);
+}
+#export-brain:hover { border-color: var(--purple); }
 
 #meta-badge { color: var(--accent); font-weight: 600; }
 
