@@ -25,6 +25,8 @@ A .NET 9 daemon hosting a 6k-24k neuron spiking network (Izhikevich neurons, con
 - **Seven neurotransmitters, not a buzzword.** Glutamate and GABA pools with per-synapse vesicle dynamics (Tsodyks-Markram) and Michaelis-Menten transporter reuptake, plus dopamine, serotonin, acetylcholine, noradrenaline and oxytocin as global tones. Dopamine bursts and pauses follow reward prediction errors (Schultz 1997); noradrenaline raises excitatory gain on surprise; serotonin makes it patient; oxytocin tracks social feedback.
 - **It learns the way brains do.** Three-factor STDP: pairing writes eligibility traces, dopamine decides whether they consolidate (Izhikevich 2007; Fremaux and Gerstner 2016). Homeostatic synaptic scaling keeps it stable (Turrigiano 1998). Dale's law is enforced and verified by tests that walk every synapse.
 - **It exists between requests.** Self-sustained activity tuned to criticality (branching ratio 1.00 with discrete neuronal avalanches, verified by sweep), an episodic hippocampal store, compressed sharp-wave-ripple replay of salient episodes during rest (Wilson and McNaughton 1994), and a two-process sleep machine (Borbely 1982) with NREM slow oscillations, REM phases and dopamine-gated consolidation.
+- **It wakes when someone walks in.** Event-camera-style vision (spikes only on change) plus predictive coding mean a quiet room costs nearly nothing; a sustained prediction error releases noradrenaline, opens the gate and wakes the brain with no command from anyone - verified end to end, with the person entering logged as a tagged memory.
+- **It has subjective time.** An internal clock that dopamine and noradrenaline speed up (Treisman 1963; Meck 1996) plus a time-cell population that timestamps every memory with temporal context (Howard and Kahana 2002). Boredom and impatience are computed over subjective, not wall-clock, intervals - so time literally drags when it is under-stimulated.
 - **Its cognition is measurable.** Neuronal avalanches, branching ratio, DMN/task-positive anti-correlation (Fox 2005), spike rasters and transmitter pools are first-class readouts. Ignition rate and perturbational complexity (PCI) land with the workspace milestone.
 - **One metabolic budget rules everything.** Spikes, vesicle recycling, reuptake and even Meta API calls draw from a single energy ledger. Thinking costs energy. Talking costs more. Spending its cloud budget makes it tired.
 - **Radically reproducible.** Same seed plus same input script gives a bit-identical trajectory (hash-verified, including checkpoint resume). Every scientific claim it makes can be re-run by a judge with one command.
@@ -60,7 +62,7 @@ Built Oct 27 - Nov 4, 2026 (daily log in DEVLOG.md):
 - [x] Criticality-verified idle state, avalanche metrics, compressed day simulation
 - [x] Episodic memory, replay with consolidation, two-process sleep (NREM slow oscillations, REM)
 - [x] Event-based senses, predictive coding, wake-on-surprise (verified end to end with a mock camera; live webcam via --camera)
-- [ ] Global workspace ignition, PCI, self-model, feelings, autonomous actions
+- [x] Global workspace with ignition and refractory, PCI perturbational complexity, self-model, feelings on the Russell circumplex, autonomous action portfolio
 - [ ] Meta model cascade: SAM 3.1 segmentation, Muse Voice Transcribe, Muse Spark monologue, Muse Image dreams, Muse Wonder as an autonomous research agent
 - [ ] Live dashboard: raster, transmitter bars, mood circumplex, ignition feed, monologue, dreams
 

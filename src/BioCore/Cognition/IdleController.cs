@@ -17,6 +17,17 @@ public sealed class IdleController
     public ReplayScheduler Replay { get; } = new();
     public PopulationCorrelation DmnTaskPosCorrelation { get; } = new();
     public BioComp.Core.Time.TimeSense Time { get; } = new();
+    public GlobalWorkspace Workspace { get; } = new();
+    public FeelingsMapper Feelings { get; } = new();
+    public SelfModel Self { get; } = new();
+    public ActionPortfolio Actions { get; } = new();
+
+    /// <summary>Latest body sample; the host updates this from interoception.</summary>
+    public Abstractions.InteroceptionSample Body { get; set; } = new(100, true, 1, 20f, 8f);
+
+    /// <summary>Latest sensory salience values (host feeds these from SalienceMonitor).</summary>
+    public float VisionSalience { get; set; }
+    public float AudioSalience { get; set; }
 
     public readonly List<string> EventLog = [];
 
@@ -47,6 +58,25 @@ public sealed class IdleController
     {
         Sleep.Tick(net, externalArousal);
         Replay.Tick(net, Sleep.ReplayAllowed);
+
+        // Workspace competition: vision and audition salience decay toward zero so old
+        // input stops competing; replay and body state submit continuously.
+        VisionSalience *= 0.999f;
+        AudioSalience *= 0.999f;
+        Workspace.Submit(WorkspaceModule.Vision, VisionSalience);
+        Workspace.Submit(WorkspaceModule.Audition, AudioSalience);
+        Workspace.Submit(WorkspaceModule.Memory, Replay.Current is not null ? 0.8f : 0.0f);
+        float bodyDeficit = Body.BatteryPercent is byte b and not 255 && b < 30 ? 0.9f : 0.1f;
+        Workspace.Submit(WorkspaceModule.Interoception, bodyDeficit);
+        Workspace.Submit(WorkspaceModule.Self, Workspace.LastIgnition is { Winner: WorkspaceModule.Self } ? 0.3f : 0.05f);
+        Workspace.Tick(net);
+
+        // Feelings at 10 Hz is plenty; narrative is a readout.
+        if (net.TickIndex % 100 == 0)
+        {
+            float novelty = MathF.Max(VisionSalience, AudioSalience);
+            Feelings.Evaluate(net, Sleep, Time, novelty, Body);
+        }
 
         if (Sleep.State != _lastLogged)
         {
@@ -83,6 +113,16 @@ public sealed class IdleController
 
         Time.Tick(net); // subjective clock: dopamine and noradrenaline set the pace
         net.Tick(); // the idle loop owns time
+    }
+
+    /// <summary>Recall query: answer "what happened while I was idle/away?" from real episodes.</summary>
+    public string AnswerWhatHappened(SpikingNetwork net, int max = 5)
+    {
+        var episodes = net.EpisodeStore.Episodes;
+        if (episodes.Count == 0) return "Nothing worth remembering yet.";
+        var selected = episodes.Reverse().Take(max).Reverse().ToList();
+        return string.Join(Environment.NewLine, selected.Select(e =>
+            $"[{e.TimeMs / 1000:F0}s] {string.Join(", ", e.Tags)} (valence {e.Valence:+0.0;-0.0})"));
     }
 
     /// <summary>

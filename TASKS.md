@@ -28,12 +28,12 @@
 - T3.5 [x]  Salience monitor (thalamic-gate precursor) + wake-on-surprise with episode tagging
 
 ## WS4 Cognition (Oct 31)
-- T4.1 GWS salience/coalition/ignition/broadcast + ignition log
-- T4.2 PCI (LZ76, perturbation)
-- T4.3 Self-model: efference copy, forward map, attenuation, provenance tags
-- T4.4 Feelings (circumplex + named states) + narrative builder
-- T4.5 Action portfolio + social inhibition + quiet hours + TTS output
-- T4.6 Recall query over episodes
+- T4.1 [x]  GWS salience/coalition/ignition/broadcast + ignition log
+- T4.2 [x]  PCI (LZ76, perturbation; down-state suppression verified)
+- T4.3 [x]  Self-model v1: efference copies, self-tagging of own audio/visual output (forward-map attenuation refines with the host)
+- T4.4 [x]  Feelings (circumplex + named states + narratives), consuming subjective time
+- T4.5 [x]  Action portfolio + social inhibition + quiet hours (TTS output lands with the host)
+- T4.6 [x]  Recall query over episodes
 - T4.7 [x]  Subjective time: dopamine/noradrenaline-modulated clock + time cells (feelings consume it in T4.4)
 
 ## WS5 Meta integration (Nov 1)
