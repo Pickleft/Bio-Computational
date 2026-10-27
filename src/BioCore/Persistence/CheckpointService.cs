@@ -14,6 +14,8 @@ public static class CheckpointService
 
     public static void Save(SpikingNetwork net, string path)
     {
+        // the data directory may not exist yet (fresh clone, VS working dir, first run)
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write);
         using var w = new BinaryWriter(fs);
         w.Write(Magic);

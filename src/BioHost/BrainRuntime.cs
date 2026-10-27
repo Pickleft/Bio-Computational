@@ -220,12 +220,19 @@ public sealed class BrainRuntime : IDisposable
             BuildSnapshot();
             if (_net.TimeMs >= nextCheckpoint)
             {
-                CheckpointService.Save(_net, Path.Combine("data", "brain.ckpt"));
+                TryCheckpoint();
                 nextCheckpoint = (long)_net.TimeMs + 300_000;
             }
             Thread.Sleep(15);
         }
-        CheckpointService.Save(_net, Path.Combine("data", "brain.ckpt"));
+        TryCheckpoint();
+    }
+
+    /// <summary>A failed checkpoint must never kill the brain.</summary>
+    private void TryCheckpoint()
+    {
+        try { CheckpointService.Save(_net, Path.Combine("data", "brain.ckpt")); }
+        catch (Exception ex) { Note($"checkpoint failed: {ex.Message}"); }
     }
 
     /// <summary>One simulated millisecond: senses in, cognition, actions out.</summary>
