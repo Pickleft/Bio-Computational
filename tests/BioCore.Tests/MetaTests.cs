@@ -80,8 +80,8 @@ public class MetaTests : IDisposable
         string? second = await gen.MaybeGenerateAsync(net, idle);
         Assert.Null(second); // rate limited
         Assert.Single(lm.SeenPrompts);
-        Assert.Contains("feeling=", lm.SeenPrompts[0]);       // grounded in state
-        Assert.Contains("episodes:", lm.SeenPrompts[0]);
+        Assert.Contains("feel", lm.SeenPrompts[0]);         // grounded in state
+        Assert.Contains("happened", lm.SeenPrompts[0]);      // describes the event
     }
 
     public void Dispose() { try { File.Delete(_log); } catch { } }

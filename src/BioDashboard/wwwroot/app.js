@@ -246,8 +246,8 @@ function drawSleep(s) {
 // ---- modulators ----
 function drawMods(s) {
   const wrap = $("mods");
-  const names = ["dopamine", "serotonin", "acetylcholine", "noradrenaline", "oxytocin"];
-  const colors = ["#3ddbb8", "#a78bfa", "#f0b45c", "#f07080", "#e888b8"];
+  const names = ["dopamine", "serotonin", "acetylcholine", "noradrenaline", "oxytocin", "histamine", "melatonin"];
+  const colors = ["#3ddbb8", "#a78bfa", "#f0b45c", "#f07080", "#e888b8", "#5ba8e0", "#7d8fa8"];
   wrap.innerHTML = "";
   names.forEach((n, i) => {
     const v = (s.Modulators && s.Modulators[i]) || 0;

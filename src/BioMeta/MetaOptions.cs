@@ -20,12 +20,31 @@ public sealed class MetaOptions
     public string? ApiKey { get; private set; }
     public bool HasKey => !string.IsNullOrWhiteSpace(ApiKey);
 
-    public static MetaOptions Load(string? explicitKey = null, string secretsPath = ".secrets/key.txt")
+    public static MetaOptions Load(string? explicitKey = null, string? secretsPath = null)
     {
         var opts = new MetaOptions();
+        // resolve the secrets path relative to the solution root, not the CWD
+        // (VS and dotnet-run-from-subfolder would otherwise look in the wrong place)
+        string path = secretsPath ?? FindKeyFile();
         opts.ApiKey = explicitKey
             ?? Environment.GetEnvironmentVariable("MODEL_API_KEY")
-            ?? (File.Exists(secretsPath) ? File.ReadAllText(secretsPath).Trim() : null);
+            ?? (File.Exists(path) ? File.ReadAllText(path).Trim() : null);
         return opts;
+    }
+
+    /// <summary>Search upward from CWD for .secrets/key.txt (handles VS, dotnet run,
+    /// and direct execution from any subdirectory).</summary>
+    private static string FindKeyFile()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (int i = 0; i < 6 && dir is not null; i++)
+        {
+            string candidate = Path.Combine(dir.FullName, ".secrets", "key.txt");
+            if (File.Exists(candidate)) return candidate;
+            dir = dir.Parent;
+        }
+        // also try CWD as fallback
+        string cwd = Path.Combine(Directory.GetCurrentDirectory(), ".secrets", "key.txt");
+        return File.Exists(cwd) ? cwd : Path.Combine(Directory.GetCurrentDirectory(), ".secrets", "key.txt");
     }
 }

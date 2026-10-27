@@ -4,25 +4,47 @@ namespace BioComp.Core.Neuromodulators;
 public enum NeuromodulatorKind : byte
 {
     Dopamine = 0,       // reward prediction error, gates plasticity (Schultz 1997)
-    Serotonin,          // patience / stability / learning rate (Dayan & Huys 2009)
+    Serotonin,          // patience / stability / learning rate (Dayan and Huys 2009)
     Acetylcholine,      // attention and encoding of new traces (Hasselmo 2006)
-    Noradrenaline,      // surprise and arousal gain (Aston-Jones & Cohen 2005)
+    Noradrenaline,      // surprise and arousal gain (Aston-Jones and Cohen 2005)
     Oxytocin,           // social reward and bonding signal (Dolen et al. 2013)
+    Histamine,          // wakefulness drive (Haas et al. 2008)
+    Melatonin,          // circadian sleep promotion (Borbely 1982 process C output)
 }
 
 /// <summary>
-/// Global tone state for the five modulators. Tones relax toward their baselines with
-/// first-order kinetics; events inject release (a negative amount for a pause, e.g.
-/// dopamine dips below baseline on a negative reward prediction error).
-/// Fast regional transmitter pools (glutamate, GABA) live in TransmitterSystem.
+/// Global tone state for the seven modulators. Tones relax toward their baselines
+/// with first-order kinetics; events inject release (negative amounts pull below
+/// baseline). Histamine and melatonin are driven by the sleep controller: histamine
+/// is the wakefulness flip-flop (high in wake, near-zero in NREM), melatonin follows
+/// the circadian oscillator (rises at biological night). Fast regional transmitter
+/// pools (glutamate, GABA) live in TransmitterSystem.
 /// </summary>
 public sealed class NeuromodulatorSystem
 {
-    public const int Count = 5;
+    public const int Count = 7;
 
     // baseline tone, and relaxation time constant in ms // CALIBRATE
-    private static readonly float[] Baseline = [0.30f, 0.50f, 0.30f, 0.20f, 0.20f];
-    private static readonly float[] TauMs = [2000f, 60_000f, 5000f, 1500f, 30_000f];
+    private static readonly float[] Baseline =
+    [
+        0.30f, // dopamine
+        0.50f, // serotonin
+        0.30f, // acetylcholine
+        0.20f, // noradrenaline
+        0.15f, // oxytocin (lower baseline: social bonding is specific, not tonic)
+        0.60f, // histamine (wake-promoting, high baseline during wake)
+        0.10f, // melatonin (low in daytime, rises at night)
+    ];
+    private static readonly float[] TauMs =
+    [
+        2000f,   // dopamine (fast)
+        60_000f, // serotonin (slow)
+        5000f,   // acetylcholine
+        1500f,   // noradrenaline (fast)
+        30_000f, // oxytocin (slow social trace)
+        10_000f, // histamine (minutes-scale wake state)
+        120_000f, // melatonin (very slow circadian)
+    ];
 
     public readonly float[] Tone = new float[Count];
     public readonly float[] PendingRelease = new float[Count];

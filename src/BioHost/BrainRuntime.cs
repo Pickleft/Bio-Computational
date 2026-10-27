@@ -39,7 +39,7 @@ public sealed class BrainSnapshot
     public string FeelingNarrative { get; set; } = "";
     public float Valence { get; set; }
     public float Arousal { get; set; }
-    public float[] Modulators { get; set; } = new float[5]; // DA, 5-HT, ACh, NA, OXT
+    public float[] Modulators { get; set; } = new float[7]; // DA, 5-HT, ACh, NA, OXT, Hist, Mel
     public float MeanRateHz { get; set; }
     public float Energy { get; set; }
     public float ClockRate { get; set; }
@@ -704,6 +704,8 @@ public sealed class BrainRuntime : IDisposable
         snap.Modulators[2] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Acetylcholine);
         snap.Modulators[3] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
         snap.Modulators[4] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin);
+        snap.Modulators[5] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Histamine);
+        snap.Modulators[6] = m.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Melatonin);
 
         // raster: last ~600 spikes as [tSec, neuronIdx, regionIdx] (idx lets the map
         // flash the exact neuron; frac derivable client-side)

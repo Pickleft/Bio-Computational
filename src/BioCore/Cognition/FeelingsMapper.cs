@@ -44,13 +44,15 @@ public sealed class FeelingsMapper
 
         // dopamine is the seeking system: bursts raise activation as well as valence
         float daDrive = Math.Clamp((da - NeuromodulatorSystem.BaselineOf(NeuromodulatorKind.Dopamine)) * 1.5f, 0f, 1f);
+        // histamine is the wakefulness drive (Haas et al. 2008): contributes to arousal
+        float hist = net.Modulators.Get(NeuromodulatorKind.Histamine);
         // noradrenaline is the primary arousal driver: events push it well above baseline
-        // (the weight is high enough that a surprise NA burst crosses the curious threshold)
         float arousal = Math.Clamp(
-            0.70f * na +
-            0.25f * daDrive +
+            0.55f * na +
+            0.20f * daDrive +
+            0.15f * hist +
             0.10f * Math.Clamp(novelty, 0f, 2f) / 2f +
-            0.25f * stress,
+            0.20f * stress,
             0f, 1f);
 
         // boredom emerges from sustained silence: nothing novel for a long subjective

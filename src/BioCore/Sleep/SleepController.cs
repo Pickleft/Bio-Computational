@@ -56,6 +56,7 @@ public sealed class SleepController
         if (externalArousal > 0.5f)
         {
             if (State != BrainState.Wake) SetState(net, BrainState.Wake);
+            DriveWakeSleepModulators(net);
             return; // homeostatic transitions are suspended under arousal; pressure still accrued above
         }
 
@@ -87,10 +88,42 @@ public sealed class SleepController
                 break;
         }
 
+        DriveWakeSleepModulators(net);
         ApplyStateEffects(net);
     }
 
     public void ForceWake(SpikingNetwork net) => SetState(net, BrainState.Wake);
+
+    /// <summary>
+    /// Wake/sleep neuromodulator drive: histamine is the wake flip-flop
+    /// (high in wake, collapses in NREM — Haas et al. 2008); melatonin follows
+    /// the circadian oscillator (rises at biological night — Borbely 1982).
+    /// </summary>
+    private void DriveWakeSleepModulators(SpikingNetwork net)
+    {
+        var m = net.Modulators;
+        // histamine: wake = high, NREM = near-zero, REM = low
+        float histTarget = State switch
+        {
+            BrainState.Wake => 0.60f,
+            BrainState.Drowsy => 0.35f,
+            BrainState.REM => 0.10f,
+            _ => 0.02f, // NREM
+        };
+        float histCurrent = m.Get(NeuromodulatorKind.Histamine);
+        if (histCurrent < histTarget - 0.05f)
+            m.Release(NeuromodulatorKind.Histamine, 0.1f);
+        else if (histCurrent > histTarget + 0.05f)
+            m.Release(NeuromodulatorKind.Histamine, -0.1f);
+
+        // melatonin: inverse of circadian (high when circadian is low = biological night)
+        float melTarget = (1f - Circadian) * 0.8f;
+        float melCurrent = m.Get(NeuromodulatorKind.Melatonin);
+        if (melCurrent < melTarget - 0.05f)
+            m.Release(NeuromodulatorKind.Melatonin, 0.05f);
+        else if (melCurrent > melTarget + 0.05f)
+            m.Release(NeuromodulatorKind.Melatonin, -0.05f);
+    }
 
     private void SetState(SpikingNetwork net, BrainState next)
     {
