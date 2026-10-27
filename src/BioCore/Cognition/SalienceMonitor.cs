@@ -5,21 +5,20 @@ using BioComp.Core.Senses;
 namespace BioComp.Core.Cognition;
 
 /// <summary>
-/// The thalamic-gate precursor: combines visual and auditory prediction error into a
-/// salience/arousal signal. Sustained surprise (the instantaneous standardized error)
-/// releases noradrenaline (gain up), a splash of dopamine (novelty is valuable), and is
-/// reported as external arousal so the idle loop wakes the brain and encodes a tagged
-/// episode. Habituation falls out of the predictive models: a stimulus that stays
-/// static stops producing prediction error, and repeated events adapt the error
-/// statistics; changed input dishabituates automatically. The slow novelty trace feeds
-/// curiosity and boredom rather than the trigger.
+/// The automatic bridge between sensory prediction error and neuromodulators.
+/// Every frame/block: surprise releases NA (arousal) proportional to magnitude;
+/// novelty releases DA (the brain finds novelty rewarding); sustained low novelty
+/// gradually pulls DA below baseline (boredom as dopamine underflow, not a timer);
+/// voice detection releases OXT (a social stimulus is intrinsically rewarding).
+/// The feelings mapper just reads what the neuromodulators are doing — no manual
+/// triggers anywhere in the codebase.
 /// </summary>
 public sealed class SalienceMonitor
 {
     public PredictiveModel VisionModel { get; } = new();
     public PredictiveModel AudioModel { get; } = new();
 
-    public float SurpriseThreshold { get; set; } = 6.0f;  // standardized-error units
+    public float SurpriseThreshold { get; set; } = 6.0f;
     public float SustainMs { get; set; } = 250f;
     public int CooldownMs { get; set; } = 5_000;
 
@@ -31,29 +30,71 @@ public sealed class SalienceMonitor
     private long _cooldownUntil = long.MinValue;
     private string _pendingTag = "";
 
-    /// <summary>Feed the latest vision statistics (once per frame).</summary>
+    /// <summary>Feed the latest vision frame: automatically releases neuromodulators
+    /// proportional to the surprise magnitude. The event trigger uses the instantaneous
+    /// surprise (spikes high for novel stimuli); the feelings use the slow novelty trace.</summary>
     public void OnVisionFrame(SpikingNetwork net, float changeEnergy)
     {
         float perPixel = changeEnergy / (64f * 64f);
-        VisionModel.Observe(perPixel);
-        Consider(net, VisionModel.LastSurprise, "person");
+        float surprise = VisionModel.Observe(perPixel);
+        ReleaseFromSurprise(net, surprise, "person");
+        Consider(net, surprise, "person"); // trigger on instantaneous surprise (same as before)
     }
 
-    /// <summary>Feed the latest audio block.</summary>
+    /// <summary>Feed the latest audio block: onsets are inherently surprising;
+    /// voice detection is a social stimulus (OXT).</summary>
     public void OnAudioBlock(SpikingNetwork net, bool onset, float energy)
     {
-        AudioModel.Observe(energy);
-        if (onset) Consider(net, AudioModel.LastSurprise + 4f, "sound"); // onsets are surprising by definition
+        float surprise = AudioModel.Observe(energy);
+        if (onset) surprise += 4f; // onsets are surprising by definition
+        ReleaseFromSurprise(net, surprise, "sound");
+
+        // voice is a social stimulus: automatically releases oxytocin (Dolen et al. 2013)
+        if (onset && surprise > 2f)
+            net.Modulators.Release(NeuromodulatorKind.Oxytocin, 0.1f);
+
+        Consider(net, surprise, "sound"); // trigger on instantaneous surprise
     }
 
-    private void Consider(SpikingNetwork net, float surprise, string tag)
+    /// <summary>
+    /// Automatic neuromodulator release from prediction error: the core pathway.
+    /// Surprise → NA (arousal/gain up, Aston-Jones and Cohen 2005).
+    /// Novelty → DA (the brain finds novelty rewarding, Schultz 1997 / Kakade and Dayan 2002).
+    /// Sustained low novelty → DA sinks below baseline (boredom as dopamine underflow).
+    /// </summary>
+    private void ReleaseFromSurprise(SpikingNetwork net, float surprise, string tag)
     {
-        // arousal: sharp component from surprise, slow component from accumulated novelty
-        Arousal = Math.Clamp(
-            0.7f * MathF.Min(surprise / SurpriseThreshold, 1f) +
-            0.3f * MathF.Min((VisionModel.Novelty + AudioModel.Novelty) / 2f, 1f), 0f, 1f);
+        var mods = net.Modulators;
 
-        if (surprise > SurpriseThreshold)
+        // noradrenaline: proportional to surprise magnitude (the LC responds to
+        // stimulus intensity, not just binary detection)
+        if (surprise > 1.5f)
+        {
+            float naAmount = Math.Clamp(surprise * 0.04f, 0.05f, 0.8f);
+            mods.Release(NeuromodulatorKind.Noradrenaline, naAmount);
+        }
+
+        // dopamine: novelty is intrinsically rewarding (Kakade and Dayan 2002)
+        float novelty = (VisionModel.Novelty + AudioModel.Novelty) / 2f;
+        if (novelty > 0.3f)
+            mods.Release(NeuromodulatorKind.Dopamine, novelty * 0.08f);
+        else if (novelty < 0.05f)
+        {
+            // sustained low novelty: DA sinks below baseline — this is real boredom,
+            // not a timer; it resets the moment anything novel happens
+            mods.Release(NeuromodulatorKind.Dopamine, -0.002f);
+        }
+
+        // arousal for the workspace: sharp from surprise, slow from novelty
+        Arousal = Math.Clamp(
+            0.7f * Math.Min(surprise / SurpriseThreshold, 1f) +
+            0.3f * Math.Min(novelty, 1f),
+            0f, 1f);
+    }
+
+    private void Consider(SpikingNetwork net, float novelty, string tag)
+    {
+        if (novelty > SurpriseThreshold)
         {
             if (_sustainStart < 0f)
             {
@@ -66,8 +107,6 @@ public sealed class SalienceMonitor
                 _cooldownUntil = net.TickIndex + CooldownMs;
                 SurpriseEvents++;
                 SurpriseLog.Add((net.TimeMs, _pendingTag));
-                net.Modulators.Release(NeuromodulatorKind.Noradrenaline, 0.9f);
-                net.Modulators.Release(NeuromodulatorKind.Dopamine, 0.25f);
             }
         }
         else
@@ -76,6 +115,6 @@ public sealed class SalienceMonitor
         }
     }
 
-    /// <summary>Arousal consumed by the idle loop (wake gate) and, later, the workspace.</summary>
+    /// <summary>Arousal consumed by the idle loop (wake gate) and the workspace.</summary>
     public float ExternalArousal => Arousal;
 }

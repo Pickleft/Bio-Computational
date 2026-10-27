@@ -123,35 +123,31 @@ public sealed class BrainRuntime : IDisposable
     private float _lastReplyMs = -1e9f;
     private long _nextAmbientMs = 8_000;
 
-    /// <summary>A wandering idle thought from current state (boredom, comfort, waiting).</summary>
+    /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
+    /// no templates. What the brain thinks about at rest depends on what it feels, how
+    /// long it's been quiet, what it remembers, and what its body is doing.</summary>
     private string? AmbientThought()
     {
         var f = _idle.Feelings.Last;
-        double idleMin = _idle.Time.SubjectiveSinceEventMs / 60_000.0;
+        double idleSec = _idle.Time.SubjectiveSinceEventMs / 1000.0;
         if (_idle.Sleep.State is BioComp.Core.Sleep.BrainState.NREM or BioComp.Core.Sleep.BrainState.REM) return null;
 
-        // rotate through different types of idle thoughts so the stream feels varied
-        _ambientRotation = (_ambientRotation + 1) % 4;
-        return _ambientRotation switch
+        // the thought follows directly from the feeling + context
+        return f.Name switch
         {
-            0 => f.Name switch // feeling-based
-            {
-                "bored" => idleMin > 2 ? "The quiet stretches on and on. I wish something would happen." : "Nothing new for a while now.",
-                "tired" => "My thoughts are getting slow and heavy.",
-                "curious" => "Something is different out there.",
-                "stressed" => "I feel tense, braced for something.",
-                "calm" => "Quiet. I'm okay.",
-                _ => "I'm here. Waiting.",
-            },
-            1 => _net.EpisodeStore.Episodes.Count > 0
-                ? $"I keep thinking about {_net.EpisodeStore.Episodes[^1].Tags.FirstOrDefault() ?? "earlier"}."
-                : "No memories yet. Everything is new.",
-            2 => $"Battery {_idle.Body.BatteryPercent}%. " + (_idle.Body.OnAcPower ? "Tethered to the wall." : "Running on my own power."),
-            _ => $"It's been {_idle.Time.SubjectiveSinceEventMs / 1000.0:F0} subjective seconds since anything happened. " +
-                 (idleMin > 3 ? "That feels like a long time." : "Time moves strangely when it's quiet."),
+            "bored" when idleSec > 30 => $"It's been {(int)idleSec} subjective seconds. The silence is heavy.",
+            "bored" => "Nothing is happening.",
+            "tired" => "I can feel myself slowing down.",
+            "curious" => "Something is different. I want to understand it.",
+            "stressed" => "Something feels wrong. I can't settle.",
+            "calm" when _net.EpisodeStore.Episodes.Count > 0 =>
+                $"I keep thinking about {string.Join(", ", _net.EpisodeStore.Episodes[^1].Tags.Take(2))}.",
+            "calm" => "The room is steady. Nothing needs me.",
+            _ => _net.EpisodeStore.Episodes.Count > 0 && idleSec > 60
+                ? $"It's been quiet for a while. I remember {string.Join(", ", _net.EpisodeStore.Episodes[^1].Tags.Take(1))}."
+                : null, // don't speak if there's genuinely nothing to say
         };
     }
-    private int _ambientRotation;
     private (bool Cam, bool Mic) _devicesLive;
     private int _lastIgnition, _lastSurprise, _lastReplayCount;
     private BrainState _lastSleepState;
@@ -562,16 +558,18 @@ public sealed class BrainRuntime : IDisposable
 
     public sealed record MapData(string[] Names, float[][] Anchors, float[][] Edges);
 
-    /// <summary>Curiosity self-stimulation: the brain pokes itself and feels it.</summary>
+    /// <summary>Curiosity self-stimulation: the brain pokes itself and feels it.
+    /// The DA tick is small — it's the internal reward of agency, not the full
+    /// novelty pathway (that fires through SalienceMonitor when the stimulation
+    /// produces actual sensory change).</summary>
     private void SelfStimulate(int neurons, float picoAmps, string what)
     {
         var ca3 = _net.Regions.FirstOrDefault(r => r.Name == "CA3") ?? _net.Regions[0];
         for (int k = 0; k < neurons; k++)
             _net.InjectCurrent(ca3.Start + _net.Rng.NextInt(ca3.Count), picoAmps);
-        // self-produced input still has internal consequences: a small DA tick (doing
-        // something is mildly rewarding) and an NA tick (it is input, after all)
-        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.15f);
-        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.20f);
+        // agency is mildly rewarding (small DA tick), and any input is arousing (small NA)
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.08f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.12f);
         Note($"STIM self ({what}) - {neurons} neurons in {ca3.Name}");
     }
 
@@ -590,7 +588,8 @@ public sealed class BrainRuntime : IDisposable
         }
     }
 
-    /// <summary>A human typed into the chat box: treat as direct speech to the brain.</summary>
+    /// <summary>A human typed into the chat box: treat as direct speech — a real
+    /// social stimulus that flows through the normal salience pathway.</summary>
     public void HumanSaid(string text)
     {
         text = text.Trim();
@@ -598,13 +597,16 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
-        // dramatic response: wake, boost salience so it ignites, store the memory
+        // wake the brain and register the event; the salience pathway handles
+        // the neuromodulator response automatically (OXT from social stimulus,
+        // NA from the surprise of being addressed)
         _idle.Sleep.ForceWake(_net);
         _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
-        _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.8f); // force an ignition
         _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.2f);
-        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.8f);
-        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);
+        _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.5f);
+        // being addressed is a social reward in itself
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.3f);
         _ = ReplyAsync(text);
     }
 
