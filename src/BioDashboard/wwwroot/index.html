@@ -3,103 +3,156 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bio-Computational - live brain</title>
+<title>Bio-Computational</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
 <header id="topbar">
-  <span id="title">BIO-COMPUTATIONAL</span>
-  <span id="state" class="pill">booting</span>
-  <span id="feeling" class="pill">...</span>
-  <span id="clock" class="dim">t=0s</span>
-  <span id="rate" class="dim">0 Hz</span>
-  <span id="cost" class="dim">$0.000</span>
-  <span id="senses" class="dim">mocks</span>
-  <span id="rec" title="camera live">REC</span>
+  <div class="brand">
+    <span class="logo"></span>
+    <span class="name">BIO<span class="accent">·</span>COMPUTATIONAL</span>
+  </div>
+  <div class="stats">
+    <span class="stat"><span class="stat-label">state</span><span id="state" class="stat-value">boot</span></span>
+    <span class="stat"><span class="stat-label">feeling</span><span id="feeling" class="stat-value accent-purple">—</span></span>
+    <span class="stat"><span class="stat-label">t</span><span id="clock" class="stat-value mono">0s</span></span>
+    <span class="stat"><span class="stat-label">rate</span><span id="rate" class="stat-value mono">0 Hz</span></span>
+    <span class="stat"><span class="stat-label">api</span><span id="cost" class="stat-value mono">$0.00</span></span>
+    <span class="stat"><span class="stat-label">senses</span><span id="senses" class="stat-value dim">mock</span></span>
+  </div>
+  <span id="rec" title="camera live">●</span>
 </header>
 
-<main>
-  <section class="panel wide">
-    <h2>brain activity - regions and pathways</h2>
-    <canvas id="regions" width="980" height="300"></canvas>
-  </section>
+<main class="grid">
 
-  <section class="panel wide">
-    <h2>spikes (live raster)</h2>
-    <canvas id="raster" width="980" height="220"></canvas>
-  </section>
-
-  <section class="panel wide">
-    <h2>eeg proxy - thalamocortical lfp spectrogram</h2>
-    <canvas id="spectrogram" width="980" height="130"></canvas>
-    <div class="mini" id="lfp-readout">
-      <div>1/f slope <span id="lfp-slope" class="dim">0</span> · alpha ratio <span id="alpha-ratio" class="dim">0</span> (1/f &lt; 0 and alpha ratio &gt; 1.2 at quiet rest = healthy signatures)</div>
+  <section class="card span-3" style="grid-row: span 1;">
+    <div class="card-head">
+      <h2>brain activity</h2>
+      <span class="card-sub">regions glow with firing rate · edges pulse with traffic</span>
+    </div>
+    <div class="card-body">
+      <canvas id="regions" data-aspect="2.8"></canvas>
     </div>
   </section>
 
-  <section class="panel">
-    <h2>feeling</h2>
-    <div id="circumplex-wrap">
-      <canvas id="circumplex" width="300" height="300"></canvas>
-      <div id="feeling-narrative">...</div>
+  <section class="card span-2">
+    <div class="card-head">
+      <h2>eeg proxy</h2>
+      <span class="card-sub">1/f <span id="lfp-slope" class="mono">—</span> · α <span id="alpha-ratio" class="mono">—</span></span>
+    </div>
+    <div class="card-body">
+      <canvas id="spectrogram" data-aspect="3.2"></canvas>
     </div>
   </section>
 
-  <section class="panel">
-    <h2>neuromodulators</h2>
-    <div id="mods"></div>
-    <div class="mini">
-      <div>energy <span id="energy" class="dim">0</span></div>
-      <div>internal clock <span id="clockrate" class="dim">1.0x</span> subjective <span id="subj" class="dim">0 min</span></div>
+  <section class="card span-1">
+    <div class="card-head">
+      <h2>feeling</h2>
+    </div>
+    <div class="card-body feeling-body">
+      <canvas id="circumplex" data-aspect="1"></canvas>
+      <div class="feeling-info">
+        <div id="feeling-narrative">…</div>
+        <div class="mini-grid">
+          <div><span class="mini-label">clock</span><span id="clockrate" class="mono">1.0×</span></div>
+          <div><span class="mini-label">subj</span><span id="subj" class="mono">0 min</span></div>
+          <div><span class="mini-label">energy</span><span id="energy" class="mono">0</span></div>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="panel wide tall">
-    <h2>thoughts (plain english)</h2>
-    <ul id="plain" class="feed plain"></ul>
+  <section class="card span-1">
+    <div class="card-head">
+      <h2>neuromodulators</h2>
+    </div>
+    <div class="card-body" id="mods"></div>
   </section>
 
-  <section class="panel wide tall">
-    <h2>thought process (raw events)</h2>
-    <ul id="thought" class="feed"></ul>
-  </section>
-
-  <section class="panel">
-    <h2>sleep</h2>
-    <canvas id="sleepstrip" width="300" height="60"></canvas>
-    <div class="mini">
-      <div>pressure <span id="pressure" class="dim">0</span></div>
-      <div>ignitions <span id="ignitions" class="dim">0</span> surprises <span id="surprises" class="dim">0</span> replays <span id="replays" class="dim">0</span></div>
+  <section class="card span-1">
+    <div class="card-head">
+      <h2>sleep</h2>
+      <span class="card-sub">pressure <span id="pressure" class="mono">—</span></span>
+    </div>
+    <div class="card-body">
+      <canvas id="sleepstrip" data-aspect="4"></canvas>
+      <div class="mini-grid">
+        <div><span class="mini-label">ign</span><span id="ignitions" class="mono">0</span></div>
+        <div><span class="mini-label">sur</span><span id="surprises" class="mono">0</span></div>
+        <div><span class="mini-label">rep</span><span id="replays" class="mono">0</span></div>
+      </div>
     </div>
   </section>
 
-  <section class="panel">
-    <h2>dreams (rem imagery)</h2>
-    <div id="dreams" class="dreamgrid"></div>
+  <section class="card span-1">
+    <div class="card-head">
+      <h2>episodes</h2>
+      <span class="card-sub"><span id="episode-count" class="mono">0</span> stored</span>
+    </div>
+    <div class="card-body scroll">
+      <ul id="episodes" class="list compact"></ul>
+    </div>
   </section>
 
-  <section class="panel">
-    <h2>inner voice</h2>
-    <ul id="monologue" class="feed small"></ul>
+  <section class="card span-3">
+    <div class="card-head">
+      <h2>thoughts</h2>
+      <span class="card-sub">what it is experiencing, in its own words</span>
+    </div>
+    <div class="card-body scroll tall">
+      <ul id="plain" class="list thoughts"></ul>
+    </div>
   </section>
 
-  <section class="panel">
-    <h2>episodes</h2>
-    <ul id="episodes" class="feed small"></ul>
+  <section class="card span-2">
+    <div class="card-head">
+      <h2>inner voice</h2>
+    </div>
+    <div class="card-body scroll">
+      <ul id="monologue" class="list compact"></ul>
+    </div>
   </section>
 
-  <section class="panel wide">
-    <h2>talk to it</h2>
-    <div id="chat" class="chatlog"></div>
-    <form id="chatform">
-      <input id="chatbox" placeholder="say something to the brain..." autocomplete="off" maxlength="200">
-      <button type="submit">say</button>
-    </form>
+  <section class="card span-1">
+    <div class="card-head">
+      <h2>dreams</h2>
+    </div>
+    <div class="card-body scroll">
+      <div id="dreams" class="dreamgrid"></div>
+    </div>
   </section>
+
+  <section class="card span-1">
+    <div class="card-head">
+      <h2>events</h2>
+      <span class="card-sub">raw log</span>
+    </div>
+    <div class="card-body scroll tall">
+      <ul id="thought" class="list mono-list compact"></ul>
+    </div>
+  </section>
+
+  <section class="card span-2">
+    <div class="card-head">
+      <h2>talk to it</h2>
+    </div>
+    <div class="card-body">
+      <div id="chat" class="chatlog"></div>
+      <form id="chatform">
+        <input id="chatbox" placeholder="say something…" autocomplete="off" maxlength="200">
+        <button type="submit">↩</button>
+      </form>
+    </div>
+  </section>
+
 </main>
 
 <footer>
-  research platform - computational proxies, not clinical claims · <span id="meta-badge">meta tier: mock</span>
+  <span>research platform — computational proxies, not clinical claims</span>
+  <span id="meta-badge">mock</span>
 </footer>
 
 <script src="app.js"></script>
