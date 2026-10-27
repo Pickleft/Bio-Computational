@@ -361,3 +361,17 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Bio-Computational runtime artifacts (never commit brain state, logs or dreams)
+data/
+checkpoints/
+dreams/
+exports/
+reports/
+*.ckpt
+api_cost.jsonl
+episodes.jsonl
+
+# Local model caches and secrets
+*.env
+appsettings.Local.json

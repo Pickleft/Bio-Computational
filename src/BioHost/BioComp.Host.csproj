@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BioCore\BioComp.Core.csproj" />
+    <ProjectReference Include="..\BioSenses\BioComp.Senses.csproj" />
+    <ProjectReference Include="..\BioCognition\BioComp.Cognition.csproj" />
+    <ProjectReference Include="..\BioMeta\BioComp.Meta.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
