@@ -511,29 +511,11 @@ public sealed class BrainRuntime : IDisposable
         await Task.CompletedTask;
     }
 
-    /// <summary>Static map payload for the dashboard: every neuron's sheet position,
-    /// region index, and up to 3 sampled axon targets (for propagation animation),
-    /// plus the projection graph (region edges with weights).</summary>
+    /// <summary>Region graph payload for the dashboard: region anchors, names, and
+    /// the projection edges with weights.</summary>
     public MapData GetMapData()
     {
         if (_mapData is not null) return _mapData;
-        int n = _net.V.Length;
-        var neurons = new float[n * 2];
-        var regions = new int[n];
-        var links = new int[n * 3];
-        for (int i = 0; i < n; i++)
-        {
-            neurons[2 * i] = _net.PosX[i];
-            neurons[2 * i + 1] = _net.PosY[i];
-            regions[i] = _net.RegionOf[i];
-            // sample up to 3 postsynaptic targets evenly across the neuron's CSR row
-            int rowStart = _net.Syn.RowPtr[i], rowEnd = _net.Syn.RowPtr[i + 1];
-            for (int k = 0; k < 3; k++)
-            {
-                int slot = rowStart + (rowEnd - rowStart) * (k + 1) / 4;
-                links[3 * i + k] = rowEnd > rowStart ? _net.Syn.PostIdx[slot] : -1;
-            }
-        }
         var anchors = _net.Config.Regions.Select(r => new[] { r.SheetX, r.SheetY }).ToArray();
         var names = _net.Config.Regions.Select(r => r.Name).ToArray();
         var edges = _net.Config.Projections
@@ -546,13 +528,11 @@ public sealed class BrainRuntime : IDisposable
             })
             .Where(e => e[0] >= 0 && e[1] >= 0)
             .ToArray();
-        _mapData = new MapData(neurons, names, anchors, edges, regions, links);
+        _mapData = new MapData(names, anchors, edges);
         return _mapData;
     }
 
-    public sealed record MapData(
-        float[] Neurons, string[] Names, float[][] Anchors, float[][] Edges,
-        int[] Regions, int[] Links);
+    public sealed record MapData(string[] Names, float[][] Anchors, float[][] Edges);
 
     /// <summary>Curiosity self-stimulation: the brain pokes itself, visibly.</summary>
     private void SelfStimulate(int neurons, float picoAmps, string what)

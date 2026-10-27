@@ -11,116 +11,19 @@ const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") +
 ws.onmessage = (ev) => { lastSnapshot = JSON.parse(ev.data); render(lastSnapshot); };
 ws.onclose = () => { $("state").textContent = "disconnected"; setTimeout(() => location.reload(), 2000); };
 
-// ---- cortex map state (static payload fetched once) ----
-let MAP = null;        // { neurons, names, anchors, edges, regions, links }
+// ---- region graph state (static payload fetched once) ----
+let MAP = null;        // { names, anchors, edges }
 let lastSnapshot = null;
-let heatBuf = null;
 
-fetch("/api/map").then((r) => r.json()).then((m) => {
-  MAP = m;
-  drawCortexBase();
-  heatBuf = new Float32Array(m.neurons.length / 2);
-  requestAnimationFrame(animateCortex);
-});
+fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; });
 
 function mapExtent() {
   let maxX = 1, maxY = 1;
-  for (let i = 0; i < MAP.neurons.length; i += 2) {
-    if (MAP.neurons[i] > maxX) maxX = MAP.neurons[i];
-    if (MAP.neurons[i + 1] > maxY) maxY = MAP.neurons[i + 1];
+  for (const [ax, ay] of MAP.anchors) {
+    if (ax > maxX) maxX = ax;
+    if (ay > maxY) maxY = ay;
   }
   return [maxX, maxY];
-}
-
-function toCanvas(idx, c) {
-  const [mx, my] = mapExtent();
-  return [
-    30 + (MAP.neurons[idx * 2] / mx) * (c.width - 60),
-    c.height - 20 - (MAP.neurons[idx * 2 + 1] / my) * (c.height - 40),
-  ];
-}
-
-let baseCanvas = null;
-function drawCortexBase() {
-  baseCanvas = document.createElement("canvas");
-  baseCanvas.width = $("cortex").width;
-  baseCanvas.height = $("cortex").height;
-  const ctx = baseCanvas.getContext("2d");
-  ctx.fillStyle = "#070a10";
-  ctx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
-  for (let i = 0; i < MAP.neurons.length / 2; i++) {
-    const [x, y] = toCanvas(i, baseCanvas);
-    ctx.fillStyle = "rgba(70, 90, 120, 0.30)";
-    ctx.fillRect(x, y, 1.4, 1.4);
-  }
-}
-
-// rAF loop: smooth glow decay + travelling spikes along sampled axons
-function animateCortex() {
-  const c = $("cortex");
-  if (!MAP || !baseCanvas) { requestAnimationFrame(animateCortex); return; }
-  const ctx = c.getContext("2d");
-  ctx.drawImage(baseCanvas, 0, 0);
-  const n = MAP.neurons.length / 2;
-
-  // ingest new spikes from the latest snapshot
-  if (lastSnapshot) {
-    const seen = lastSnapshot.Raster || [];
-    for (const p of seen) {
-      const idx = p[1] | 0;
-      if (idx >= 0 && idx < n && heatBuf[idx] < 0.95) heatBuf[idx] = 1;
-    }
-  }
-
-  // glow pass: neurons shimmer where recently active
-  for (let i = 0; i < n; i++) {
-    if (heatBuf[i] <= 0.04) { heatBuf[i] = 0; continue; }
-    const [x, y] = toCanvas(i, c);
-    const h = heatBuf[i];
-    ctx.globalAlpha = h;
-    ctx.fillStyle = regionColors[MAP.regions[i] % regionColors.length];
-    const size = 1.6 + 3.2 * h;
-    ctx.fillRect(x - size / 2, y - size / 2, size, size);
-    heatBuf[i] *= 0.90;
-  }
-
-  // propagation pass: sparks travel from firing neurons to sampled axon targets
-  if (lastSnapshot) {
-    const now = Math.max(1, lastSnapshot.SimSeconds);
-    const seen = lastSnapshot.Raster || [];
-    let drawn = 0;
-    for (const p of seen) {
-      if (drawn > 220) break;
-      const [tSec, neuronIdx] = p;
-      const age = (now - tSec) / 0.35;          // travel time ~0.35 sim-sec
-      if (age < 0 || age > 1) continue;
-      const from = neuronIdx | 0;
-      if (from * 3 + 2 >= MAP.links.length) continue;
-      for (let k = 0; k < 3; k++) {
-        const to = MAP.links[from * 3 + k];
-        if (to < 0) continue;
-        const [x1, y1] = toCanvas(from, c);
-        const [x2, y2] = toCanvas(to, c);
-        const px = x1 + (x2 - x1) * age;
-        const py = y1 + (y2 - y1) * age;
-        ctx.globalAlpha = (1 - age) * 0.9;
-        ctx.fillStyle = regionColors[MAP.regions[from] % regionColors.length];
-        ctx.fillRect(px, py, 1.8, 1.8);
-        drawn++;
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  requestAnimationFrame(animateCortex);
-}
-
-function drawCortex(s) {
-  // static in rAF loop; only caption refresh here
-  const c = $("cortex"), ctx = c.getContext("2d");
-  if (!MAP) return;
-  ctx.fillStyle = "#33445c";
-  ctx.font = "10px Consolas";
-  ctx.fillText((s.Raster || []).length + " recent spikes", 36, 14);
 }
 
 function drawRegionGraph(s) {
@@ -191,7 +94,6 @@ function render(s) {
   $("replays").textContent = s.Replays;
   $("meta-badge").textContent = "meta tier: " + (s.MetaLive ? "live" : "mock");
 
-  drawCortex(s);
   drawRegionGraph(s);
   drawRaster(s);
   drawSpectrogram(s);
