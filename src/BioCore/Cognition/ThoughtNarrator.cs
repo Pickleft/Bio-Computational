@@ -35,6 +35,7 @@ public static class ThoughtNarrator
             "REPLY" => "",       // shown in chat
             "ACTION" => ActionLine(rest, feeling),
             "AMBIENT" => rest, // already a first-person idle thought
+            "DAYDREAM" => rest.Replace("\"", "").Trim(), // private inner thought, strip quotes
             "STIM" => "I nudge myself to feel something.",
             "resumed" => "Picking up where I left off.",
             _ => body,
