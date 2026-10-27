@@ -66,7 +66,10 @@ function animateAvatar() {
   ctx.clearRect(0, 0, w, h);
 
   const cx = w / 2, cy = h * 0.45;
-  const baseR = Math.min(w, h) * 0.28;
+  // the brain GROWS with lived time: starts at 60% size, reaches 100% after ~10 minutes
+  const lifetimeMinutes = lastSnapshot ? lastSnapshot.SimSeconds / 60 : 0;
+  const growthFactor = Math.min(1, 0.6 + lifetimeMinutes / 10 * 0.4);
+  const baseR = Math.min(w, h) * 0.28 * growthFactor;
 
   // === BODY MEMBRANE ===
   // organic blob with sine-wave deformation, driven by neural state

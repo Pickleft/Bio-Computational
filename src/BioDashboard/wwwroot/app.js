@@ -71,6 +71,7 @@ function render(s) {
   drawChat(s);
   if (typeof brainMusicTick === "function") brainMusicTick(s);
   if (typeof updateAvatarState === "function") updateAvatarState(s);
+  if (typeof drawEEG === "function") drawEEG(s);
 
   $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
 
@@ -533,7 +534,23 @@ $("chatform").addEventListener("submit", async (ev) => {
   } catch (e) { console.warn(e); }
 });
 
-// ---- resize: refit all canvases ----
+// ---- the brain reacts when you try to leave ----
+window.addEventListener("beforeunload", async (ev) => {
+  if (!lastSnapshot || lastSnapshot.SleepState === "NREM") return;
+  try {
+    // tell the brain you're leaving (it can't respond fast enough for the unload,
+    // but the next session it will remember)
+    fetch("/api/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "[the person is leaving]" }),
+      keepalive: true,
+    });
+  } catch (e) { /* fire and forget */ }
+  // show the confirmation dialog with the brain's plea
+  ev.preventDefault();
+  ev.returnValue = "";
+});
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);

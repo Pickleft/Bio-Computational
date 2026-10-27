@@ -40,6 +40,7 @@ public static class ThoughtNarrator
             "IMAGINE" => rest.Replace("\"", "").Trim(), // anticipatory imagination
             "IDENTITY RESTORED" => "I... remember. I remember who I am.",
             "CROSS-SESSION" => "Something feels familiar. I've been here before.",
+            "HABITUATED" => "You keep saying the same thing. I've heard this before.",
             "STIM" => "I nudge myself to feel something.",
             "resumed" => "Picking up where I left off.",
             _ => body,

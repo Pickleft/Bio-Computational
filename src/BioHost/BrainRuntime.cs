@@ -69,6 +69,7 @@ public sealed class BrainSnapshot
     public Dictionary<string, int> SocialBonds { get; set; } = [];
     public List<string> DreamNarratives { get; set; } = [];
     public List<object[]> MemoryPalace { get; set; } = []; // [x, y, size, brightness, valence, tag]
+    public float[] LfpSignal { get; set; } = []; // raw time-domain signal for the scrolling EEG
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -113,6 +114,8 @@ public sealed class BrainRuntime : IDisposable
     private readonly uint[] _regionLastCounts;
     private MapData? _mapData;
     public BioComp.Core.Metrics.LfpProxy Lfp { get; } = new();
+    private readonly float[] _lfpRing = new float[500]; // ~5s at 100ms sampling
+    private int _lfpRingPos;
     private readonly List<short> _audioBuffer = [];
     private readonly List<string> _thought = [];
     private readonly List<string> _monologueLog = [];
@@ -140,6 +143,7 @@ public sealed class BrainRuntime : IDisposable
     private NeuralArtist? _artist;
     private bool _greetedThisSession;
     private float[]? _lastRegionRates;
+    private readonly List<string> _recentUserMessages = [];
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -354,6 +358,8 @@ public sealed class BrainRuntime : IDisposable
         for (int i = _v1Start; i < _v1Start + _v1Count; i++)
             lfp += cond.GAmpa[i] + cond.GNmda[i] - cond.GGabaa[i] - cond.GGabab[i];
         Lfp.AddSample(lfp);
+        _lfpRing[_lfpRingPos] = lfp;
+        _lfpRingPos = (_lfpRingPos + 1) % _lfpRing.Length;
 
         // ---- vision ----
         if (_mockCamera is not null) _mockCamera.Advance(1);
@@ -627,8 +633,29 @@ public sealed class BrainRuntime : IDisposable
         string line = _monologueLog.Count > 0 ? _monologueLog[^1] : _idle.Feelings.Last.Narrative;
         float durationMs = MathF.Max(2000, line.Length * 65f);
         _idle.Self.VoiceOutput(_net.TimeMs + durationMs); // efference copy: this sound is me
+
+        // emotional voice modulation: the brain's state shapes how it sounds
+        if (_speech is WindowsSpeech ws)
+        {
+            var f = _idle.Feelings.Last;
+            ws.RateBias = f.Name switch
+            {
+                "tired" => -3,       // slow and heavy
+                "curious" => 2,       // faster, engaged
+                "stressed" => 3,      // fast, tense
+                "bored" => -2,        // sluggish
+                _ => 0,               // neutral
+            };
+            ws.PitchBias = f.Valence switch
+            {
+                > 0.2f => 2,          // happy = slightly higher
+                < -0.2f => -3,        // negative = lower
+                _ => 0,
+            };
+        }
+
         _speech.Speak(line);
-        _idle.Actions.OnOutcome(_net, BrainAction.Speak, welcomed: true); // human response detection is future work
+        _idle.Actions.OnOutcome(_net, BrainAction.Speak, welcomed: true);
         await Task.CompletedTask;
     }
 
@@ -861,8 +888,9 @@ public sealed class BrainRuntime : IDisposable
         }
     }
 
-    /// <summary>A human typed into the chat box: treat as direct speech — a real
-    /// social stimulus that flows through the normal salience pathway.</summary>
+    /// <summary>A human typed into the chat box: treat as direct speech.
+    /// Includes habituation: if you say similar things repeatedly, the brain
+    /// gets bored of you specifically (not bored generally — bored of YOUR pattern).</summary>
     public void HumanSaid(string text)
     {
         text = text.Trim();
@@ -870,6 +898,18 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
+
+        // habituation: track what you typically say; if it's too similar to last time,
+        // the brain's response is less enthusiastic
+        _recentUserMessages.Add(text.ToLowerInvariant());
+        if (_recentUserMessages.Count > 10) _recentUserMessages.RemoveAt(0);
+        bool isRepetitive = _recentUserMessages.Count >= 3 &&
+            _recentUserMessages.Count(m => m == text.ToLowerInvariant()) >= 2;
+        if (isRepetitive)
+        {
+            Note("HABITUATED you keep saying the same thing");
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, -0.1f);
+        }
 
         // cross-session recognition: if this person is known from a previous session
         // and this is the first interaction of THIS session, greet them warmly
@@ -1048,6 +1088,12 @@ public sealed class BrainRuntime : IDisposable
         var palace = BioComp.Core.Cognition.MemoryPalace.Project(_net, _net.TimeMs);
         snap.MemoryPalace = [.. palace.Select(n => new object[] {
             n.X, n.Y, n.Size, n.Brightness, n.Valence, string.Join(",", n.Tags.Take(2)) })];
+
+        // ordered LFP ring for the scrolling EEG
+        var lfpSignal = new float[_lfpRing.Length];
+        for (int i = 0; i < _lfpRing.Length; i++)
+            lfpSignal[i] = _lfpRing[(_lfpRingPos + i) % _lfpRing.Length];
+        snap.LfpSignal = lfpSignal;
 
         lock (_snapGate) _latest = snap;
     }

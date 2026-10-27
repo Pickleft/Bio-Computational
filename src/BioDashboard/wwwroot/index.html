@@ -34,6 +34,12 @@
     </div>
   </section>
 
+  <section class="card span-3 eeg-card">
+    <div class="card-body eeg-body">
+      <canvas id="eeg"></canvas>
+    </div>
+  </section>
+
   <section class="card span-3" style="grid-row: span 1;">
     <div class="card-head">
       <h2>brain activity</h2>
@@ -203,8 +209,9 @@
 </footer>
 
 <script src="brain-music.js"></script>
+<script src="eeg-monitor.js"></script>
 <script src="avatar.js"></script>
 <script src="app.js"></script>
-<script>initAvatar();</script>
+<script>initAvatar(); initEEG();</script>
 </body>
 </html>
