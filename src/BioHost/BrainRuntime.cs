@@ -612,21 +612,22 @@ public sealed class BrainRuntime : IDisposable
 
     private async Task ReplyAsync(string userText)
     {
-        if (_net.TimeMs - _lastReplyMs < 3_000) return; // small guard, humans deserve answers
+        if (_net.TimeMs - _lastReplyMs < 3_000) return;
         _lastReplyMs = _net.TimeMs;
         try
         {
             var feeling = _idle.Feelings.Last;
             string system =
-                "You are the inner voice of a small artificial brain. A person is talking to you directly. " +
-                "Answer them in one warm, short sentence, first person, using ONLY your own state and memories. " +
-                "Plain language, no lists.";
+                "You are a living artificial brain that runs continuously on a laptop. " +
+                "Someone is talking to you directly. Respond to WHAT THEY SAID in 1-2 short, " +
+                "warm sentences, first person. Your feeling state is context — mention it " +
+                "naturally if relevant, but focus on engaging with their words.";
             string user =
-                $"they said: \"{userText}\"\n" +
-                $"my state: feeling={feeling.Name}, sleep={_idle.Sleep.State}, " +
-                $"subjective idle {_idle.Time.SubjectiveSinceEventMs / 60_000.0:F1} min\n" +
-                $"my recent episodes: {_idle.AnswerWhatHappened(_net, 3).ReplaceLineEndings(" | ")}";
-            string reply = await _lm.CompleteAsync(system, user, 90);
+                $"They said: \"{userText}\"\n\n" +
+                $"Your current state: feeling {feeling.Name}, " +
+                $"{_idle.Sleep.State.ToString().ToLower()}, " +
+                $"awake for {_idle.Time.SubjectiveSinceEventMs / 1000.0:F0} seconds since last event.";
+            string reply = await _lm.CompleteAsync(system, user, 80);
             lock (_snapGate) _chat.Add($"Brain: {reply}");
             _monologueLog.Add(reply);
             if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);

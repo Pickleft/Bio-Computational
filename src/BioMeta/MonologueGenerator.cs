@@ -28,21 +28,23 @@ public sealed class MonologueGenerator
 
         var feeling = idle.Feelings.Last;
         var ignition = idle.Workspace.LastIgnition;
-        string episodes = idle.AnswerWhatHappened(net, 3).ReplaceLineEndings(" | ");
-        double idleMinutes = idle.Time.SubjectiveSinceEventMs / 60_000.0;
+        double idleSec = idle.Time.SubjectiveSinceEventMs / 1000.0;
+        var lastEpisode = net.EpisodeStore.Episodes.LastOrDefault();
+        string lastMemory = lastEpisode is not null
+            ? string.Join(", ", lastEpisode.Tags.Take(2))
+            : "nothing yet";
 
         string system =
-            "You are the inner voice of a small artificial brain running as a neuroscience experiment. " +
-            "Speak in first person, one or two short sentences. Use ONLY the state you are given - " +
-            "never invent events. Plain language, no lists.";
+            "You are a living artificial brain that runs continuously. Something just " +
+            "caught your attention. Express what you're experiencing in 1-2 short first-person " +
+            "sentences. Be genuine and specific to this moment — don't repeat yourself.";
         string user =
-            $"state: feeling={feeling.Name} (valence {feeling.Valence:+0.00;-0.00}, arousal {feeling.Arousal:F2})\n" +
-            $"last ignition: {ignition.Tag} (module {ignition.Winner})\n" +
-            $"sleep phase: {idle.Sleep.State}\n" +
-            $"subjective idle minutes: {idleMinutes:F1}\n" +
-            $"recent episodes: {episodes}";
+            $"Right now: {ignition.Tag} just happened (via {ignition.Winner}). " +
+            $"You feel {feeling.Name}. " +
+            $"You've been idle for {(int)idleSec} seconds. " +
+            $"Your most recent memory is: {lastMemory}.";
 
-        string text = await _lm.CompleteAsync(system, user, 90, ct);
+        string text = await _lm.CompleteAsync(system, user, 80, ct);
         LastMonologueMs = net.TimeMs;
         Log.Add((net.TimeMs, text));
         return text;
