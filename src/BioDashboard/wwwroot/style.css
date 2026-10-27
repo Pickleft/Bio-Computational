@@ -404,6 +404,14 @@ canvas {
 
 #journey { min-height: 120px; }
 
+/* ---------- social bonds ---------- */
+
+.bond { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.bond-name { font-size: 12px; color: var(--text-secondary); min-width: 70px; }
+.bond-bar { flex: 1; height: 6px; background: var(--bg-inset); border-radius: 3px; overflow: hidden; }
+.bond-bar i { display: block; height: 100%; background: var(--pink); border-radius: 3px; }
+.bond-count { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); min-width: 25px; text-align: right; }
+
 /* ---------- dreams ---------- */
 
 .dreamgrid {

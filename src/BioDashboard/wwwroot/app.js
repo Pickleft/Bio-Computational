@@ -71,10 +71,32 @@ function render(s) {
 
   $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
 
+  // social bonds: who the brain knows and how well
+  const bonds = s.SocialBonds || {};
+  const bondKeys = Object.keys(bonds);
+  const bondEl = $("social-bonds");
+  if (bondEl && bondKeys.length > 0) {
+    if (bondEl.childElementCount !== bondKeys.length ||
+        (bondEl.firstElementChild && bondEl.firstElementChild.dataset.id !== bondKeys[0])) {
+      bondEl.innerHTML = "";
+      for (const [id, visits] of Object.entries(bonds)) {
+        const div = document.createElement("div");
+        div.className = "bond";
+        div.dataset.id = id;
+        const short = id.split(":")[0].substring(0, 12);
+        div.innerHTML = `<span class="bond-name">${short}</span>` +
+          `<div class="bond-bar"><i style="width:${Math.min(100, visits * 20)}%"></i></div>` +
+          `<span class="bond-count">${visits}×</span>`;
+        bondEl.appendChild(div);
+      }
+    }
+  }
+
   setFeed($("plain"), s.PlainThoughts);
   setFeed($("monologue"), s.Monologues);
   setFeed($("episodes"), s.RecentEpisodes);
   setFeed($("thought"), s.Thought);
+  if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }
 
 function fmt(n) {

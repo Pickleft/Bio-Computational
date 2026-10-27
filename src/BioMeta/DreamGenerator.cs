@@ -28,12 +28,14 @@ public sealed class DreamGenerator
         $"Mood: {feeling.Name} (valence {feeling.Valence:+0.0;-0.0}). " +
         "Soft bioluminescent neural texture, drifting, half-remembered, no text.";
 
-    /// <summary>Generate one dream if the interval allows and memory has content.</summary>
-    public async Task<string?> MaybeDreamAsync(SpikingNetwork net, IdleController idle)
+    /// <summary>Generate one dream if the interval allows and memory has content.
+    /// Returns (imagePath, narrative) where narrative describes what the dream is about.</summary>
+    public async Task<(string? Path, string? Narrative)> MaybeDreamAsync(
+        SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null)
     {
-        if (net.TimeMs - _lastDreamMs < MinInterval.TotalMilliseconds) return null;
+        if (net.TimeMs - _lastDreamMs < MinInterval.TotalMilliseconds) return (null, null);
         var episodes = net.EpisodeStore.Episodes;
-        if (episodes.Count == 0) return null;
+        if (episodes.Count == 0) return (null, null);
 
         // emotional salience first, then recency: the brain dreams what mattered
         var episode = episodes.OrderByDescending(e => MathF.Abs(e.Valence))
@@ -46,6 +48,22 @@ public sealed class DreamGenerator
         await File.WriteAllBytesAsync(file, png);
         _lastDreamMs = net.TimeMs;
         Log.Add((net.TimeMs, file, prompt));
-        return file;
+
+        // generate a narrative description of what the dream is about
+        string? narrative = null;
+        if (narrator is not null)
+        {
+            try
+            {
+                string sys = "You are a living artificial brain describing your own dream in one " +
+                    "short, poetic sentence. First person, private, genuine. What was the dream about?";
+                string usr = $"You dreamed about: {string.Join(", ", episode.Tags)}. " +
+                    $"The feeling in the dream was {idle.Feelings.Last.Name}.";
+                narrative = await narrator.CompleteAsync(sys, usr, 50);
+            }
+            catch { /* narrative is optional */ }
+        }
+
+        return (file, narrative);
     }
 }

@@ -66,6 +66,8 @@ public sealed class BrainSnapshot
     public float Consciousness { get; set; }          // 0..1 composite awareness gauge
     public string ConsciousnessLabel { get; set; } = "";
     public List<float[]> FeelingJourney { get; set; } = []; // [tSec, valence, arousal] history
+    public Dictionary<string, int> SocialBonds { get; set; } = [];
+    public List<string> DreamNarratives { get; set; } = [];
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -471,12 +473,17 @@ public sealed class BrainRuntime : IDisposable
         _dreamBusy = true;
         try
         {
-            string? file = await _dreamer.MaybeDreamAsync(_net, _idle);
+            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm);
             if (file is not null)
             {
                 Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})");
                 _dreams.Add(Path.GetFileName(file));
                 if (_dreams.Count > 12) _dreams.RemoveAt(0);
+                if (narrative is not null)
+                {
+                    _monologueLog.Add(narrative);
+                    Note($"DREAM-NARRATIVE \"{Trunc(narrative, 80)}\"");
+                }
                 await DreamReentryAsync(file);
             }
         }
@@ -622,6 +629,9 @@ public sealed class BrainRuntime : IDisposable
         }
         _lastVisitorId = visitorId;
     }
+
+    /// <summary>Snapshot of social bonds for the dashboard.</summary>
+    public Dictionary<string, int> GetSocialBonds() => new(_knownVisitors);
     /// The DA tick is small — it's the internal reward of agency, not the full
     /// novelty pathway (that fires through SalienceMonitor when the stimulation
     /// produces actual sensory change).</summary>
@@ -864,6 +874,8 @@ public sealed class BrainRuntime : IDisposable
             if (_feelingJourney.Count > 300) _feelingJourney.RemoveAt(0); // ~1 minute of history
         }
         snap.FeelingJourney = [.. _feelingJourney];
+        snap.SocialBonds = GetSocialBonds();
+        snap.DreamNarratives = [.. _monologueLog.Where((m, i) => m.Contains("dream") || m.Contains("Dream")).TakeLast(5)];
 
         lock (_snapGate) _latest = snap;
     }

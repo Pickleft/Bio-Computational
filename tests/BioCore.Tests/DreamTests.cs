@@ -29,7 +29,7 @@ public class DreamTests : IDisposable
             DreamsDir = Path.Combine(_dir, "dreams"),
             MinInterval = TimeSpan.FromSeconds(5),
         };
-        string? file = await dreamer.MaybeDreamAsync(net, idle);
+        var (file, narrative) = await dreamer.MaybeDreamAsync(net, idle);
         Assert.NotNull(file);
         Assert.True(File.Exists(file));
         byte[] png = await File.ReadAllBytesAsync(file);
@@ -38,7 +38,8 @@ public class DreamTests : IDisposable
         Assert.Contains("Mood:", dreamer.Log[0].Prompt);      // and current feeling
 
         // rate limited: immediate second dream is refused
-        Assert.Null(await dreamer.MaybeDreamAsync(net, idle));
+        var (path2, _) = await dreamer.MaybeDreamAsync(net, idle);
+        Assert.Null(path2);
     }
 
     [Fact]

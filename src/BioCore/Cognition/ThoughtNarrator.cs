@@ -31,6 +31,7 @@ public static class ThoughtNarrator
             "AWAKE" => "I'm awake again.",
             "DREAM-REENTRY" => "I can see my own dream.",
             "DREAM" => "A dream is forming from something I remember.",
+            "DREAM-NARRATIVE" => rest.Replace("\"", "").Trim(),
             "MONOLOGUE" => "",   // the monologue panel already shows it in plain English
             "REPLY" => "",       // shown in chat
             "ACTION" => ActionLine(rest, feeling),
