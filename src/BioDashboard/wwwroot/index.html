@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bio-Computational - live brain</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <span id="title">BIO-COMPUTATIONAL</span>
+  <span id="state" class="pill">booting</span>
+  <span id="feeling" class="pill">...</span>
+  <span id="clock" class="dim">t=0s</span>
+  <span id="rate" class="dim">0 Hz</span>
+  <span id="cost" class="dim">$0.000</span>
+  <span id="senses" class="dim">mocks</span>
+</header>
+
+<main>
+  <section class="panel wide">
+    <h2>spikes (live raster)</h2>
+    <canvas id="raster" width="980" height="220"></canvas>
+  </section>
+
+  <section class="panel">
+    <h2>feeling</h2>
+    <div id="circumplex-wrap">
+      <canvas id="circumplex" width="300" height="300"></canvas>
+      <div id="feeling-narrative">...</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>neuromodulators</h2>
+    <div id="mods"></div>
+    <div class="mini">
+      <div>energy <span id="energy" class="dim">0</span></div>
+      <div>internal clock <span id="clockrate" class="dim">1.0x</span> subjective <span id="subj" class="dim">0 min</span></div>
+    </div>
+  </section>
+
+  <section class="panel wide tall">
+    <h2>thought process</h2>
+    <ul id="thought" class="feed"></ul>
+  </section>
+
+  <section class="panel">
+    <h2>sleep</h2>
+    <canvas id="sleepstrip" width="300" height="60"></canvas>
+    <div class="mini">
+      <div>pressure <span id="pressure" class="dim">0</span></div>
+      <div>ignitions <span id="ignitions" class="dim">0</span> surprises <span id="surprises" class="dim">0</span> replays <span id="replays" class="dim">0</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>inner voice</h2>
+    <ul id="monologue" class="feed small"></ul>
+  </section>
+
+  <section class="panel">
+    <h2>episodes</h2>
+    <ul id="episodes" class="feed small"></ul>
+  </section>
+</main>
+
+<footer>
+  research platform - computational proxies, not clinical claims · <span id="meta-badge">meta tier: mock</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -4,6 +4,7 @@
     <ProjectReference Include="..\BioCore\BioComp.Core.csproj" />
     <ProjectReference Include="..\BioCognition\BioComp.Cognition.csproj" />
     <ProjectReference Include="..\BioMeta\BioComp.Meta.csproj" />
+    <ProjectReference Include="..\BioHost\BioComp.Host.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

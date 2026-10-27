@@ -52,10 +52,11 @@
 - T6.5 24 h simulated day; CSV + NWB-JSON export
 
 ## WS7 Dashboard + host (Oct 30 to Nov 3)
-- T7.1 BioHost daemon: config/flags, heartbeat, sim loop, wiring, kill switch, recording indicator
-- T7.2 WebSocket @10 Hz snapshot stream (raster diffs)
-- T7.3 Canvas panels: raster, spectrogram, pools, energy/spend, circumplex, mode timeline, ignition feed, monologue, dreams, SAM overlay
-- T7.4 Demo mode preset; efficiency counters (CPU/RAM/spikes/s/calls-per-h)
+- T7.1 [x]  BioHost daemon: config/flags, wall-clock-paced sim loop, mock/live wiring, Ctrl+C stop, checkpoints + resume
+- T7.2 [x]  WebSocket @10 Hz snapshot stream + /api/snapshot
+- T7.3 [x]  Canvas panels: raster by region, feeling circumplex, modulator bars, thought-process feed, inner voice, episodes, sleep strip, energy/clock/cost readouts, demo mode
+- T7.4 [x]  Demo-mode preset (2-minute day, scripted mock world with a visitor); efficiency counters (realtime factor, spikes, API spend) in the top bar
+- T7.5 [x]  Windows speech output (System.Speech behind ISpeechOutput); recording indicator for live camera mode pending with the privacy pass
 
 ## WS8 Docs + compliance (Oct 27 to Nov 4)
 - T8.1 README (install, keys, Ollama/Baseten, mock path, built-during-hackathon mapping, disclaimer)

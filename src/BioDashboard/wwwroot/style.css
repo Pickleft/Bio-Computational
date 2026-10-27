@@ -1,0 +1,102 @@
+:root {
+  --bg: #06080c;
+  --panel: #0c111a;
+  --line: #1b2433;
+  --text: #c9d6e8;
+  --dim: #5c6c84;
+  --accent: #46e0c0;
+  --warn: #e0a546;
+  --hot: #e05a6a;
+  --purple: #9d7ce0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+}
+
+#topbar {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+#title { color: var(--accent); font-weight: 700; letter-spacing: 2px; }
+
+.pill {
+  background: #14202f;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 2px 12px;
+}
+#state { color: var(--accent); }
+#feeling { color: var(--purple); }
+
+.dim { color: var(--dim); }
+
+main {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 120px;
+}
+
+.panel.wide { grid-column: span 3; }
+.panel.tall { max-height: 260px; }
+
+h2 {
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+canvas { width: 100%; background: #070a10; border-radius: 4px; }
+
+#circumplex-wrap { display: flex; gap: 10px; align-items: center; }
+#feeling-narrative { flex: 1; color: var(--text); line-height: 1.5; font-size: 12px; }
+
+#mods .mod { margin: 6px 0; }
+#mods .mod .label { display: flex; justify-content: space-between; }
+#mods .bar { height: 8px; background: #101826; border-radius: 4px; overflow: hidden; }
+#mods .bar i { display: block; height: 100%; border-radius: 4px; }
+
+.feed { list-style: none; overflow-y: auto; max-height: 210px; }
+.feed li { padding: 3px 0; border-bottom: 1px solid #10161f; line-height: 1.45; }
+.feed.small { font-size: 12px; }
+.feed .t { color: var(--dim); margin-right: 6px; }
+
+.mini { margin-top: 8px; color: var(--dim); display: grid; gap: 4px; }
+
+footer {
+  padding: 10px 16px;
+  color: var(--dim);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+#meta-badge { color: var(--accent); }
+
+/* demo mode: big and readable on video */
+body.demo { font-size: 17px; }
+body.demo h2 { font-size: 14px; }
+body.demo .feed.small { font-size: 15px; }
+body.demo #topbar { padding: 14px 20px; }

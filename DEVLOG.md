@@ -19,6 +19,14 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (late evening) - daemon and live dashboard
+
+- BrainRuntime: the always-on daemon core shared by the headless host and the dashboard. Owns the wall-clock-paced sim loop (catch-up capped), senses (live webcam/mic/interoception where available, deterministic mocks otherwise), salience and the full cognition stack, segmentation on visual surprise (mock or SAM 3.1), speech transcription on voice activity, ignition-triggered monologue, autonomous actions with Windows SAPI speech (System.Speech) behind an ISpeechOutput interface, efference-copy tagging of its own voice, and checkpoints every 5 sim-minutes with resume on start.
+- Demo mode: a 2-minute compressed day and a scripted mock world (a visitor with a voice arrives once per day at the 45 percent mark). The brain itself is never scripted - only the mock environment is, exactly like the headless surprise demo.
+- Dashboard: one process with the daemon; vanilla-JS canvas UI over a 10 Hz WebSocket. Panels: live spike raster colored by region, feeling circumplex with narrative, five neuromodulator bars, the thought-process feed (one merged timeline of surprises, ignitions, heard speech, sightings, replays, sleep transitions, actions, monologues), inner-voice history, recent episodes, sleep-state strip, energy, internal-clock rate, subjective minutes, and cost (dollars and call count). ?demo=1 enlarges everything for video.
+- Verified live end to end on the mock world: visitor enters, vision ignition, person episode stored, audition ignition on the voice, return to sleep, three replays of the visitor episode, self-initiated Attend/Explore actions, monologue grounded in state - all visible on the dashboard at about 1x realtime.
+- Tests: 63/63 green (runtime covered by the smoke run; suite unchanged this block).
+
 ## 2026-10-27 (evening) - meta model tier: cost governor, clients, mocks, inner monologue
 
 - Interfaces for every Meta capability in the engine assembly (ILanguageModel, ISegmenter, ITranscriber, IImageGenerator) with deterministic, input-hashed mocks, so the entire system runs keyless and reproducibly.
