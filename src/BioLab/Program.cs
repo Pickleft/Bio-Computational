@@ -5,6 +5,7 @@ using BioComp.Core.Network;
 using BioComp.Core.Neuromodulators;
 using BioComp.Core.Senses;
 using BioComp.Core.Sleep;
+using BioComp.Lab;
 using BioComp.Meta;
 
 // BioLab - headless experiment CLI. Commands grow with milestones (docs/plan/RUNBOOK.md).
@@ -12,6 +13,42 @@ var cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
 
 switch (cmd)
 {
+    case "paradigm":
+    {
+        string name = args.Length > 1 ? args[1].ToLowerInvariant() : "";
+        int trials = args.FirstOrDefault(a => a.StartsWith("--trials=")) is { } t && int.TryParse(t["--trials=".Length..], out var n) ? n : 0;
+        string dir = args.FirstOrDefault(a => a.StartsWith("--out="))?["--out=".Length..] ?? "exports";
+        switch (name)
+        {
+            case "mmn":
+            {
+                var (std, dev, mmn) = Paradigms.Mmn(trials > 0 ? trials : 300, outDir: dir);
+                Console.WriteLine($"[mmn] band rates: standard={std:F2} Hz deviant={dev:F2} Hz; " +
+                                  $"deviance (prediction error): deviants exceed standards by {mmn:F1} sigma");
+                Console.WriteLine($"exports: {Path.Combine(dir, "mmn.csv")}, {Path.Combine(dir, "mmn.svg")}");
+                return 0;
+            }
+            case "conditioning":
+            {
+                int acq = trials > 0 ? trials : 30;
+                var (early, late, ext) = Paradigms.Conditioning(acq, Math.Max(10, acq * 2 / 3), outDir: dir);
+                Console.WriteLine($"[conditioning] CS early={early:F3} Hz  late acquisition={late:F3} Hz  extinction end={ext:F3} Hz");
+                Console.WriteLine($"exports: {Path.Combine(dir, "conditioning.csv")}, {Path.Combine(dir, "conditioning.svg")}");
+                return 0;
+            }
+            case "discounting":
+            {
+                var rows = Paradigms.Discounting(dir);
+                Console.WriteLine("[discounting] serotonin tone -> k -> indifference delay (s)");
+                foreach (var (sht, k, d) in rows)
+                    Console.WriteLine($"  {sht:F2}  {k:F3}  {d:F1}");
+                return 0;
+            }
+            default:
+                Console.WriteLine("paradigms: mmn, conditioning, discounting  (options: --trials=N --out=dir)");
+                return 1;
+        }
+    }
     case "resting":
     {
         double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
@@ -260,6 +297,8 @@ switch (cmd)
               tune <sec>          sweep noise x gaba gain, report rate/branching/avalanches
               day <sec>           compressed full day: wake, episodes, sleep with replay, wake
               surprise <sec>      quiet room, sleep, then wake-on-surprise (add --camera for a live webcam)
+              paradigm <name>     mmn | conditioning | discounting  (--trials=N --out=dir)
+              meta-check [--all]  verify the meta tier (mocks keyless; live with a key)
             """);
         return cmd == "help" ? 0 : 1;
 }

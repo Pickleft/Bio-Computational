@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BioCore\BioComp.Core.csproj" />
     <ProjectReference Include="..\..\src\BioMeta\BioComp.Meta.csproj" />
+    <ProjectReference Include="..\..\src\BioLab\BioComp.Lab.csproj" />
   </ItemGroup>
 
 </Project>

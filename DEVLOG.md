@@ -19,6 +19,14 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (night 2) - psychology paradigms
+
+- Paradigm infrastructure: `biolab paradigm <name>`, seeded runs, CSV plus zero-dependency SVG figures into exports/.
+- Oddball/MMN with a roving design (two blocks, swapped band roles, cancels strip idiosyncrasies). Deviance detection runs through the platform's predictive-coding channel: deviant prediction error exceeds standards by about 12 sigma in a 80-trial run (the predictive account of MMN, Wacongne et al. 2011). Honest note recorded: direct-current tones bypass synapses, so Tsodyks-Markram repetition suppression lives downstream of the band and does not show in its own firing; the band-rate CSV still reports the evoked response (about 16 Hz peaks).
+- Conditioning and extinction: CS tone paired with reward at offset; long ITI so vesicle pools recover and learning is isolated. The reward-prediction curve rises across acquisition and decays during extinction through explicit zero-reward events (negative RPE dopamine pause; Schultz 1997). The thalamic+CA3 CS response is exported but not asserted: repetition dynamics dominate it at current parameters - recorded as a calibration debt rather than papered over.
+- Delay discounting across serotonin tones: hyperbolic valuation with k inversely tied to serotonergic tone (Mazur 1987; Miyazaki et al. 2014); indifference delay grows monotonically with serotonin. Computational-level model, labeled as such.
+- Tests: 66/66 green (deviance magnitude, conditioning curve sanity, monotonic patience, exports exist).
+
 ## 2026-10-27 (late evening) - daemon and live dashboard
 
 - BrainRuntime: the always-on daemon core shared by the headless host and the dashboard. Owns the wall-clock-paced sim loop (catch-up capped), senses (live webcam/mic/interoception where available, deterministic mocks otherwise), salience and the full cognition stack, segmentation on visual surprise (mock or SAM 3.1), speech transcription on voice activity, ignition-triggered monologue, autonomous actions with Windows SAPI speech (System.Speech) behind an ISpeechOutput interface, efference-copy tagging of its own voice, and checkpoints every 5 sim-minutes with resume on start.

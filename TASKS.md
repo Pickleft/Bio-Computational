@@ -45,11 +45,11 @@
 - T5.6 Section 7 language-feedback flag (default OFF, provenance-logged)
 
 ## WS6 Dreams + Wonder + paradigms (Nov 2)
-- T6.1 Muse Image dreamer (deterministic seeds from episode hash) + vision re-entry flag
-- T6.2 Stimulus generation (psychology paradigms)
-- T6.3 Wonder tool API (paradigm/sweep/logs/episodes/plot/report) + auto-report
-- T6.4 Paradigm suite: MMN, conditioning/extinction, discounting×5-HT, masking, blink, stroop
-- T6.5 24 h simulated day; CSV + NWB-JSON export
+- T6.1 Muse Image dreamer (deterministic prompts from episode state) + vision re-entry flag
+- T6.2 [x]  Stimulus injection framework (tonotopic tone bursts, rewards) + exports (CSV/SVG)
+- T6.3 Wonder tool API (paradigm/sweep/logs/episodes/plot/report) + auto-report - blocked on a working API key
+- T6.4 Paradigm suite: [x]  MMN/oddball (roving, +12 sigma deviance), [x]  conditioning/extinction (Schultz predictor curve), [x]  delay discounting x serotonin; pending: masking, blink, stroop
+- T6.5 24 h simulated day (biolab day covers it); CSV + NWB-JSON export (CSV done, NWB pending)
 
 ## WS7 Dashboard + host (Oct 30 to Nov 3)
 - T7.1 [x]  BioHost daemon: config/flags, wall-clock-paced sim loop, mock/live wiring, Ctrl+C stop, checkpoints + resume
