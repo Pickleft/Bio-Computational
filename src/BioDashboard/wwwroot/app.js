@@ -62,6 +62,7 @@ function render(s) {
   drawRegionGraph(s);
   drawConsciousness(s);
   drawJourney(s);
+  drawPalace(s);
   drawSpectrogram(s);
   drawCircumplex(s);
   drawSleep(s);
@@ -288,6 +289,76 @@ function drawJourney(s) {
   ctx.fillText("positive", 6, 12);
   ctx.fillText("negative", 6, h - 6);
   ctx.fillText(`last ${timeSpan.toFixed(0)}s`, w - 50, h - 6);
+}
+
+// ---- memory palace: emotional map of all memories ----
+function drawPalace(s) {
+  const c = $("palace");
+  const f = fitCanvas(c);
+  if (!f) return;
+  const { ctx, w, h } = f;
+  ctx.fillStyle = "#0d1017";
+  ctx.fillRect(0, 0, w, h);
+
+  const memories = s.MemoryPalace || [];
+  if (memories.length === 0) {
+    ctx.fillStyle = "#5a6474";
+    ctx.font = `500 10px ${MONO}`;
+    ctx.fillText("no memories yet", w / 2 - 30, h / 2);
+    return;
+  }
+
+  const cx = w / 2, cy = h / 2;
+
+  // axes
+  ctx.strokeStyle = "#1c222e";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 4]);
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // labels
+  ctx.font = `500 8px ${MONO}`;
+  ctx.fillStyle = "#5a6474";
+  ctx.fillText("positive →", w - 40, cy - 4);
+  ctx.fillText("← negative", 4, cy - 4);
+  ctx.fillText("exciting", cx + 4, 10);
+  ctx.fillText("calm", cx + 4, h - 6);
+
+  // memory nodes
+  for (const m of memories) {
+    const [x, y, size, brightness, valence, tag] = m;
+    const px = cx + x * (cx - 20);
+    const py = cy - y * (cy - 20);
+    const r = size * (w / 200); // scale to canvas
+    const alpha = brightness;
+
+    // color: green for positive, red for negative, amber for neutral
+    const color = valence > 0.1 ? "#3ddbb8" : valence < -0.1 ? "#f07080" : "#f0b45c";
+
+    // glow for significant memories
+    if (Math.abs(valence) > 0.3) {
+      const grad = ctx.createRadialGradient(px, py, 1, px, py, r * 2);
+      grad.addColorStop(0, color + "88");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = alpha * 0.5;
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(px, py, r * 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+
+    // tag label for significant memories
+    if (Math.abs(valence) > 0.3 && brightness > 0.3) {
+      ctx.fillStyle = "#8b96a8";
+      ctx.font = `500 8px ${MONO}`;
+      ctx.fillText(tag.split(",")[0], px + r + 2, py + 3);
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 // ---- EEG spectrogram ----

@@ -50,6 +50,12 @@ public sealed class LonelinessTracker
         Level = MathF.Max(0f, Level - quality * 0.4f);
     }
 
+    /// <summary>Restore loneliness from a previous session.</summary>
+    public void Restore(float level)
+    {
+        Level = Math.Clamp(level, 0f, 1f);
+    }
+
     /// <summary>Loneliness feeds into the social drive for the action portfolio.</summary>
     public float SocialDrive => Level * 1.5f;
 }

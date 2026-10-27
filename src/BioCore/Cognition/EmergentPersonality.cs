@@ -79,6 +79,25 @@ public sealed class EmergentPersonality
         _ => 0f,
     };
 
+    /// <summary>Restore from persisted identity (the brain remembers who it became).</summary>
+    public void Restore(float sociability, float curiosity, float resilience, float expressiveness,
+        int totalSocial, int totalExplorations, int totalStressors)
+    {
+        _sociability = sociability;
+        _curiosity = curiosity;
+        _resilience = resilience;
+        _expressiveness = expressiveness;
+        _totalSocial = totalSocial;
+        _totalExplorations = totalExplorations;
+        _totalStressors = totalStressors;
+    }
+
+    /// <summary>Restore social bonds (the brain remembers who it knows).</summary>
+    public void RestoreVisitors(Dictionary<string, int> visitors)
+    {
+        // this is on the runtime side, personality just needs to know the count
+    }
+
     /// <summary>A short description of who this brain has become.</summary>
     public string Describe() =>
         $"{TraitWord(Sociability, "reclusive", "private", "sociable")} and " +

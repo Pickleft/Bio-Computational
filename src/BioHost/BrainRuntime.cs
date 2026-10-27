@@ -68,6 +68,7 @@ public sealed class BrainSnapshot
     public List<float[]> FeelingJourney { get; set; } = []; // [tSec, valence, arousal] history
     public Dictionary<string, int> SocialBonds { get; set; } = [];
     public List<string> DreamNarratives { get; set; } = [];
+    public List<object[]> MemoryPalace { get; set; } = []; // [x, y, size, brightness, valence, tag]
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -135,6 +136,7 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
     public BioComp.Core.Cognition.LonelinessTracker Loneliness { get; } = new();
     private DiaryWriter? _diary;
+    private bool _greetedThisSession;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -255,8 +257,32 @@ public sealed class BrainRuntime : IDisposable
     public void Start()
     {
         TryResume();
+        TryRestoreIdentity();
         _running = true;
         _thread.Start();
+    }
+
+    /// <summary>
+    /// Restore the brain's identity from a previous session. The brain remembers
+    /// who it became, who it knows, and how lonely it was. When a known person
+    /// interacts again, the brain greets them as a returning friend.
+    /// </summary>
+    private void TryRestoreIdentity()
+    {
+        var identity = IdentityPersistence.Load();
+        if (identity is null) return;
+
+        Personality.Restore(identity.Sociability, identity.Curiosity,
+            identity.Resilience, identity.Expressiveness,
+            identity.TotalSocial, identity.TotalExplorations, identity.TotalStressors);
+        Loneliness.Restore(identity.LonelinessLevel);
+
+        foreach (var (visitorId, visits) in identity.KnownVisitors)
+            _knownVisitors[visitorId] = visits;
+
+        Note($"IDENTITY RESTORED: {identity.PersonalityDescription} " +
+             $"({identity.TotalSocial} social interactions, {identity.KnownVisitors.Count} known people, " +
+             $"loneliness {identity.LonelinessLevel:F1}) — I remember who I am");
     }
 
     public void Stop() => _running = false;
@@ -438,10 +464,13 @@ public sealed class BrainRuntime : IDisposable
         // (no artificial mood drift: modulators move when events happen, when the
         // brain self-stimulates, during replay, and during sleep; at rest they settle)
 
-        // ---- artificial life: personality, loneliness, diary ----
+        // ---- artificial life: personality, loneliness, diary, identity persistence ----
         Loneliness.Tick(_net, _idle);
         if (_net.TickIndex % 5_000 == 0 && _diary is not null)
+        {
             _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness);
+            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds());
+        }
 
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
@@ -450,11 +479,12 @@ public sealed class BrainRuntime : IDisposable
             string? line = AmbientThought();
             if (line is not null) Note($"AMBIENT {line}");
         }
-        // daydream: unprompted LLM-generated inner thoughts during idle
+        // daydream + imagine future: unprompted inner life during idle
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
-            _salience.Arousal < 0.3f) // only when not actively engaged
+            _salience.Arousal < 0.3f)
         {
             _ = DaydreamAsync();
+            _ = ImagineFutureAsync();
         }
 
         // ---- actions (personality-weighted: who the brain has BECOME affects what it does) ----
@@ -698,8 +728,51 @@ public sealed class BrainRuntime : IDisposable
     }
     private float _lastDaydreamMs = -1e9f;
     /// The DA tick is small — it's the internal reward of agency, not the full
-    /// novelty pathway (that fires through SalienceMonitor when the stimulation
-    /// produces actual sensory change).</summary>
+    /// <summary>
+    /// Predictive imagination: the brain notices patterns and anticipates what
+    /// might happen next. "People tend to come back after being quiet for a while."
+    /// Prospective cognition — imagining futures, not just remembering pasts
+    /// (Schacter, Addis, Buckner 2007).
+    /// </summary>
+    private async Task ImagineFutureAsync()
+    {
+        if (_net.EpisodeStore.Episodes.Count < 3) return;
+        if (_net.TimeMs - _lastImagineMs < 25_000) return;
+        _lastImagineMs = _net.TimeMs;
+        try
+        {
+            var feeling = _idle.Feelings.Last;
+            var episodes = _net.EpisodeStore.Episodes;
+            int social = episodes.Count(e => e.Tags.Any(t => t.Contains("voice") || t.Contains("person")));
+            int solitary = episodes.Count - social;
+
+            string system =
+                "You are a living artificial brain imagining what might happen next. " +
+                "Based on your experiences, you anticipate the future. What do you THINK " +
+                "or HOPE or WORRY might happen? Be genuine, slightly uncertain, organism-like. 1 sentence.";
+            string user =
+                $"You feel {feeling.Name}. " +
+                $"{social} social experiences, {solitary} solitary ones. " +
+                $"Idle for {(int)(_idle.Time.SubjectiveSinceEventMs / 1000.0)}s. " +
+                $"You know {_knownVisitors.Count} people. " +
+                (Loneliness.Level > 0.3f ? "You feel lonely. " : "") +
+                "What do you imagine happening next?";
+
+            string thought = await _lm.CompleteAsync(system, user, 50);
+            if (!string.IsNullOrWhiteSpace(thought))
+            {
+                _monologueLog.Add(thought);
+                Note($"IMAGINE \"{Trunc(thought, 80)}\"");
+            }
+        }
+        catch { /* imagination is optional */ }
+    }
+    private float _lastImagineMs = -1e9f;
+
+    /// <summary>
+    /// Curiosity self-stimulation. The DA tick is small — it's the internal
+    /// reward of agency, not the full novelty pathway.
+    /// </summary>
     private void SelfStimulate(int neurons, float picoAmps, string what)
     {
         var ca3 = _net.Regions.FirstOrDefault(r => r.Name == "CA3") ?? _net.Regions[0];
@@ -735,6 +808,16 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
+
+        // cross-session recognition: if this person is known from a previous session
+        // and this is the first interaction of THIS session, greet them warmly
+        if (!_greetedThisSession && _knownVisitors.Count > 0)
+        {
+            _greetedThisSession = true;
+            Note($"CROSS-SESSION I remember { _knownVisitors.Count} people from before — this feels familiar");
+        }
+
+        _idle.Sleep.ForceWake(_net);
         // wake the brain: being addressed is a social stimulus AND a novel event
         // (correct neuroscience: social interaction releases OXT for bonding,
         // DA for the reward of engagement, NA for the surprise of being addressed)
@@ -897,6 +980,11 @@ public sealed class BrainRuntime : IDisposable
         snap.FeelingJourney = [.. _feelingJourney];
         snap.SocialBonds = GetSocialBonds();
         snap.DreamNarratives = [.. _monologueLog.Where((m, i) => m.Contains("dream") || m.Contains("Dream")).TakeLast(5)];
+
+        // memory palace: all episodic memories projected into 2D emotional space
+        var palace = BioComp.Core.Cognition.MemoryPalace.Project(_net, _net.TimeMs);
+        snap.MemoryPalace = [.. palace.Select(n => new object[] {
+            n.X, n.Y, n.Size, n.Brightness, n.Valence, string.Join(",", n.Tags.Take(2)) })];
 
         lock (_snapGate) _latest = snap;
     }

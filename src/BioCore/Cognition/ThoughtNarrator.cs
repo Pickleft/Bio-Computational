@@ -37,6 +37,9 @@ public static class ThoughtNarrator
             "ACTION" => ActionLine(rest, feeling),
             "AMBIENT" => rest, // already a first-person idle thought
             "DAYDREAM" => rest.Replace("\"", "").Trim(), // private inner thought, strip quotes
+            "IMAGINE" => rest.Replace("\"", "").Trim(), // anticipatory imagination
+            "IDENTITY RESTORED" => "I... remember. I remember who I am.",
+            "CROSS-SESSION" => "Something feels familiar. I've been here before.",
             "STIM" => "I nudge myself to feel something.",
             "resumed" => "Picking up where I left off.",
             _ => body,
