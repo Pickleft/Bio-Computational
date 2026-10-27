@@ -3,7 +3,7 @@ namespace BioComp.Core.Synapses;
 /// <summary>
 /// Pooled per-neuron conductances for the four receptor kinds. Two-state exponential
 /// cascade per receptor: rise state x follows spike quanta with τr, conductance g
-/// follows x with τd — a dual-exponential postsynaptic response.
+/// follows x with τd - a dual-exponential postsynaptic response.
 /// </summary>
 public sealed class ConductanceStack
 {

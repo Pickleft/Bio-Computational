@@ -1,7 +1,7 @@
 namespace BioComp.Core.Synapses;
 
 /// <summary>
-/// Event-driven Tsodyks–Markram short-term plasticity. Pure function of the inter-spike
+/// Event-driven Tsodyks-Markram short-term plasticity. Pure function of the inter-spike
 /// interval so it is trivially deterministic and unit-testable. Update happens at spike
 /// delivery; between spikes no per-tick work is needed.
 /// </summary>

@@ -7,7 +7,7 @@ namespace BioCore.Tests;
 public class DeterminismTests
 {
     /// <summary>Drives the net with sustained tonic current into a fixed random neuron sample
-    /// (sensory-like drive; spontaneous-activity tuning arrives with M2 on D2).</summary>
+    /// (sensory-like drive; spontaneous-activity tuning arrives with M2 on Oct 28).</summary>
     private static (ulong Hash, float MeanRate, long Spikes) RunScripted(ulong brainSeed, int ticks)
     {
         var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: brainSeed));
@@ -46,6 +46,6 @@ public class DeterminismTests
     {
         var (hash, meanRate, _) = RunScripted(42, 1500);
         Assert.NotEqual(0UL, hash);
-        Assert.InRange(meanRate, 0.05f, 150f); // loose M1 bounds; criticality tuning is D2
+        Assert.InRange(meanRate, 0.05f, 150f); // loose M1 bounds; criticality tuning is Oct 28
     }
 }

@@ -38,7 +38,7 @@ public static class ReceptorKinetics
         1f / (1f + 0.28f * MathF.Exp(-0.062f * vMv));
 }
 
-/// <summary>Tsodyks–Markram vesicle class: depressing (E→I, strong) vs facilitating (modulatory).</summary>
+/// <summary>Tsodyks-Markram vesicle class: depressing (E to I, strong) vs facilitating (modulatory).</summary>
 public enum TmClass : byte
 {
     Depressing = 0,
@@ -46,8 +46,8 @@ public enum TmClass : byte
 }
 
 /// <summary>
-/// Tsodyks, Pawelzik &amp; Markram (1998) Neural Comput. 10:821 — per-synapse vesicle
-/// resources R and utilization u. Defaults from PARAMETERS-SEED (docs/D0).
+/// Tsodyks, Pawelzik &amp; Markram (1998) Neural Comput. 10:821 - per-synapse vesicle
+/// resources R and utilization u. Defaults from PARAMETERS-SEED (docs/plan).
 /// </summary>
 public readonly record struct TmParams(float U, float TauRecMs, float TauFacMs)
 {

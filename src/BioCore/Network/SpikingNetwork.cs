@@ -232,7 +232,7 @@ public sealed class SpikingNetwork
         }
     }
 
-    /// <summary>SplitMix-hash uniform noise in [−1,1) — cheap, seed-mixed, call-order independent.</summary>
+    /// <summary>SplitMix-hash uniform noise in [−1,1) - cheap, seed-mixed, call-order independent.</summary>
     private static float HashNoise(int i, long tick, ulong salt)
     {
         ulong z = (unchecked((ulong)(uint)i) * 0x9E3779B97F4A7C15UL)
@@ -243,7 +243,7 @@ public sealed class SpikingNetwork
         return (z >> 40) * (1f / (1 << 24)) - 0.5f; // [−0.5, 0.5)
     }
 
-    /// <summary>FNV-1a over membrane/recovery state, RNG state and counters — the determinism test key.</summary>
+    /// <summary>FNV-1a over membrane/recovery state, RNG state and counters - the determinism test key.</summary>
     public ulong ComputeTrajectoryHash()
     {
         ulong h = 0xCBF29CE484222325UL;

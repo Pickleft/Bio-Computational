@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using BioComp.Core.Network;
 
-// BioLab — headless experiment CLI. Commands grow with milestones (docs/D0/RUNBOOK.md).
+// BioLab - headless experiment CLI. Commands grow with milestones (docs/plan/RUNBOOK.md).
 var cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
 
 switch (cmd)

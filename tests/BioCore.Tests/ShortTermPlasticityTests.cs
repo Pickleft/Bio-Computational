@@ -8,7 +8,7 @@ public class ShortTermPlasticityTests
     [Fact]
     public void HighFrequencyTrain_DepressesRelease()
     {
-        // Tsodyks–Markram depressing class: 20 Hz train, releases must strictly decrease.
+        // Tsodyks-Markram depressing class: 20 Hz train, releases must strictly decrease.
         var p = TmParams.For(TmClass.Depressing);
         float r = 1f, u = 0f;
         float prev = float.MaxValue;

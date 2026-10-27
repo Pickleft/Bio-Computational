@@ -1,7 +1,7 @@
 namespace BioComp.Core.Synapses;
 
 /// <summary>
-/// Whole-network synapse store in CSR form plus per-synapse dynamics (Tsodyks–Markram
+/// Whole-network synapse store in CSR form plus per-synapse dynamics (Tsodyks-Markram
 /// vesicles, axonal delay). Weights are Q15 fixed point (short) for memory locality.
 /// Built by <see cref="Network.BrainConfig"/> wiring; immutable topology after build.
 /// </summary>

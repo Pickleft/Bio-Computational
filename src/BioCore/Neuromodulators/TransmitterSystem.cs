@@ -3,11 +3,11 @@ namespace BioComp.Core.Neuromodulators;
 public enum TransmitterKind : byte { Glutamate = 0, Gaba = 1, Dopamine = 2, Serotonin = 3 }
 
 /// <summary>
-/// Regional extracellular transmitter pools with Michaelis–Menten reuptake
+/// Regional extracellular transmitter pools with Michaelis-Menten reuptake
 /// (transporter clearance). Release events accumulate into a per-ms release rate;
 /// <see cref="Step"/> integrates dT/dt = releaseRate − Vmax·T/(Km+T) in substeps
 /// (the 1 ms lump would otherwise overshoot for fast transporters).
-/// DA clearance is tuned to ~1–2 s extracellular half-time (Garris &amp; Wightman 1994);
+/// DA clearance is tuned to ~1-2 s extracellular half-time (Garris &amp; Wightman 1994);
 /// 5-HT is a slow tone pool (Dayan &amp; Huys 2009). // CALIBRATE
 /// </summary>
 public sealed class TransmitterSystem
@@ -16,7 +16,7 @@ public sealed class TransmitterSystem
     private const int Substeps = 4;
 
     private readonly float[][] _pools;           // [region][kind]
-    private readonly float[][] _pendingRelease;  // [region][kind] — amount released this ms
+    private readonly float[][] _pendingRelease;  // [region][kind] - amount released this ms
     private readonly float[] _vMax = new float[KindCount];
     private readonly float[] _km = new float[KindCount];
 
@@ -36,7 +36,7 @@ public sealed class TransmitterSystem
         }
         _vMax[(int)TransmitterKind.Glutamate] = 4.0f;  _km[(int)TransmitterKind.Glutamate] = 0.8f; // fast local clearance
         _vMax[(int)TransmitterKind.Gaba] = 4.0f;       _km[(int)TransmitterKind.Gaba] = 0.8f;
-        _vMax[(int)TransmitterKind.Dopamine] = 0.5f;   _km[(int)TransmitterKind.Dopamine] = 0.4f;  // ~1–2 s half-time
+        _vMax[(int)TransmitterKind.Dopamine] = 0.5f;   _km[(int)TransmitterKind.Dopamine] = 0.4f;  // ~1-2 s half-time
         _vMax[(int)TransmitterKind.Serotonin] = 0.05f; _km[(int)TransmitterKind.Serotonin] = 0.4f; // slow tonic
     }
 

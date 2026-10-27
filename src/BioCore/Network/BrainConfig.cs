@@ -24,7 +24,7 @@ public sealed class BrainConfig
     public ulong Seed { get; init; } = 42;
     // Tunables are mutable: BioLab sweeps (branching ratio, noise) adjust them before construction.
     public float NoiseSigmaMv { get; set; } = 1.0f;   // CALIBRATE (self-sustained activity)
-    public float GlobalGabaGain { get; set; } = 1.0f; // CALIBRATE (branching ratio → ~1)
+    public float GlobalGabaGain { get; set; } = 1.0f; // CALIBRATE (branching ratio  to  ~1)
     public float InhibitoryFraction { get; init; } = 0.20f;
 
     public List<RegionSpec> Regions { get; } = [];

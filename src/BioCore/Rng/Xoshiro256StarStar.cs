@@ -3,7 +3,7 @@ using System.Numerics;
 namespace BioComp.Core.Rng;
 
 /// <summary>
-/// xoshiro256** — the single deterministic random source for the simulation.
+/// xoshiro256** - the single deterministic random source for the simulation.
 /// Owned by the sim thread; state is saveable/restorable for checkpoint/resume.
 /// Blackman &amp; Vigna, Scrambled Linear Pseudorandom Number Generators, ACM TOMS 2021.
 /// </summary>
@@ -53,7 +53,7 @@ public sealed class Xoshiro256StarStar
     /// <summary>Uniform int in [0, maxExclusive). Tiny modulo-free bias is acceptable here.</summary>
     public int NextInt(int maxExclusive) => (int)(NextDouble() * maxExclusive);
 
-    /// <summary>Standard-normal sample (Box–Muller); consumes exactly two uniforms per call.</summary>
+    /// <summary>Standard-normal sample (Box-Muller); consumes exactly two uniforms per call.</summary>
     public double NextGaussian()
     {
         double u1 = 1.0 - NextDouble();
