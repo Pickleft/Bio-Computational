@@ -53,10 +53,11 @@ public sealed class FeelingsMapper
             0.25f * stress,
             0f, 1f);
 
-        // subjective boredom: low novelty sustained over SUBJECTIVE time (the internal
-        // clock runs slow when under-stimulated, so boredom accumulates at true pace)
+        // boredom emerges from sustained silence: nothing novel for a long subjective
+        // time AND arousal is low AND valence is flat — the brain genuinely has nothing
+        // to work with (not a timer: it resets every time anything happens)
         double subjectiveIdleMinutes = time.SubjectiveSinceEventMs / 60_000.0;
-        bool bored = valence < 0.15f && arousal < 0.30f && novelty < 0.25f && subjectiveIdleMinutes > 1.0;
+        bool bored = valence < 0.15f && arousal < 0.30f && novelty < 0.15f && subjectiveIdleMinutes > 0.5;
         bool tired = sleep.SleepPressure > 0.65f || sleep.State is BrainState.Drowsy or BrainState.NREM or BrainState.REM;
 
         string name = tired && arousal < 0.5f ? "tired"

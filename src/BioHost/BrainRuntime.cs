@@ -403,16 +403,9 @@ public sealed class BrainRuntime : IDisposable
         if (_idle.Sleep.State == BrainState.REM && !_dreamBusy)
             _ = DreamAsync();
 
-        // ---- natural mood drift: tonic neuromodulators oscillate slowly at rest ----
-        // (real brains show minute-scale DA/5-HT fluctuations even without input)
-        if (_net.TickIndex % 3_000 == 0) // every 3 sim-seconds
-        {
-            float phase = _net.TimeMs / 1000f * 0.05f; // ~2 min period
-            float daDrift = 0.08f * MathF.Sin(phase);
-            float shtDrift = 0.06f * MathF.Sin(phase * 0.7f + 2f);
-            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, daDrift);
-            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, shtDrift);
-        }
+        // ---- feelings emerge from real dynamics, not oscillators ----
+        // (no artificial mood drift: modulators move when events happen, when the
+        // brain self-stimulates, during replay, and during sleep; at rest they settle)
 
         // ---- ambient inner monologue: idle is a stream of consciousness, not silence ----
         if (_net.TimeMs >= _nextAmbientMs)
@@ -569,13 +562,16 @@ public sealed class BrainRuntime : IDisposable
 
     public sealed record MapData(string[] Names, float[][] Anchors, float[][] Edges);
 
-    /// <summary>Curiosity self-stimulation: the brain pokes itself, visibly.</summary>
+    /// <summary>Curiosity self-stimulation: the brain pokes itself and feels it.</summary>
     private void SelfStimulate(int neurons, float picoAmps, string what)
     {
-        // concentrate into CA3 so it lights up on the region graph
         var ca3 = _net.Regions.FirstOrDefault(r => r.Name == "CA3") ?? _net.Regions[0];
         for (int k = 0; k < neurons; k++)
             _net.InjectCurrent(ca3.Start + _net.Rng.NextInt(ca3.Count), picoAmps);
+        // self-produced input still has internal consequences: a small DA tick (doing
+        // something is mildly rewarding) and an NA tick (it is input, after all)
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.15f);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.20f);
         Note($"STIM self ({what}) - {neurons} neurons in {ca3.Name}");
     }
 

@@ -41,6 +41,12 @@ public sealed class ReplayScheduler
             if (net.TimeMs - _windowStart >= ReplayWindowMs)
             {
                 Log.Add((net.TimeMs, Current.Id, string.Join(",", Current.Tags)));
+                // replaying an emotionally salient memory re-evokes a fraction of its
+                // original affect: positive memories tick DA, negative tick 5-HT down
+                if (Current.Valence > 0.2f)
+                    net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f * Current.Valence);
+                else if (Current.Valence < -0.2f)
+                    net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.15f * Current.Valence);
                 Current = null;
                 _cooldownUntil = net.TickIndex + (long)Cooldown.TotalMilliseconds;
                 ReplayCount++;
