@@ -1,16 +1,16 @@
 # TASKS — workstream board (day mapping in docs/D0/RUNBOOK.md; ✅ when done)
 
 ## WS1 Brain core (D1–D3)
-- T1.1 xoshiro256** RNG + state save/restore
-- T1.2 Izhikevich SoA + subtypes (RS/FS/LTS/IB)
-- T1.3 CSR graph builder: seeded, distance-dependent, Dale, delays
-- T1.4 Conductance kernels AMPA/NMDA(+Mg block)/GABA-A/B
-- T1.5 TM vesicles + MM reuptake + regional pools (glu, GABA, DA, 5-HT)
+- T1.1 ✅ xoshiro256** RNG + state save/restore
+- T1.2 ✅ Izhikevich SoA + subtypes (RS/FS/LTS/IB)
+- T1.3 ✅ CSR graph builder: seeded, distance-dependent, Dale, delays
+- T1.4 ✅ Conductance kernels AMPA/NMDA(+Mg block)/GABA-A/B
+- T1.5 ✅ TM vesicles + MM reuptake + regional pools (glu, GABA, DA, 5-HT)
 - T1.6 Three-factor STDP + eligibility; homeostatic scaling; intrinsic plasticity
 - T1.7 DA RPE source; 5-HT tone; optional NA/ACh
 - T1.8 Checkpoint/resume (binary, versioned)
 - T1.9 Metrics: raster, LFP proxy, PSD/bands, avalanches/branching, 1/f
-- Tests: determinism hash · TM · MM · Dale · CSR · rates
+- Tests: determinism hash ✅ · TM ✅ · MM ✅ · Dale ✅ · CSR ✅ · rates ✅
 
 ## WS2 Idle/existence (D2–D3)
 - T2.1 Self-sustained activity tuning (noise σ, GABA gain) → criticality
