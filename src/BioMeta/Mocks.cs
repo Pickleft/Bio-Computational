@@ -1,0 +1,83 @@
+using System.Text;
+using BioComp.Core.Abstractions;
+
+namespace BioComp.Meta;
+
+/// <summary>
+/// Deterministic mocks for every Meta tier: outputs derive from a SplitMix hash of the
+/// input, so identical runs are identical and the whole system works keyless. The mock
+/// monologue reads the same prompt the live model would, so upstream code cannot tell
+/// the difference except by the FromLiveApi flag.
+/// </summary>
+public sealed class MockLanguageModel : ILanguageModel
+{
+    public List<string> SeenPrompts { get; } = [];
+
+    public Task<string> CompleteAsync(string system, string user, int maxTokens = 120, CancellationToken ct = default)
+    {
+        SeenPrompts.Add(user);
+        // extract the state block from the prompt and echo it as a "thought"
+        var sb = new StringBuilder("(mock inner voice) ");
+        foreach (var line in user.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var l = line.Trim();
+            if (l.StartsWith('-') || l.Contains(':'))
+                sb.Append(l.TrimStart('-').Trim()).Append(' ');
+            if (sb.Length > 160) break;
+        }
+        return Task.FromResult(sb.ToString().Trim());
+    }
+}
+
+public sealed class MockSegmenter : ISegmenter
+{
+    public Task<SegmentationResult> SegmentAsync(byte[] imagePngOrJpeg, string concept, CancellationToken ct = default)
+    {
+        ulong h = HashBytes(imagePngOrJpeg, concept);
+        // one plausible box in a 64..1024 space, deterministic per image+concept
+        int x1 = (int)(h % 200), y1 = (int)((h >> 10) % 150);
+        int x2 = x1 + 120 + (int)((h >> 20) % 200), y2 = y1 + 200 + (int)((h >> 30) % 200);
+        var box = new SegmentBox(x1, y1, x2, y2, 0.87f);
+        return Task.FromResult(new SegmentationResult([box],
+            $"<0f>0<|box;x1={x1};y1={y1};x2={x2};y2={y2};c=0.87|>", FromLiveApi: false));
+    }
+
+    private static ulong HashBytes(byte[] bytes, string salt)
+    {
+        ulong z = 0x9E3779B97F4A7C15UL;
+        foreach (var b in bytes) z = (z ^ b) * 0x100000001B3UL;
+        foreach (var c in salt) z = (z ^ c) * 0x100000001B3UL;
+        return z ^ (z >> 31);
+    }
+}
+
+public sealed class MockTranscriber : ITranscriber
+{
+    public Task<TranscriptionResult> TranscribeAsync(short[] pcm16k, CancellationToken ct = default)
+    {
+        // deterministic pseudo-transcript seeded by the audio
+        ulong h = 0;
+        for (int i = 0; i < pcm16k.Length; i += 97) h = (h ^ (ulong)(ushort)pcm16k[i]) * 0x100000001B3UL;
+        string[] phrases = ["hello there", "is anyone there", "what are you doing", "interesting"];
+        string text = phrases[h % (ulong)phrases.Length];
+        var turn = new SpeechTurn(0, MathF.Min(3000, pcm16k.Length / 16f), text, "A");
+        return Task.FromResult(new TranscriptionResult(text, [turn], FromLiveApi: false));
+    }
+}
+
+public sealed class MockImageGenerator : IImageGenerator
+{
+    public Task<byte[]> GenerateAsync(string prompt, string size = "1024x1024", CancellationToken ct = default)
+    {
+        // deterministic tiny PNG (1x1 gray) - the dashboard marks it as a mock frame
+        byte[] png =
+        [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+            0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+            0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+            0x44, 0xAE, 0x42, 0x60, 0x82,
+        ];
+        return Task.FromResult(png);
+    }
+}

@@ -116,7 +116,7 @@ public sealed class MockAudioSource : IAudioSource
     public const int BlockIntervalMs = 32;
 
     private readonly ulong _seed;
-    private readonly double _voiceAtMs, _voiceDurationMs;
+    private double _voiceAtMs, _voiceDurationMs;
     private long _lastEmittedMs = -BlockIntervalMs;
     private int _samplePos;
 
@@ -130,6 +130,13 @@ public sealed class MockAudioSource : IAudioSource
     public long ClockMs { get; private set; }
 
     public void Advance(long ms) => ClockMs += ms;
+
+    /// <summary>Make the voice start right now (used by demos once an event happens).</summary>
+    public void TriggerVoice()
+    {
+        double audioMs = _samplePos / (double)SampleRate * 1000.0;
+        if (_voiceAtMs > audioMs) _voiceAtMs = audioMs;
+    }
 
     public bool TryReadNext(out AudioBlock block)
     {

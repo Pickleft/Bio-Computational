@@ -19,6 +19,16 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (evening) - meta model tier: cost governor, clients, mocks, inner monologue
+
+- Interfaces for every Meta capability in the engine assembly (ILanguageModel, ISegmenter, ITranscriber, IImageGenerator) with deterministic, input-hashed mocks, so the entire system runs keyless and reproducibly.
+- Plain-HttpClient clients for the pinned schemas (dev.meta.ai/docs, Oct 27): chat/completions for Spark 1.3, responses+base64-image for SAM 3.1 with box-token parsing, multipart asr/transcribe (DIARIZATION) with a zero-dependency WAV writer, images/generations returning base64 PNG. No SDK dependency needed.
+- Cost governor: one budget for all tiers. Reservations against the daily total at booking (a burst cannot over-book), per-tier hourly caps, every call logged to data/api_cost.jsonl with cost/latency/outcome; when the budget is exhausted the brain degrades to mocks instead of overspending.
+- Inner monologue (MonologueGenerator): on ignition, rate-limited, the language model verbalizes the brain's own state in first person and is instructed to use only what it is given (interpreter rule). Works identically against the mock or Spark.
+- Demo chain (`biolab surprise 45s`): brain asleep, person enters at 25 s, surprise and wake, visitor's speech detected by the cochlea, "heard" via transcription (mock), audition ignites the workspace, monologue reports the feeling and the person episode. `--live` switches monologue and transcription to Spark and Voice Transcribe when a key is present; `biolab meta-check` pings auth and (with --all) each endpoint within about a cent.
+- Blocked: the current API key returns 401 invalid_api_key (format valid, so likely a truncated copy or never finalized in the dashboard). All live endpoints are implemented but unverified against the real API until a working key lands in .secrets/key.txt.
+- Tests: 63/63 green (added cost budget/hourly-cap/jsonl with reservation semantics, mock determinism, WAV header validity, monologue rate-limit and state grounding).
+
 ## 2026-10-27 (afternoon) - global workspace, PCI, feelings, actions
 
 - Global workspace (Dehaene and Changeux 2011): six modules (vision, audition, memory, interoception, self, language) submit salience to leaky integrators with cross inhibition; a winner clearing threshold-plus-margin ignites, broadcasts (noradrenaline and acetylcholine release), logs the event and enters a refractory period. Interpreter rule downstream: only ignited content may be reported. Vision/audition salience fed from the salience monitor, memory from active replay, body from interoception deficits.

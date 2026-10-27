@@ -37,12 +37,12 @@
 - T4.7 [x]  Subjective time: dopamine/noradrenaline-modulated clock + time cells (feelings consume it in T4.4)
 
 ## WS5 Meta integration (Nov 1)
-- T5.1 Abstractions + mocks (segmenter/transcriber/monologue/interpreter/imager/agent) + CostGovernor + logging
-- T5.2 SAM 3.1 client (Responses + files); object identity/tracking on events
-- T5.3 Muse Voice Transcribe client (file mode)
-- T5.4 Glimmer local via Ollama - rate-limited monologue (bench first: CPU-only 2-bit on this hardware)
-- T5.5 Spark 1.3 + Spark Open (Baseten `meta-models/muse-spark-open-1026`) swappable interpreters, choice logged
-- T5.6 §7 language-feedback flag (default OFF, provenance-logged)
+- T5.1 [x]  Abstractions + deterministic mocks (segmenter/transcriber/language/imager) + CostGovernor with reservations + jsonl logging
+- T5.2 [x]  SAM 3.1 client (responses + base64 image, box parsing) - live verification blocked on a working API key
+- T5.3 [x]  Muse Voice Transcribe client (multipart file mode + WAV writer) - live verification blocked on a working API key
+- T5.4 [x]  Rate-limited inner monologue grounded in brain state (mock by default; Glimmer local infeasible on this hardware, monologue uses Spark when live)
+- T5.5 Spark 1.3 wired as the live interpreter [x] ; Spark Open (Baseten) endpoint configured, swappable via MetaOptions [x]  (choice logging lands with the host)
+- T5.6 Section 7 language-feedback flag (default OFF, provenance-logged)
 
 ## WS6 Dreams + Wonder + paradigms (Nov 2)
 - T6.1 Muse Image dreamer (deterministic seeds from episode hash) + vision re-entry flag

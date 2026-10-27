@@ -375,3 +375,4 @@ episodes.jsonl
 # Local model caches and secrets
 *.env
 appsettings.Local.json
+.secrets/

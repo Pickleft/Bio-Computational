@@ -5,6 +5,7 @@ using BioComp.Core.Network;
 using BioComp.Core.Neuromodulators;
 using BioComp.Core.Senses;
 using BioComp.Core.Sleep;
+using BioComp.Meta;
 
 // BioLab - headless experiment CLI. Commands grow with milestones (docs/plan/RUNBOOK.md).
 var cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
@@ -15,6 +16,72 @@ switch (cmd)
     {
         double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
         RunAndReport(new SpikingNetwork(BrainConfig.Default()), seconds, "resting");
+        return 0;
+    }
+    case "meta-check":
+    {
+        // Auth + endpoint smoke. Cheap by default (one 10-token chat); --all also tests
+        // SAM, voice and one image (~1 cent). Keyless: verifies the mock path instead.
+        var opts = MetaOptions.Load();
+        bool all = args.Contains("--all");
+        if (!opts.HasKey)
+        {
+            Console.WriteLine("no api key found (.secrets/key.txt or MODEL_API_KEY); verifying mock path only");
+            var mock = new MetaClients(opts, new CostGovernor());
+            var seg = await new MockSegmenter().SegmentAsync([1, 2, 3], "person");
+            var tr = await new MockTranscriber().TranscribeAsync(new short[1600]);
+            var img = await new MockImageGenerator().GenerateAsync("test");
+            var mono = await new MockLanguageModel().CompleteAsync("s", "state: feeling=calm");
+            Console.WriteLine($"mocks ok: sam box=({seg.Boxes[0].X1},{seg.Boxes[0].Y1}) voice=\"{tr.Transcript}\" image={img.Length}B monologue=\"{mono[..Math.Min(60, mono.Length)]}\"");
+            return 0;
+        }
+
+        var cost = new CostGovernor();
+        var clients = new MetaClients(opts, cost);
+        Console.WriteLine($"key loaded (prefix {opts.ApiKey![..8]}...), testing chat auth");
+        try
+        {
+            var sw = Stopwatch.StartNew();
+            string reply = await clients.CompleteAsync(
+                "Reply with exactly the word OK and nothing else.", "ping", 10);
+            Console.WriteLine($"chat: OK in {sw.Elapsed.TotalSeconds:F1}s -> \"{reply.Trim()}\"");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"chat FAILED: {ex.Message}`" + (cost.LastError is { } e ? $" (endpoint: {e})`" : "") + (cost.RefusedCalls > 0 ? " [budget refused]" : ""));
+            return 1;
+        }
+
+        if (all)
+        {
+            try
+            {
+                using var mat = new OpenCvSharp.Mat(64, 64, OpenCvSharp.MatType.CV_8UC3, new OpenCvSharp.Scalar(40, 40, 40));
+                OpenCvSharp.Cv2.Rectangle(mat, new OpenCvSharp.Rect(20, 12, 22, 40), new OpenCvSharp.Scalar(220, 200, 180), -1);
+                OpenCvSharp.Cv2.ImEncode(".png", mat, out byte[] png);
+                var seg = await clients.SegmentAsync(png, "person");
+                Console.WriteLine($"sam: {seg.Boxes.Length} box(es), raw=\"{seg.RawOutput[..Math.Min(70, seg.RawOutput.Length)]}...\"");
+            }
+            catch (Exception ex) { Console.WriteLine($"sam FAILED: {ex.Message}"); }
+
+            try
+            {
+                var pcm = new short[16_000];
+                for (int i = 0; i < pcm.Length; i++)
+                    pcm[i] = (short)(6000 * Math.Sin(2 * Math.PI * 440 * i / 16_000.0));
+                var tr = await clients.TranscribeAsync(pcm);
+                Console.WriteLine($"voice: transcript=\"{tr.Transcript}\" turns={tr.Turns.Length}");
+            }
+            catch (Exception ex) { Console.WriteLine($"voice FAILED: {ex.Message}"); }
+
+            try
+            {
+                byte[] img = await clients.GenerateAsync("a dim blue-green glow, abstract neural texture, calm");
+                Console.WriteLine($"image: {img.Length} bytes back");
+            }
+            catch (Exception ex) { Console.WriteLine($"image FAILED: {ex.Message}"); }
+        }
+        Console.WriteLine($"spend so far: ${cost.SpentTodayUsd:F3} (log: {cost.LogPath})");
         return 0;
     }
     case "surprise":
@@ -30,6 +97,27 @@ switch (cmd)
         var encoder = new EventVisionEncoder(64, 64);
         var salience = new SalienceMonitor();
         var retina = net.Regions.First(r => r.Name == "Retina");
+        var cochlea = new Cochlea();
+        var audio = new MockAudioSource(63, voiceAtMs: 100_000);
+        ILanguageModel lm = new MockLanguageModel();
+        ITranscriber transcriber = new MockTranscriber();
+        if (args.Contains("--live"))
+        {
+            var mo = MetaOptions.Load();
+            if (mo.HasKey)
+            {
+                var mc = new MetaClients(mo, new CostGovernor());
+                lm = mc;
+                transcriber = mc;
+                Console.WriteLine("meta: live Spark monologue + Voice Transcribe");
+            }
+            else Console.WriteLine("meta: no key found, staying on mocks");
+        }
+        var monologue = new MonologueGenerator(lm) { MinInterval = TimeSpan.FromSeconds(5) }; // demo pacing, not the 2-min default
+        var audioBuffer = new List<short>();
+        bool wasVoice = false;
+        long voiceCooldownUntil = 0;
+        int lastIgnition = 0;
 
         IFrameSource camera;
         if (liveCamera)
@@ -48,7 +136,35 @@ switch (cmd)
             if (camera is MockFrameSource mock)
             {
                 mock.Advance(1);
-                if (t == personAt) mock.TriggerPerson();
+                if (t == personAt) { mock.TriggerPerson(); audio.TriggerVoice(); } // visitor speaks too
+            }
+            audio.Advance(1);
+            if (audio.TryReadNext(out var block))
+            {
+                cochlea.Process(block);
+                salience.OnAudioBlock(net, cochlea.OnsetThisBlock, cochlea.EnergyRms);
+                if (cochlea.VoiceLikely) idle.AudioSalience = MathF.Max(idle.AudioSalience, 1.0f);
+                else if (cochlea.OnsetThisBlock) idle.AudioSalience = MathF.Max(idle.AudioSalience, 0.7f);
+                audioBuffer.AddRange(block.Samples);
+                if (cochlea.VoiceLikely && !wasVoice && t > voiceCooldownUntil)
+                {
+                    wasVoice = true;
+                    voiceCooldownUntil = t + 10_000;
+                    if (audioBuffer.Count > 16_000 * 4)
+                        audioBuffer.RemoveRange(0, audioBuffer.Count - 16_000 * 4); // last ~4 s
+                    try
+                    {
+                        var tr = await transcriber.TranscribeAsync(audioBuffer.ToArray());
+                        if (!string.IsNullOrWhiteSpace(tr.Transcript))
+                        {
+                            idle.OnEvent(net, ["voice", tr.Transcript[..Math.Min(40, tr.Transcript.Length)]], 0.3f, 0.8f);
+                            Console.WriteLine($"t={t / 1000.0:F1}s heard: \"{tr.Transcript}\" {(tr.FromLiveApi ? "(live)" : "(mock)")}");
+                        }
+                    }
+                    catch (Exception ex) { Console.WriteLine($"transcribe failed: {ex.Message}"); }
+                    audioBuffer.Clear();
+                }
+                if (!cochlea.VoiceLikely) wasVoice = false;
             }
             if (camera.TryReadNext(out var frame))
             {
@@ -60,6 +176,17 @@ switch (cmd)
                     idle.OnEvent(net, [salience.SurpriseLog[^1].Tag], 0.2f, salience.ExternalArousal);
             }
             idle.Tick(net, salience.ExternalArousal);
+            if (idle.Workspace.IgnitionCount > lastIgnition)
+            {
+                lastIgnition = idle.Workspace.IgnitionCount;
+                try
+                {
+                    string? text = await monologue.MaybeGenerateAsync(net, idle);
+                    if (text is not null)
+                        Console.WriteLine($"t={t / 1000.0:F1}s monologue ({idle.Workspace.LastIgnition.Tag}): \"{text}\"");
+                }
+                catch (Exception ex) { Console.WriteLine($"monologue failed: {ex.Message}"); }
+            }
             if (t > 0 && t % 5_000 == 0)
                 Console.WriteLine($"t={t / 1000.0:F0}s state={idle.Sleep.State} novelty={salience.VisionModel.Novelty:F2} " +
                                   $"na={net.Modulators.Get(NeuromodulatorKind.Noradrenaline):F2} " +
@@ -69,7 +196,9 @@ switch (cmd)
         Console.WriteLine($"[surprise] sim_s={seconds} wall_s={sw.Elapsed.TotalSeconds:F1} frames={frameCount} " +
                           $"states={string.Join(">", idle.Sleep.Transitions.Select(tr => tr.State))}");
         Console.WriteLine($"surprises={salience.SurpriseEvents} ({string.Join(", ", salience.SurpriseLog.Select(x => x.Tag + "@" + (x.TimeMs / 1000) + "s"))}) " +
-                          $"episodes={net.EpisodeStore.Episodes.Count}");
+                          $"episodes={net.EpisodeStore.Episodes.Count} monologues={monologue.Log.Count}");
+        foreach (var (mt, text) in monologue.Log)
+            Console.WriteLine($"  [{mt / 1000:F0}s] {text}");
         return 0;
     }
     case "day":
