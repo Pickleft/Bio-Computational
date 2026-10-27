@@ -71,6 +71,36 @@ switch (cmd)
         Console.WriteLine(report.Summary);
         return 0;
     }
+    case "eeg":
+    {
+        // Resting-state LFP probe: run quietly, analyze the thalamocortical signal.
+        double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
+        var net = new SpikingNetwork(BrainConfig.Default());
+        var lfp = new BioComp.Core.Metrics.LfpProxy();
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        idle.Sleep.DayLengthMs = 3_600_000; // stay awake during the probe
+        var thal = net.Regions.First(r => r.Name == "Thal");
+        var v1 = net.Regions.First(r => r.Name == "V1");
+        var cond = net.Cond;
+        for (long t = 0; t < (long)(seconds * 1000); t++)
+        {
+            net.Tick();
+            idle.Sleep.Tick(net, 0);
+            float s = 0;
+            for (int i = thal.Start; i < thal.Start + thal.Count; i++)
+                s += cond.GAmpa[i] + cond.GNmda[i] - cond.GGabaa[i] - cond.GGabab[i];
+            for (int i = v1.Start; i < v1.Start + v1.Count; i++)
+                s += cond.GAmpa[i] + cond.GNmda[i] - cond.GGabaa[i] - cond.GGabab[i];
+            lfp.AddSample(s);
+        }
+        Console.WriteLine("bands (delta theta alpha beta gamma): " +
+                          string.Join(" ", lfp.Bands.Select(b => b.ToString("E2"))));
+        var ratios = lfp.History.Select(h => h[2] / MathF.Max(1e-12f, (h[1] + h[3]) / 2f)).ToArray();
+        Console.WriteLine($"1/f slope = {lfp.Slope:F2}   alpha ratio (last) = {lfp.AlphaRatio:F2}   " +
+                          $"(max {ratios.Max():F2}, median {ratios.OrderBy(r => r).ToArray()[ratios.Length / 2]:F2} across {ratios.Length} epochs)   " +
+                          $"sleep state = {idle.Sleep.State}");
+        return 0;
+    }
     case "resting":
     {
         double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
@@ -316,6 +346,7 @@ switch (cmd)
         Console.WriteLine("""
             BioLab commands:
               resting <sec>       run the default brain headless, report rates + trajectory hash
+              eeg <sec>           resting-state lfp probe: band powers, 1/f slope, alpha ratio
               tune <sec>          sweep noise x gaba gain, report rate/branching/avalanches
               day <sec>           compressed full day: wake, episodes, sleep with replay, wake
               surprise <sec>      quiet room, sleep, then wake-on-surprise (add --camera for a live webcam)

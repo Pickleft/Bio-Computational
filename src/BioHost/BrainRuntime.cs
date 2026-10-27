@@ -58,6 +58,10 @@ public sealed class BrainSnapshot
     public List<string> PlainThoughts { get; set; } = [];
     public List<string> Chat { get; set; } = [];
     public List<object[]> Regions { get; set; } = [];
+    public float[] LfpBands { get; set; } = new float[5];
+    public List<float[]> LfpHistory { get; set; } = [];
+    public float LfpSlope { get; set; }
+    public float AlphaRatio { get; set; }
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -98,6 +102,8 @@ public sealed class BrainRuntime : IDisposable
     private readonly MockFrameSource? _mockCamera;
     private readonly MockAudioSource? _mockMic;
     private readonly int _retinaStart, _retinaCount, _a1Start, _a1Count;
+    private readonly int _thalStart, _thalCount, _v1Start, _v1Count;
+    public BioComp.Core.Metrics.LfpProxy Lfp { get; } = new();
     private readonly List<short> _audioBuffer = [];
     private readonly List<string> _thought = [];
     private readonly List<string> _monologueLog = [];
@@ -136,6 +142,12 @@ public sealed class BrainRuntime : IDisposable
         (_retinaStart, _retinaCount) = (retina.Start, retina.Count);
         var a1 = _net.Regions.First(r => r.Name == "A1");
         (_a1Start, _a1Count) = (a1.Start, a1.Count);
+        var thal = _net.Regions.First(r => r.Name == "Thal");
+        _thalStart = thal.Start;
+        _thalCount = thal.Count;
+        var v1 = _net.Regions.First(r => r.Name == "V1");
+        _v1Start = v1.Start;
+        _v1Count = v1.Count;
 
         // senses: real devices when present (auto by default), deterministic mocks otherwise
         bool camLive = false;
@@ -239,6 +251,15 @@ public sealed class BrainRuntime : IDisposable
     private void StepOnce()
     {
         float t = _net.TimeMs;
+
+        // thalamocortical LFP proxy: net synaptic conductance of Thal + V1
+        float lfp = 0;
+        var cond = _net.Cond;
+        for (int i = _thalStart; i < _thalStart + _thalCount; i++)
+            lfp += cond.GAmpa[i] + cond.GNmda[i] - cond.GGabaa[i] - cond.GGabab[i];
+        for (int i = _v1Start; i < _v1Start + _v1Count; i++)
+            lfp += cond.GAmpa[i] + cond.GNmda[i] - cond.GGabaa[i] - cond.GGabab[i];
+        Lfp.AddSample(lfp);
 
         // ---- vision ----
         if (_mockCamera is not null) _mockCamera.Advance(1);
@@ -559,6 +580,10 @@ public sealed class BrainRuntime : IDisposable
             PlainThoughts = [.. _plain],
             Chat = [.. _chat.TakeLast(20)],
             Regions = [.. _net.Regions.Select(r => new object[] { r.Name, r.Count })],
+            LfpBands = [.. Lfp.Bands],
+            LfpHistory = [.. Lfp.History],
+            LfpSlope = Lfp.Slope,
+            AlphaRatio = Lfp.AlphaRatio,
             Thought = [.. _thought],
             Monologues = [.. _monologueLog.TakeLast(8)],
             RecentEpisodes = [.. _net.EpisodeStore.Episodes.TakeLast(8)

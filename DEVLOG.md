@@ -19,6 +19,13 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 - eeg proxy: lfp spectrogram, thalamocortical alpha, 1/f verified
+
+- LFP proxy: net synaptic conductance of the thalamocortical channel (Thal + V1), Hann-windowed Goertzel band powers (delta/theta/alpha/beta/gamma) at 10 Hz, spectrogram history, log-log 1/f slope. Dashboard gained an EEG-proxy spectrogram panel with slope and alpha-ratio readouts.
+- Added the missing V1 -> Thal feedback projection (25 ms delay) closing the thalamocortical loop.
+- Verified empirically (`biolab eeg 60s`, awake): spectrum is strongly 1/f (slope -1.0 to -1.35) with intermittent 8-12 Hz alpha epochs up to 6.5x over neighboring bands (median epoch ratio 0.74, max 6.53 across 72 epochs) - alpha waxes and wanes within a 1/f background, as in real resting EEG. Also observed: NREM epochs go delta-dominant.
+- Tests: 73/73 green (Goertzel alpha detection on a pure 10 Hz tone, negative slope on falling spectra, bounded history).
+
 ## 2026-10-27 (late, 2) - judge-path verification and demo script
 
 - Verified the exact judge path: fresh clone from GitHub builds clean and passes 70/70 keyless; resting smoke deterministic at 3.7x realtime.

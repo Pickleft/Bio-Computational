@@ -80,6 +80,7 @@ public sealed class BrainConfig
             new("Lang", "PFC", 4, 0.06f),
             new("PFC", "Motor", 6, 0.07f),
             new("TaskPos", "V1", 3, 0.03f), // top-down feedback
+            new("V1", "Thal", 3, 0.035f, 1.2f, 25, 6), // thalamocortical loop: ~8-12 Hz alpha at rest
         ]);
         return c;
     }

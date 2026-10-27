@@ -33,11 +33,15 @@ function render(s) {
   $("meta-badge").textContent = "meta tier: " + (s.MetaLive ? "live" : "mock");
 
   drawRaster(s);
+  drawSpectrogram(s);
   drawCircumplex(s);
   drawSleep(s);
   drawMods(s);
   drawDreams(s);
   drawChat(s);
+
+  $("lfp-slope").textContent = s.LfpSlope.toFixed(2);
+  $("alpha-ratio").textContent = s.AlphaRatio.toFixed(2);
 
   setFeed($("plain"), s.PlainThoughts);
   setFeed($("thought"), s.Thought);
@@ -169,6 +173,38 @@ function drawRaster(s) {
   ctx.fillStyle = "#33445c";
   ctx.font = "10px Consolas";
   ctx.fillText("last " + windowSec + "s   |   " + (s.Raster || []).length + " spikes", labelW + 8, 12);
+}
+
+function drawSpectrogram(s) {
+  const c = $("spectrogram"), ctx = c.getContext("2d");
+  ctx.fillStyle = "#070a10";
+  ctx.fillRect(0, 0, c.width, c.height);
+  const bands = ["delta 1-4", "theta 4-8", "alpha 8-12", "beta 12-30", "gamma 30-80"];
+  const hist = s.LfpHistory || [];
+  if (hist.length === 0) return;
+
+  // color scale from max power in view
+  let max = 1e-9;
+  for (const col of hist) for (const v of col) if (v > max) max = v;
+
+  const labelW = 86;
+  const bh = (c.height - 8) / 5;
+  ctx.font = "10px Consolas";
+  for (let col = 0; col < hist.length; col++)
+  {
+    const x = labelW + (col / Math.max(1, hist.length - 1)) * (c.width - labelW - 6);
+    for (let b = 0; b < 5; b++)
+    {
+      const p = Math.log10(1 + 9 * (hist[col][b] / max)); // 0..1 gamma-ish stretch
+      const y = 4 + b * bh;
+      const hue = 175 - b * 12;
+      ctx.fillStyle = `hsla(${hue}, 80%, ${Math.round(6 + p * 52)}%, 1)`;
+      ctx.fillRect(x - 2, y, 4, bh - 2);
+    }
+  }
+  ctx.fillStyle = "#5c6c84";
+  for (let b = 0; b < 5; b++)
+    ctx.fillText(bands[b], 4, 4 + b * bh + bh / 2 + 3);
 }
 
 function drawCircumplex(s) {
