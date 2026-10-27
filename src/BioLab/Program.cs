@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using BioComp.Core.Cognition;
 using BioComp.Core.Network;
 using BioComp.Core.Neuromodulators;
+using BioComp.Core.Sleep;
 
 // BioLab - headless experiment CLI. Commands grow with milestones (docs/plan/RUNBOOK.md).
 var cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "help";
@@ -11,6 +13,31 @@ switch (cmd)
     {
         double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
         RunAndReport(new SpikingNetwork(BrainConfig.Default()), seconds, "resting");
+        return 0;
+    }
+    case "day":
+    {
+        // A compressed full day: wake, ambient episodes, sleep with replay, wake again.
+        double simSeconds = args.Length > 1 ? ParseSeconds(args[1]) : 240;
+        var net = new SpikingNetwork(BrainConfig.Default());
+        var idle = new IdleController(net);
+        idle.Sleep.DayLengthMs = simSeconds * 1000;
+        var sw = Stopwatch.StartNew();
+        long ticks = (long)(simSeconds * 1000);
+        for (long t = 0; t < ticks; t++)
+        {
+            idle.Tick(net);
+            if (t > 0 && t % (15_000) == 0)
+                Console.WriteLine($"t={t / 1000.0:F0}s state={idle.Sleep.State} pressure={idle.Sleep.SleepPressure:F2} " +
+                                  $"circadian={idle.Sleep.Circadian:F2} rate={net.Recorder.MeanRateHz((float)t):F2}Hz " +
+                                  $"replays={idle.Replay.ReplayCount} episodes={net.EpisodeStore.Episodes.Count}");
+        }
+        sw.Stop();
+        Console.WriteLine($"[day] sim_s={simSeconds} wall_s={sw.Elapsed.TotalSeconds:F1} states=" +
+                          string.Join(">", idle.Sleep.Transitions.Select(tr => tr.State)));
+        Console.WriteLine($"replays={idle.Replay.ReplayCount} episodes={net.EpisodeStore.Episodes.Count} " +
+                          $"dmn_taskpos_r={idle.DmnTaskPosCorrelation.Pearson():F2}");
+        Console.WriteLine($"trajectory_hash=0x{net.ComputeTrajectoryHash():X16}");
         return 0;
     }
     case "tune":
@@ -45,6 +72,7 @@ switch (cmd)
             BioLab commands:
               resting <sec>   run the default brain headless, report rates + trajectory hash
               tune <sec>      sweep noise x gaba gain, report rate/branching/avalanches
+              day <sec>       compressed full day: wake, episodes, sleep with replay, wake
             """);
         return cmd == "help" ? 0 : 1;
 }

@@ -14,11 +14,11 @@
 
 ## WS2 Idle/existence (Oct 28-Oct 29)
 - T2.1 [x]  Self-sustained activity tuning for the default wiring (noise 3 mV, branching ~1; retune when wiring changes)
-- T2.2 DMN/TaskPos subnetworks + anti-correlation
-- T2.3 Episode schema + CA3/CA1 encode/recall (jsonl store)
-- T2.4 Replay scheduler (compressed, DA-gated consolidation)
-- T2.5 Sleep two-process machine; NREM slow oscillation; REM; warp policy
-- T2.6 Boredom/novelty drive; slow mood drift
+- T2.2 DMN/TaskPos anti-correlation [x]  metric + tracking (competitive coupling lands with workspace)
+- T2.3 [x]  Episode schema + CA3/CA1 encode/recall (jsonl store)
+- T2.4 [x]  Replay scheduler (compressed, DA-gated consolidation)
+- T2.5 [x]  Sleep two-process machine; NREM slow oscillation; REM; compressed-day support
+- T2.6 Boredom/novelty drive; slow mood drift (needs senses, moved to workspace milestone)
 
 ## WS3 Senses (Oct 30)
 - T3.1 Webcam capture (OpenCvSharp) + event-vision encoder + fovea/periphery

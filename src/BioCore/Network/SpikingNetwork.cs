@@ -30,6 +30,7 @@ public sealed class SpikingNetwork
     public NeuromodulatorSystem Modulators { get; }
     public ThreeFactorStdp Learning { get; private set; } = null!;
     public AvalancheMetrics Avalanches { get; } = new();
+    public BioComp.Core.Memory.EpisodeMemory EpisodeStore { get; } = new();
 
     public readonly float[] V, U, Injected, NoiseBuf, LastPostSpikeMs;
     public readonly uint[] WindowCounts;

@@ -53,7 +53,7 @@ public sealed class TransmitterSystem
     public void Set(int region, TransmitterKind kind, float value) =>
         _pools[region][(int)kind] = value;
 
-    /// <summary>Advance one ms of transporter reuptapake / clearance.</summary>
+    /// <summary>Advance one ms of transporter reuptake / clearance.</summary>
     public void Step()
     {
         Array.Clear(LastUptakeFlux);
