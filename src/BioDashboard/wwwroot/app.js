@@ -70,6 +70,7 @@ function render(s) {
   drawDreams(s);
   drawChat(s);
   if (typeof brainMusicTick === "function") brainMusicTick(s);
+  if (typeof updateAvatarState === "function") updateAvatarState(s);
 
   $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
 
