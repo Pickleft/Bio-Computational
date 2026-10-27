@@ -118,6 +118,8 @@ public sealed class BrainRuntime : IDisposable
     private byte[]? _lastFramePng;
     private bool _wasVoice;
     private long _voiceCooldownUntil;
+    private float _speechStartMs;
+    private float _lastVoiceMs;
     private long _lastDemoCycle = -1;
     private volatile bool _dreamBusy;
     private readonly List<string> _dreams = [];
@@ -349,15 +351,33 @@ public sealed class BrainRuntime : IDisposable
                 _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
                 if (_cochlea.VoiceLikely) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
                 else if (_cochlea.OnsetThisBlock) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 0.7f);
+
+                // speech capture: accumulate the full utterance, transcribe on end-of-speech
                 _audioBuffer.AddRange(block.Samples);
-                if (_audioBuffer.Count > 16_000 * 8) _audioBuffer.RemoveRange(0, _audioBuffer.Count - 16_000 * 8);
+                if (_audioBuffer.Count > 16_000 * 10) _audioBuffer.RemoveRange(0, _audioBuffer.Count - 16_000 * 10);
+
                 if (_cochlea.VoiceLikely && !_wasVoice && _net.TickIndex > _voiceCooldownUntil)
                 {
+                    // speech onset: start capturing
                     _wasVoice = true;
-                    _voiceCooldownUntil = _net.TickIndex + 15_000;
-                    _ = HandleSpeechAsync(t);
+                    _speechStartMs = t;
                 }
-                if (!_cochlea.VoiceLikely) _wasVoice = false;
+                else if (_cochlea.VoiceLikely)
+                {
+                    // still speaking: reset the end-of-speech timer
+                    _lastVoiceMs = t;
+                }
+                else if (_wasVoice && t - _lastVoiceMs > 800f && t - _speechStartMs > 500f)
+                {
+                    // end of speech (0.8s of silence after at least 0.5s of speech):
+                    // send the full utterance from speech onset to now
+                    _wasVoice = false;
+                    _voiceCooldownUntil = _net.TickIndex + 5_000;
+                    int startIdx = Math.Max(0, _audioBuffer.Count - (int)((t - _speechStartMs + 500f) * 16));
+                    var clip = _audioBuffer.Skip(startIdx).ToArray();
+                    if (clip.Length > 16_000 * 0.5) // at least 0.5s of audio
+                        _ = HandleSpeechClipAsync(clip);
+                }
             }
         }
 
@@ -481,18 +501,16 @@ public sealed class BrainRuntime : IDisposable
         catch (Exception ex) { Note($"dream re-entry failed: {ex.Message}"); }
     }
 
-    private async Task HandleSpeechAsync(float t)
+    private async Task HandleSpeechClipAsync(short[] clip)
     {
         try
         {
-            var clip = _audioBuffer.Count > 16_000 * 4
-                ? _audioBuffer.Skip(_audioBuffer.Count - 16_000 * 4).ToArray()
-                : _audioBuffer.ToArray();
             var tr = await _transcriber.TranscribeAsync(clip);
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
-                Note($"HEARD \"{tr.Transcript}\"{(tr.FromLiveApi ? " (voice api)" : " (mock)")}");
-                _idle.OnEvent(_net, ["voice", tr.Transcript[..Math.Min(40, tr.Transcript.Length)]], 0.3f, 0.8f);
+                Note($"HEARD \"{Trunc(tr.Transcript, 60)}\"{(tr.FromLiveApi ? " (voice api)" : " (mock)")}");
+                _idle.OnEvent(_net, ["voice", Trunc(tr.Transcript, 40)], 0.3f, 0.8f);
+                _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
             }
         }
         catch (Exception ex) { Note($"transcribe failed: {ex.Message}"); }
