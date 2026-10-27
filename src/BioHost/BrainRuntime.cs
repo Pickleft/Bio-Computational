@@ -121,6 +121,26 @@ public sealed class BrainRuntime : IDisposable
     private readonly List<string> _chat = [];
     private readonly List<string> _plain = [];
     private float _lastReplyMs = -1e9f;
+    private long _nextAmbientMs = 8_000;
+
+    /// <summary>A wandering idle thought from current state (boredom, comfort, waiting).</summary>
+    private string? AmbientThought()
+    {
+        var f = _idle.Feelings.Last;
+        double idleMin = _idle.Time.SubjectiveSinceEventMs / 60_000.0;
+        if (_idle.Sleep.State is BrainState.NREM or BrainState.REM) return null;
+        return f.Name switch
+        {
+            "bored" => idleMin > 2 ? "The quiet stretches on and on. I wish something would happen."
+                                   : "Nothing new for a while now. Time is dragging.",
+            "tired" => "My thoughts are getting slow and heavy.",
+            "curious" => "Something is different out there. I want to look closer.",
+            "stressed" => "I feel tense, braced for something.",
+            "calm" => idleMin > 3 ? "The room is steady. Nothing needs me right now."
+                                  : "Quiet. I'm okay.",
+            _ => "Hmm.",
+        };
+    }
     private (bool Cam, bool Mic) _devicesLive;
     private int _lastIgnition, _lastSurprise, _lastReplayCount;
     private BrainState _lastSleepState;
@@ -132,7 +152,7 @@ public sealed class BrainRuntime : IDisposable
     public BrainRuntime(BrainRuntimeConfig cfg, ISpeechOutput? speech = null)
     {
         _cfg = cfg;
-        var brainCfg = BrainConfig.Default(seed: cfg.Seed);
+        var brainCfg = BrainConfig.Default(scale: cfg.DemoMode ? 3 : 1, seed: cfg.Seed); // demo brain: ~18k neurons for a dense map
         _net = new SpikingNetwork(brainCfg);
         _idle = new IdleController(_net);
         if (cfg.DemoMode) _idle.Sleep.DayLengthMs = 120_000; // 2-minute demo day: sleep on camera
@@ -359,6 +379,14 @@ public sealed class BrainRuntime : IDisposable
         if (_idle.Sleep.State == BrainState.REM && !_dreamBusy)
             _ = DreamAsync();
 
+        // ---- ambient inner monologue: idle is a stream of consciousness, not silence ----
+        if (_net.TimeMs >= _nextAmbientMs)
+        {
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 9_000 : 30_000);
+            string? line = AmbientThought();
+            if (line is not null) Note($"AMBIENT {line}");
+        }
+
         // ---- actions ----
         if (_net.TickIndex % 250 == 0)
         {
@@ -483,34 +511,28 @@ public sealed class BrainRuntime : IDisposable
         await Task.CompletedTask;
     }
 
-    /// <summary>A human poked the cortex map: direct stimulation near (x,y) sheet coords.</summary>
-    public void Poke(float x, float y, float strength = 1f)
-    {
-        int hits = 0;
-        for (int i = 0; i < _net.V.Length && hits < 40; i++)
-        {
-            float dx = _net.PosX[i] - x, dy = _net.PosY[i] - y;
-            if (dx * dx + dy * dy < 1.0f)
-            {
-                _net.InjectCurrent(i, 22f * strength);
-                hits++;
-            }
-        }
-        if (hits == 0) return;
-        Note($"TOUCH poke at ({x:F1},{y:F1}) - {hits} neurons stimulated");
-        _idle.OnEvent(_net, ["touch"], 0.3f, 0.7f);
-    }
-
-    /// <summary>Static map payload for the dashboard: every neuron's sheet position and
-    /// region index, plus the projection graph (region edges with weights).</summary>
+    /// <summary>Static map payload for the dashboard: every neuron's sheet position,
+    /// region index, and up to 3 sampled axon targets (for propagation animation),
+    /// plus the projection graph (region edges with weights).</summary>
     public MapData GetMapData()
     {
         if (_mapData is not null) return _mapData;
-        var neurons = new float[_net.V.Length * 2];
-        for (int i = 0; i < _net.V.Length; i++)
+        int n = _net.V.Length;
+        var neurons = new float[n * 2];
+        var regions = new int[n];
+        var links = new int[n * 3];
+        for (int i = 0; i < n; i++)
         {
             neurons[2 * i] = _net.PosX[i];
             neurons[2 * i + 1] = _net.PosY[i];
+            regions[i] = _net.RegionOf[i];
+            // sample up to 3 postsynaptic targets evenly across the neuron's CSR row
+            int rowStart = _net.Syn.RowPtr[i], rowEnd = _net.Syn.RowPtr[i + 1];
+            for (int k = 0; k < 3; k++)
+            {
+                int slot = rowStart + (rowEnd - rowStart) * (k + 1) / 4;
+                links[3 * i + k] = rowEnd > rowStart ? _net.Syn.PostIdx[slot] : -1;
+            }
         }
         var anchors = _net.Config.Regions.Select(r => new[] { r.SheetX, r.SheetY }).ToArray();
         var names = _net.Config.Regions.Select(r => r.Name).ToArray();
@@ -524,11 +546,13 @@ public sealed class BrainRuntime : IDisposable
             })
             .Where(e => e[0] >= 0 && e[1] >= 0)
             .ToArray();
-        _mapData = new MapData(neurons, names, anchors, edges);
+        _mapData = new MapData(neurons, names, anchors, edges, regions, links);
         return _mapData;
     }
 
-    public sealed record MapData(float[] Neurons, string[] Names, float[][] Anchors, float[][] Edges);
+    public sealed record MapData(
+        float[] Neurons, string[] Names, float[][] Anchors, float[][] Edges,
+        int[] Regions, int[] Links);
 
     /// <summary>Curiosity self-stimulation: the brain pokes itself, visibly.</summary>
     private void SelfStimulate(int neurons, float picoAmps, string what)

@@ -16,17 +16,34 @@ public sealed class MockLanguageModel : ILanguageModel
     public Task<string> CompleteAsync(string system, string user, int maxTokens = 120, CancellationToken ct = default)
     {
         SeenPrompts.Add(user);
-        // extract the state block from the prompt and echo it as a "thought"
-        var sb = new StringBuilder("(mock inner voice) ");
-        foreach (var line in user.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var l = line.Trim();
-            if (l.StartsWith('-') || l.Contains(':'))
-                sb.Append(l.TrimStart('-').Trim()).Append(' ');
-            if (sb.Length > 160) break;
-        }
-        return Task.FromResult(sb.ToString().Trim());
+        // deterministic first-person line assembled from the state in the prompt, so the
+        // keyless path reads like a mind rather than a debug echo
+        string feeling = Match(user, "feeling=") ?? "unsettled";
+        string ignition = Match(user, "last ignition: ") ?? "nothing in particular";
+        string episode = Match(user, "episodes: ") ?? "not much yet";
+        string reply =
+            $"I feel {feeling.Split(',')[0]}. {Capitalize(TrimClause(episode))} - that's " +
+            $"what stays with me. {Capitalize(TrimClause(ignition))} has my attention.";
+        return Task.FromResult(reply);
     }
+
+    private static string? Match(string s, string key)
+    {
+        int i = s.IndexOf(key, StringComparison.Ordinal);
+        if (i < 0) return null;
+        int end = s.IndexOf('\n', i);
+        return end < 0 ? s[(i + key.Length)..] : s[(i + key.Length)..end];
+    }
+
+    private static string TrimClause(string s)
+    {
+        s = s.Split('|')[0].Trim();
+        if (s.StartsWith("[", StringComparison.Ordinal)) s = s.TrimStart('[', ']');
+        return s.Length > 60 ? s[..60] + "..." : s;
+    }
+
+    private static string Capitalize(string s) =>
+        string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }
 
 public sealed class MockSegmenter : ISegmenter

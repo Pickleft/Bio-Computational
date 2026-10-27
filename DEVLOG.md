@@ -19,6 +19,15 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - living map, stream of consciousness
+
+- Removed click-to-touch (gimmicky per user feedback): poke endpoint, click handler and runtime method gone.
+- Cortex map is now genuinely alive: per-neuron heat buffer with exponential decay (active zones shimmer instead of single-frame blips), plus animated spike propagation - sparks travel along each neuron's sampled real axons (up to 3 postsynaptic targets from the CSR) at 60 fps over 10 Hz data. Region color per neuron now in the map payload.
+- Stream of consciousness: ambient idle thoughts on a cadence (9 s demo / 30 s normal) generated from live state - boredom, patience, comfort lines - so idle reads as narration, not silence ("Nothing new for a while now. Time is dragging.").
+- The mock interpreter now speaks in first-person sentences assembled from its state instead of echoing the prompt debug-style.
+- Demo mode runs a 3x-scale brain (~18k neurons) for a dense, spectacular map; the default judge path stays 6k.
+- Verified live: 18,048-neuron map with links, propagation rendering, ambient thoughts while awake, human-sounding mock monologue. Tests 73/73.
+
 ## 2026-10-28 (later) - cortex map, region graph, touch interaction, visible curiosity
 
 - Cortex map: every neuron rendered at its real sheet position (6,016 dots from the seeded wiring), flashing in region color when it spikes - avalanches visibly ripple across the sheet. Live from the spike ring, no aggregation.

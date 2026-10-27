@@ -8,14 +8,20 @@ const regionColors = ["#46e0c0", "#5aa9e0", "#9d7ce0", "#e0a546", "#e05a6a", "#6
   "#e07db1", "#8ecfe0", "#cfe08d", "#a0a0ff", "#e0d05a", "#7d8fa8"];
 
 const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
-ws.onmessage = (ev) => render(JSON.parse(ev.data));
+ws.onmessage = (ev) => { lastSnapshot = JSON.parse(ev.data); render(lastSnapshot); };
 ws.onclose = () => { $("state").textContent = "disconnected"; setTimeout(() => location.reload(), 2000); };
 
 // ---- cortex map state (static payload fetched once) ----
-let MAP = null;        // { Neurons: flat [x,y,...], Names, Anchors, Edges: [from,to,w] }
-let lastRasterT = 0;
+let MAP = null;        // { neurons, names, anchors, edges, regions, links }
+let lastSnapshot = null;
+let heatBuf = null;
 
-fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; drawCortexBase(); });
+fetch("/api/map").then((r) => r.json()).then((m) => {
+  MAP = m;
+  drawCortexBase();
+  heatBuf = new Float32Array(m.neurons.length / 2);
+  requestAnimationFrame(animateCortex);
+});
 
 function mapExtent() {
   let maxX = 1, maxY = 1;
@@ -26,6 +32,14 @@ function mapExtent() {
   return [maxX, maxY];
 }
 
+function toCanvas(idx, c) {
+  const [mx, my] = mapExtent();
+  return [
+    30 + (MAP.neurons[idx * 2] / mx) * (c.width - 60),
+    c.height - 20 - (MAP.neurons[idx * 2 + 1] / my) * (c.height - 40),
+  ];
+}
+
 let baseCanvas = null;
 function drawCortexBase() {
   baseCanvas = document.createElement("canvas");
@@ -34,61 +48,80 @@ function drawCortexBase() {
   const ctx = baseCanvas.getContext("2d");
   ctx.fillStyle = "#070a10";
   ctx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
-  const [mx, my] = mapExtent();
-  for (let i = 0; i < MAP.neurons.length; i += 2) {
-    const r = MAP.neurons[i] / mx, c = MAP.neurons[i + 1] / my;
-    const x = 30 + r * (baseCanvas.width - 60);
-    const y = baseCanvas.height - 20 - c * (baseCanvas.height - 40);
-    // region determined by lookup later; dim gray-blue base for all
-    ctx.fillStyle = "rgba(70, 90, 120, 0.35)";
-    ctx.fillRect(x, y, 1.5, 1.5);
+  for (let i = 0; i < MAP.neurons.length / 2; i++) {
+    const [x, y] = toCanvas(i, baseCanvas);
+    ctx.fillStyle = "rgba(70, 90, 120, 0.30)";
+    ctx.fillRect(x, y, 1.4, 1.4);
   }
+}
+
+// rAF loop: smooth glow decay + travelling spikes along sampled axons
+function animateCortex() {
+  const c = $("cortex");
+  if (!MAP || !baseCanvas) { requestAnimationFrame(animateCortex); return; }
+  const ctx = c.getContext("2d");
+  ctx.drawImage(baseCanvas, 0, 0);
+  const n = MAP.neurons.length / 2;
+
+  // ingest new spikes from the latest snapshot
+  if (lastSnapshot) {
+    const seen = lastSnapshot.Raster || [];
+    for (const p of seen) {
+      const idx = p[1] | 0;
+      if (idx >= 0 && idx < n && heatBuf[idx] < 0.95) heatBuf[idx] = 1;
+    }
+  }
+
+  // glow pass: neurons shimmer where recently active
+  for (let i = 0; i < n; i++) {
+    if (heatBuf[i] <= 0.04) { heatBuf[i] = 0; continue; }
+    const [x, y] = toCanvas(i, c);
+    const h = heatBuf[i];
+    ctx.globalAlpha = h;
+    ctx.fillStyle = regionColors[MAP.regions[i] % regionColors.length];
+    const size = 1.6 + 3.2 * h;
+    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+    heatBuf[i] *= 0.90;
+  }
+
+  // propagation pass: sparks travel from firing neurons to sampled axon targets
+  if (lastSnapshot) {
+    const now = Math.max(1, lastSnapshot.SimSeconds);
+    const seen = lastSnapshot.Raster || [];
+    let drawn = 0;
+    for (const p of seen) {
+      if (drawn > 220) break;
+      const [tSec, neuronIdx] = p;
+      const age = (now - tSec) / 0.35;          // travel time ~0.35 sim-sec
+      if (age < 0 || age > 1) continue;
+      const from = neuronIdx | 0;
+      if (from * 3 + 2 >= MAP.links.length) continue;
+      for (let k = 0; k < 3; k++) {
+        const to = MAP.links[from * 3 + k];
+        if (to < 0) continue;
+        const [x1, y1] = toCanvas(from, c);
+        const [x2, y2] = toCanvas(to, c);
+        const px = x1 + (x2 - x1) * age;
+        const py = y1 + (y2 - y1) * age;
+        ctx.globalAlpha = (1 - age) * 0.9;
+        ctx.fillStyle = regionColors[MAP.regions[from] % regionColors.length];
+        ctx.fillRect(px, py, 1.8, 1.8);
+        drawn++;
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(animateCortex);
 }
 
 function drawCortex(s) {
+  // static in rAF loop; only caption refresh here
   const c = $("cortex"), ctx = c.getContext("2d");
   if (!MAP) return;
-  if (!baseCanvas) drawCortexBase();
-  ctx.drawImage(baseCanvas, 0, 0);
-
-  const [mx, my] = mapExtent();
-  const now = Math.max(1, s.SimSeconds);
-  // flash neurons that spiked in the last 0.4 s, brightness by recency
-  for (const p of (s.Raster || [])) {
-    const [tSec, neuronIdx, region] = p;
-    const age = now - tSec;
-    if (age > 0.4 || neuronIdx * 2 + 1 >= MAP.neurons.length) continue;
-    const x = 30 + (MAP.neurons[neuronIdx * 2] / mx) * (c.width - 60);
-    const y = c.height - 20 - (MAP.neurons[neuronIdx * 2 + 1] / my) * (c.height - 40);
-    const glow = 1 - age / 0.4;
-    ctx.fillStyle = regionColors[region % regionColors.length];
-    ctx.globalAlpha = 0.25 + 0.75 * glow;
-    const size = 2 + 3 * glow;
-    ctx.fillRect(x - size / 2, y - size / 2, size, size);
-  }
-  ctx.globalAlpha = 1;
   ctx.fillStyle = "#33445c";
   ctx.font = "10px Consolas";
-  ctx.fillText((s.Raster || []).length + " recent spikes - click anywhere to touch the brain", 36, 14);
+  ctx.fillText((s.Raster || []).length + " recent spikes", 36, 14);
 }
-
-// click = poke: convert canvas coords back to sheet coords
-$("cortex").addEventListener("click", async (ev) => {
-  if (!MAP) return;
-  const rect = ev.target.getBoundingClientRect();
-  const px = (ev.clientX - rect.left) * (ev.target.width / rect.width);
-  const py = (ev.clientY - rect.top) * (ev.target.height / rect.height);
-  const [mx, my] = mapExtent();
-  const sheetX = ((px - 30) / (ev.target.width - 60)) * mx;
-  const sheetY = ((ev.target.height - 20 - py) / (ev.target.height - 40)) * my;
-  try {
-    await fetch("/api/poke", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ x: sheetX, y: sheetY }),
-    });
-  } catch (e) { console.warn("poke failed", e); }
-});
 
 function drawRegionGraph(s) {
   const c = $("regions"), ctx = c.getContext("2d");

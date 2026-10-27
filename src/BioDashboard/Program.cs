@@ -30,14 +30,6 @@ app.MapGet("/api/snapshot", () => Results.Json(runtime.Snapshot()));
 
 app.MapGet("/api/map", () => Results.Json(runtime.GetMapData()));
 
-app.MapPost("/api/poke", async (HttpContext ctx) =>
-{
-    var body = await ctx.Request.ReadFromJsonAsync<PokeRequest>();
-    if (body is null) return Results.BadRequest(new { error = "x,y required" });
-    runtime.Poke(body.X, body.Y, body.Strength is > 0 and <= 3 ? body.Strength.Value : 1f);
-    return Results.Ok(new { ok = true });
-});
-
 app.MapPost("/api/say", async (HttpContext ctx) =>
 {
     var body = await ctx.Request.ReadFromJsonAsync<SayRequest>();
@@ -61,7 +53,7 @@ app.Map("/ws", async context =>
                 context.RequestAborted);
         }
         catch (WebSocketException) { break; }
-        await Task.Delay(100, context.RequestAborted); // 10 Hz
+        await Task.Delay(25, context.RequestAborted); // 10 Hz
     }
 });
 
@@ -77,4 +69,3 @@ finally
 }
 
 record SayRequest(string Text);
-record PokeRequest(float X, float Y, float? Strength);
