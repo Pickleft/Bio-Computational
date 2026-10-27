@@ -49,6 +49,28 @@ switch (cmd)
                 return 1;
         }
     }
+    case "wonder":
+    {
+        // Autonomous research agent: mock interpreter runs the fixed protocol keyless;
+        // with a key and --live it points at Muse Wonder through the cost governor.
+        string goal = args.Skip(1).FirstOrDefault(a => !a.StartsWith("--")) ?? "state of the brain";
+        ILanguageModel lm;
+        if (args.Contains("--live"))
+        {
+            var mo = MetaOptions.Load();
+            if (!mo.HasKey) { Console.WriteLine("no api key; running the mock protocol"); lm = new MockLanguageModel(); }
+            else lm = new MetaClients(mo, new CostGovernor { DailyBudgetUsd = 5f });
+        }
+        else lm = new MockLanguageModel();
+
+        var agent = new WonderAgent(lm);
+        Console.WriteLine($"wonder agent: {goal}");
+        var report = await agent.RunAsync(goal);
+        foreach (var line in agent.Trace) Console.WriteLine($"  {line}");
+        Console.WriteLine($"report: {report.Path}");
+        Console.WriteLine(report.Summary);
+        return 0;
+    }
     case "resting":
     {
         double seconds = args.Length > 1 ? ParseSeconds(args[1]) : 30;
@@ -298,6 +320,7 @@ switch (cmd)
               day <sec>           compressed full day: wake, episodes, sleep with replay, wake
               surprise <sec>      quiet room, sleep, then wake-on-surprise (add --camera for a live webcam)
               paradigm <name>     mmn | conditioning | discounting  (--trials=N --out=dir)
+              wonder [goal]       autonomous research agent (mock protocol keyless; --live uses Muse Wonder)
               meta-check [--all]  verify the meta tier (mocks keyless; live with a key)
             """);
         return cmd == "help" ? 0 : 1;

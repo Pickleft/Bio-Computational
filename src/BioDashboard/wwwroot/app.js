@@ -21,6 +21,7 @@ function render(s) {
   $("cost").textContent = "$" + s.SpentUsd.toFixed(3) + " / " + s.ApiCalls + " calls";
   $("senses").textContent = (s.CameraLive ? "cam:live" : "cam:mock") + " " +
     (s.MicLive ? "mic:live" : "mic:mock") + " " + (s.MetaLive ? "meta:live" : "meta:mock");
+  $("rec").classList.toggle("on", !!s.CameraLive);
   $("feeling-narrative").textContent = s.FeelingNarrative;
   $("energy").textContent = s.Energy.toFixed(0);
   $("clockrate").textContent = s.ClockRate.toFixed(2) + "x";

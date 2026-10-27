@@ -99,6 +99,25 @@ footer {
 }
 #meta-badge { color: var(--accent); }
 
+#rec {
+  display: none;
+  color: var(--hot);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+#rec.on { display: inline; }
+#rec.on::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--hot);
+  margin-right: 5px;
+  animation: blink 1.2s infinite;
+}
+@keyframes blink { 50% { opacity: 0.25; } }
+
 /* demo mode: big and readable on video */
 body.demo { font-size: 17px; }
 body.demo h2 { font-size: 14px; }

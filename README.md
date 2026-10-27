@@ -48,9 +48,47 @@ A .NET 9 daemon hosting a 6k-24k neuron spiking network (Izhikevich neurons, con
 dotnet build BioComputational.sln
 dotnet test                                        # fully offline: no keys, no camera, no mic
 dotnet run --project src/BioLab -- resting 30s     # spontaneous activity at criticality
-dotnet run --project src/BioLab -- day 240s        # one compressed day: wake, episodes, sleep, replay, wake
-dotnet run --project src/BioLab -- tune 10s        # criticality sweep (noise x inhibition)
 ```
+
+## Running it
+
+**Live dashboard** (the demo view; one process runs the brain and the UI):
+
+```bash
+dotnet run --project src/BioDashboard -- --urls=http://localhost:8080 --demo
+```
+
+Open http://localhost:8080 (append `?demo=1` for the large-font recording mode). Flags:
+`--demo` compressed day plus a scripted mock world with a visitor; `--camera`/`--mic`
+real webcam and microphone (falls back to mocks when absent); `--voice` speaks through
+Windows TTS; `--live-meta` uses the real Meta models when a key is present. The
+dashboard shows the spike raster, feeling circumplex, neuromodulators, the
+thought-process feed, inner voice, episodes, sleep timeline and dreams, and which
+tiers are live versus mocked.
+
+**Headless experiments:**
+
+```bash
+dotnet run --project src/BioLab -- day 240s                 # one compressed day
+dotnet run --project src/BioLab -- surprise 45s             # sleep, then wake-on-surprise
+dotnet run --project src/BioLab -- surprise 45s --camera    # same, with the real webcam
+dotnet run --project src/BioLab -- tune 10s                 # criticality sweep
+dotnet run --project src/BioLab -- paradigm mmn             # oddball; also conditioning, discounting
+dotnet run --project src/BioLab -- wonder "state of the brain"   # autonomous research agent
+```
+
+**Meta models (optional; everything runs keyless with deterministic mocks):**
+create a key at dev.meta.ai, put it alone in `.secrets/key.txt` (gitignored) or the
+`MODEL_API_KEY` environment variable, then add `--live-meta` / `--live` to the
+commands above. `dotnet run --project src/BioLab -- meta-check --all` verifies every
+endpoint for about a cent. Spark 1.3 is the live interpreter, SAM 3.1 segments on
+visual surprise, Muse Voice Transcribe handles speech, Muse Image renders dreams and
+Muse Wonder (with `wonder --live`) plans the research protocol; the OpenAI-compatible
+Baseten endpoint for Spark Open (`meta-models/muse-spark-open-1026`) is configured in
+`MetaOptions`. Every call passes the cost governor and lands in `data/api_cost.jsonl`.
+
+**Daemon without the UI:** `dotnet run --project src/BioHost` (same flags, checkpoints
+to `data/brain.ckpt` and resumes on restart).
 
 ## Status and roadmap
 
@@ -63,8 +101,8 @@ Built Oct 27 - Nov 4, 2026 (daily log in DEVLOG.md):
 - [x] Episodic memory, replay with consolidation, two-process sleep (NREM slow oscillations, REM)
 - [x] Event-based senses, predictive coding, wake-on-surprise (verified end to end with a mock camera; live webcam via --camera)
 - [x] Global workspace with ignition and refractory, PCI perturbational complexity, self-model, feelings on the Russell circumplex, autonomous action portfolio
-- [ ] Meta model cascade: SAM 3.1 segmentation, Muse Voice Transcribe, Muse Spark monologue, Muse Image dreams, Muse Wonder as an autonomous research agent
-- [ ] Live dashboard: raster, transmitter bars, mood circumplex, ignition feed, monologue, dreams
+- [x] Meta model cascade: Spark monologue, SAM 3.1 on surprise, Voice Transcribe, Muse Image dreams, Wonder research agent (all behind interfaces with deterministic mocks; live with `--live-meta`)
+- [x] Live dashboard: raster, transmitter/modulator bars, mood circumplex, ignition feed (thought process), monologue, dreams, sleep strip, demo mode
 
 ## What was built during the hackathon (Oct 27 - Nov 4, 2026)
 
@@ -81,6 +119,10 @@ commit (Oct 27) contains only the empty scaffold plus pre-event planning notes i
 | Avalanche/branching metrics, criticality tuning (biolab tune) | src/BioCore/Metrics, src/BioLab | c919bbc |
 | Episodic memory, compressed replay, two-process sleep, idle controller, DMN/task-positive correlation | src/BioCore/{Memory,Replay,Sleep,Cognition} | 6135e0a |
 | Senses: event vision, ERB cochlea, predictive coding, wake-on-surprise, interoception, subjective time | src/BioCore/{Senses,Abstractions,Cognition,Time}, src/BioSenses | 22dab4e |
+| Dreams (REM imagery from salient episodes, vision re-entry, gallery) | src/BioMeta/DreamGenerator.cs, src/BioHost | 7b5842c |
+| Psychology paradigms (roving oddball, conditioning/extinction, delay discounting) with CSV/SVG exports | src/BioLab/Paradigms.cs, src/BioCore/Utils | 75e70f4 |
+| Wonder research agent (tool loop, criticality sweep with runaway exclusion, reports) | src/BioLab/WonderAgent.cs | this week, see git log |
+| Daemon + live dashboard (10 Hz WebSocket UI, thought-process feed, TTS, checkpoints) | src/BioHost, src/BioDashboard | afea947 |
 | Test suite: 39 tests (determinism, Dale, STDP signs, checkpoint identity, sleep cycle, replay, episodes...) | tests/BioCore.Tests | all of the above |
 
 ## Documentation

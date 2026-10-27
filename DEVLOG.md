@@ -19,6 +19,13 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-27 (final block of day one) - wonder agent, docs, privacy indicator
+
+- Wonder research agent: JSON tool-calling loop (criticality sweep, oddball, discounting, report) against the language tier. With a key the model plans the protocol and writes its own summary; keyless the identical tool battery runs in a fixed order with a template narrative, sharing tools, files and cost accounting. First run caught a real methodological bug: the branching-ratio estimator reads ~1 both at criticality and in the runaway endless-avalanche regime, so the sweep now excludes runaway via max-avalanche fraction and correctly reports noise 3 mV as the bounded critical point. Report: reports/report-*.md with figures.
+- Documentation pass: full run guide in the README (dashboard, flags, key setup, all CLI commands), PARAMETERS.md consolidated from the seed with implemented values and CALIBRATE markers, LIMITATIONS.md written bluntly (proxy claims, conditioning CS-response debt, MMN channel note, discounting as a computational-level model, hardware constraints, not-yet list).
+- Privacy: blinking REC indicator on the dashboard whenever the live camera is active.
+- Tests: 70/70 green.
+
 ## 2026-10-27 (night 2, later) - REM dreams
 
 - DreamGenerator: during REM, the most emotionally salient recent episode becomes a dream. The prompt is a deterministic function of episode tags and the current feeling (same memory, same dream); imagery comes from the image tier (Muse Image live, deterministic mock keyless) and lands in dreams/. Rate limited per REM phase.
