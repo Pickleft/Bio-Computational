@@ -19,6 +19,15 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - the thought-recycling loop (founding architecture closed)
+
+- ThoughtLoop (src/BioCore/Cognition/ThoughtLoop.cs): thoughts now chain instead of being isolated samples. Each interpreter-generated link is EVALUATED (four independent affect channels scored lexically from its own words: valence, activation, salience, plasticity), CARRIED into the next cycle by neuromodulator releases, RE-INJECTED into the network as inner speech (deterministic FNV text-to-neuron injection into Lang, strength scales with salience), and WRITTEN to episodic memory (thinking becomes memory, recallable and dreamable).
+- Chaining: the next request carries the previous thought AND its evaluated affect; the interpreter is instructed to develop/question/follow, never rephrase. New chains seed from associative + mood-congruent retrieval (Bower 1981): tag overlap with the dying thread, valence congruence with current mood, recency, significance.
+- Regulation (anti-rumination): salience decays exponentially (~9 s tau), near-duplicate links are inhibited (token overlap > 0.6 loses 65 percent salience, three strikes kill the chain with a cooldown), fresh external events displace the thread (the world wins attention), chains cap at six links.
+- Threading contract kept: interpreter text enters ONLY through PostResult and is consumed on the sim thread inside Tick; all neural effects happen there.
+- Dashboard: new thought thread panel showing the live chain link by link, valence-colored and salience-faded, with chain and repeat-inhibition counters.
+- Tests: 8 new (affect scoring signs and channel independence, neuromodulator direction, chaining context propagation, habituation kill, displacement, mood-congruent retrieval bias over 200 trials, thought-becomes-memory recall, deterministic inner-speech injection).
+
 ## 2026-10-28 (final) - workspace consumption reset, awareness paradigms, language feedback
 
 - Ignition now consumes the workspace: on ignition, all integrated module saliences reset to zero (Dehaene and Changeux 2011 - the broadcast depletes the workspace). This is the mechanistic basis for the attentional blink: a second stimulus arriving during the refractory must integrate from scratch against its own decaying input.

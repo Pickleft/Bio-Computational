@@ -146,6 +146,7 @@ function render(s) {
   setFeed($("plain"), s.PlainThoughts);
   setFeed($("monologue"), s.Monologues);
   setFeed($("episodes"), s.RecentEpisodes);
+  drawThread(s);
   setFeed($("thought"), s.Thought);
   if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }
@@ -170,6 +171,42 @@ function setFeed(ul, lines) {
       li.appendChild(document.createTextNode(m[2]));
     } else li.textContent = lines[i];
     ul.appendChild(li);
+  }
+}
+
+// ---- the thought thread: the live chain developing link by link ----
+// each link is colored by its evaluated valence (green positive, red negative,
+// gray neutral) and faded by decaying salience: unresolved thoughts glow,
+// boring ones fade out before the thread dies and a new one seeds
+function drawThread(s) {
+  const el = $("thread");
+  if (!el) return;
+  const stats = $("thread-stats");
+  if (stats) stats.textContent =
+    `${s.ThoughtChains || 0} chains, ${s.ThoughtInhibited || 0} repeats inhibited`;
+  const links = s.ThoughtThread || [];
+  el.innerHTML = "";
+  if (!links.length) {
+    const li = document.createElement("li");
+    li.style.opacity = "0.4";
+    li.textContent = "no active thread - waiting for the next thought to surface...";
+    el.appendChild(li);
+    return;
+  }
+  for (const raw of links) {
+    const parts = raw.split("|");
+    const depth = parts[0], val = parseFloat(parts[1]), sal = parseFloat(parts[2]), text = parts.slice(3).join("|");
+    const li = document.createElement("li");
+    const color = val > 0.2 ? "#6ee7a0" : val < -0.2 ? "#f07080" : "#7d8fa8";
+    li.style.borderLeft = `2px solid ${color}`;
+    li.style.paddingLeft = "8px";
+    li.style.opacity = (0.45 + 0.55 * Math.min(1, sal * 1.5)).toFixed(2);
+    const d = document.createElement("span");
+    d.className = "t";
+    d.textContent = depth;
+    li.appendChild(d);
+    li.appendChild(document.createTextNode(" " + text));
+    el.appendChild(li);
   }
 }
 

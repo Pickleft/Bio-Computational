@@ -78,6 +78,9 @@ public sealed class BrainSnapshot
     public int SpeakSeq { get; set; }            // increments per utterance; browser speaks on change
     public float SpeakRate { get; set; } = 1f;
     public float SpeakPitch { get; set; } = 1f;
+    public List<string> ThoughtThread { get; set; } = []; // "depth|valence|salience|text" links of the live chain
+    public int ThoughtChains { get; set; }       // chains started this life
+    public int ThoughtInhibited { get; set; }    // repeats suppressed (anti-rumination)
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -163,6 +166,11 @@ public sealed class BrainRuntime : IDisposable
     // --- artificial life: emergent personality, loneliness, diary ---
     public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
     private readonly VoiceSelf _voiceSelf = new();
+    /// <summary>The emotionally reinforced thought-recycling loop: thoughts chain,
+    /// carry affect, re-enter the network as inner speech, and become memories.</summary>
+    public BioComp.Core.Cognition.ThoughtLoop ThoughtLoop { get; } = new();
+    private volatile bool _thoughtBusy;
+    private float _lastExternalEventMs = -1e9f;
     public BioComp.Core.Cognition.LonelinessTracker Loneliness { get; } = new();
     public BioComp.Core.Cognition.ThoughtFormation ThoughtTracer { get; } = new();
     private DiaryWriter? _diary;
@@ -216,6 +224,7 @@ public sealed class BrainRuntime : IDisposable
         _net = new SpikingNetwork(brainCfg);
         _idle = new IdleController(_net);
         if (cfg.DemoMode) _idle.Sleep.DayLengthMs = 120_000; // 2-minute demo day: sleep on camera
+        if (cfg.DemoMode) _idle.AmbientEncodeIntervalMs = 12_000; // short wake windows still bank memories
         _salience = new SalienceMonitor();
         _vision = new EventVisionEncoder(64, 64);
         _cochlea = new Cochlea();
@@ -294,6 +303,24 @@ public sealed class BrainRuntime : IDisposable
         {
             Interval = TimeSpan.FromSeconds(cfg.DemoMode ? 60 : 600),
         };
+
+        // the thought-recycling loop: every evaluated link is narrated, logged,
+        // sometimes spoken; every ended thread is noted (displacement, boredom,
+        // or anti-rumination inhibition)
+        ThoughtLoop.LinkEvaluated += link =>
+        {
+            Note($"THOUGHT-CHAIN[{link.ChainId}.{link.Depth}] v{link.Affect.Valence:F1} s{link.Affect.Salience:F1} \"{Trunc(link.Text, 70)}\"");
+            _monologueLog.Add(link.Text);
+            if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
+            // a highly salient thought is sometimes thought OUT LOUD
+            if (link.Affect.Salience > 0.65f && link.Depth > 1)
+            {
+                var f = _idle.Feelings.Last;
+                SpeakWithVoice(link.Text, emoPitch: f.Valence > 0 ? 1 : -1, emoRate: link.Affect.Activation > 0.6 ? 2 : 0);
+            }
+        };
+        ThoughtLoop.ChainEnded += reason => Note($"THREAD-END ({reason})");
+        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 4000f; // demo pacing
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
     }
@@ -581,6 +608,21 @@ public sealed class BrainRuntime : IDisposable
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
             _ = _artist.MaybeCreateAsync(_net, _idle);
 
+        // ---- THE THOUGHT-RECYCLING LOOP (the founding architecture) ----
+        // Thoughts chain and develop: each link is evaluated (affect scored),
+        // carried into the next cycle by neuromodulator releases, re-injected
+        // as inner speech, and written to episodic memory. A fresh external
+        // event displaces the thread; repeats are inhibited. Runs only awake.
+        if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
+        {
+            var thoughtReq = ThoughtLoop.Tick(_net, _idle, _lastExternalEventMs);
+            if (thoughtReq is not null && !_thoughtBusy)
+            {
+                _thoughtBusy = true;
+                _ = GenerateThoughtLinkAsync(thoughtReq);
+            }
+        }
+
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
         {
@@ -755,6 +797,7 @@ public sealed class BrainRuntime : IDisposable
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
+                _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
                 _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
 
                 // recognize the speaker (same browser session = same person)
@@ -790,6 +833,7 @@ public sealed class BrainRuntime : IDisposable
                 _voiceSelf.OnNonVerbalSound(clip);
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.3f);
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.1f);
+                _lastExternalEventMs = _net.TimeMs;
                 Note($"HEARD non-verbal sound (energy {rms:F2}) - no words, just a sound. I will try making it myself.");
                 _idle.OnEvent(_net, ["sound"], 0.2f, 0.6f);
             }
@@ -830,6 +874,7 @@ public sealed class BrainRuntime : IDisposable
                 var b = seg.Boxes[0];
                 string kind = (b.Y2 - b.Y1) > (b.X2 - b.X1) * 1.2 ? "person" : "object";
                 Note($"SIGHT {kind} {(seg.FromLiveApi ? "(sam 3.1)" : "(mock)")} box {b.X1},{b.Y1}..{b.X2},{b.Y2}");
+                _lastExternalEventMs = _net.TimeMs;
                 _ = ReactToStimulusAsync($"I can see a {kind}", $"it's at position ({b.X1},{b.Y1}) to ({b.X2},{b.Y2}) in my visual field");
                 // track where the avatar should look (normalized to visual field)
                 float centerX = (b.X1 + b.X2) / 2f / 64f;
@@ -1109,6 +1154,40 @@ public sealed class BrainRuntime : IDisposable
     /// makes it artificial life rather than a chatbot — it thinks whether or not
     /// anyone is talking to it.
     /// </summary>
+    /// <summary>
+    /// Generate the next link of a thought chain with the interpreter (Spark),
+    /// following the ThoughtLoop's request: continuation requests carry the
+    /// previous thought AND its evaluated affect, so the chain develops
+    /// (association, doubt, implication) instead of sampling isolated
+    /// sentences. The result re-enters the sim through PostResult.
+    /// </summary>
+    private async Task GenerateThoughtLinkAsync(BioComp.Core.Cognition.ThoughtRequest req)
+    {
+        try
+        {
+            var f = _idle.Feelings.Last;
+            string system =
+                "You are a living artificial brain mid-thought. You are NOT talking to anyone; " +
+                "nobody is listening. This is private inner monologue, one link at a time. " +
+                (req.ContinueChain
+                    ? "You just had a thought. Your mind moves to the NEXT link in the chain: an association it " +
+                      "stirs, a doubt about it, an implication, a memory it connects to. Do not repeat or rephrase " +
+                      "the thought - develop it, question it, or follow where it leads. "
+                    : "A memory just surfaced on its own and a new thread of thought begins from it. ") +
+                "One short sentence, first person, genuine, organism-like. No greeting, no offering help, no questions to anyone.";
+            string user = req.ContinueChain
+                ? $"You just thought: \"{req.PreviousThought}\" " +
+                  $"(that thought felt: valence {req.PreviousAffect.Valence:F1} on -1..1, salience {req.PreviousAffect.Salience:F1} on 0..1). " +
+                  $"You currently feel {f.Name}. What thought comes NEXT in the chain?"
+                : $"{req.SeedMemory}. You feel {f.Name}. What thought surfaces?";
+
+            string thought = await _lm.CompleteAsync(system, user, 60);
+            ThoughtLoop.PostResult(thought);
+        }
+        catch (Exception ex) { Note($"thought link failed: {ex.Message}"); }
+        finally { _thoughtBusy = false; }
+    }
+
     private async Task DaydreamAsync()
     {
         if (_net.EpisodeStore.Episodes.Count == 0) return;
@@ -1482,6 +1561,12 @@ public sealed class BrainRuntime : IDisposable
             snap.SpeakRate = bs.Rate;
             snap.SpeakPitch = bs.Pitch;
         }
+
+        // the live thought thread: the chain as it is developing right now
+        snap.ThoughtThread = [.. ThoughtLoop.Chain.Select(l =>
+            $"{l.Depth}|{l.Affect.Valence:F2}|{l.Affect.Salience:F2}|{l.Text}")];
+        snap.ThoughtChains = ThoughtLoop.ChainsStarted;
+        snap.ThoughtInhibited = ThoughtLoop.InhibitedRepeats;
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;
