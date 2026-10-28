@@ -160,6 +160,7 @@ public sealed class BrainRuntime : IDisposable
     private float[]? _lastRegionRates;
     private readonly List<string> _recentUserMessages = [];
     private float[] _stimulusPos = [0.5f, 0.5f];
+    private float _lastNoveltyMs = -1e9f;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -377,8 +378,8 @@ public sealed class BrainRuntime : IDisposable
         _lfpRing[_lfpRingPos] = lfp;
         _lfpRingPos = (_lfpRingPos + 1) % _lfpRing.Length;
 
-        // ---- NOBEL-LEVEL METRICS (computed at appropriate intervals) ----
-        // Φ (integrated information) every 2s (expensive)
+        // ---- NOBEL-LEVEL METRICS + INTERCONNECTIONS ----
+        // Φ (integrated information) every 2s — drives the avatar's consciousness halo
         if (_net.TickIndex % 2_000 == 0 && _net.TickIndex > 0)
         {
             var phiResult = BioComp.Core.Metrics.IntegratedInformation.Measure(_net, _idle.Sleep.State);
@@ -386,16 +387,38 @@ public sealed class BrainRuntime : IDisposable
             PhiLabel = phiResult.State;
             Array.Resize(ref _phiHistory, Math.Min(_phiHistory.Length + 1, 120));
             _phiHistory[^1] = Phi;
+
+            // INTERCONNECTION: Φ directly modulates the consciousness meter
+            // (they should agree — this cross-validates both measures)
+            if (phiResult.Phi < 0.1 && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
+            {
+                Note($"PHI-ALERT Φ={phiResult.Phi:F2} during wake — integration lost");
+            }
         }
 
-        // free energy every 100ms (cheap)
+        // free energy every 100ms — links to boredom and engagement
         if (_net.TickIndex % 100 == 0 && _lastRegionRates is { Length: > 0 })
         {
             float totalActivity = 0;
             foreach (var r in _lastRegionRates) totalActivity += r;
-            FreeEnergy.Update(_net, totalActivity);
+            float fe = FreeEnergy.Update(_net, totalActivity);
             Manifold.Update(_lastRegionRates);
+
+            // INTERCONNECTION: sustained low free energy = boredom (the brain has
+            // nothing left to learn from this environment, it's bored)
+            if (fe < 0.05f && _net.TimeMs - _lastNoveltyMs > 30_000 && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
+            {
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, -0.001f);
+            }
+
+            // INTERCONNECTION: manifold dimensionality feeds curiosity
+            // (a high-dimensional trajectory means the brain is exploring diverse states)
+            if (Manifold.Dimensionality > 4f)
+            {
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Acetylcholine, 0.001f);
+            }
         }
+        _lastNoveltyMs = _salience.VisionModel.Novelty > 0.3f ? _net.TimeMs : _lastNoveltyMs;
 
         // ---- vision ----
         if (_mockCamera is not null) _mockCamera.Advance(1);

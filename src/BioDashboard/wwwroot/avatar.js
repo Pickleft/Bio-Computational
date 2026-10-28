@@ -79,14 +79,19 @@ function animateAvatar() {
   ctx.clearRect(0, 0, w, h);
 
   const cx = w / 2, cy = h * 0.45;
-  // the brain GROWS with lived time: starts at 60% size, reaches 100% after ~10 minutes
+  // the brain GROWS with lived time
   const lifetimeMinutes = lastSnapshot ? lastSnapshot.SimSeconds / 60 : 0;
   const growthFactor = Math.min(1, 0.6 + lifetimeMinutes / 10 * 0.4);
   const baseR = Math.min(w, h) * 0.28 * growthFactor;
 
+  // FREE ENERGY affects body shape: high free energy (prediction error) makes
+  // the body more chaotic/agitated. Low free energy (learned, calm) = smooth.
+  const freeEnergy = lastSnapshot ? lastSnapshot.FreeEnergyValue || 0 : 0;
+  const feChaos = Math.min(1, freeEnergy * 10);
+
   // === BODY MEMBRANE ===
   // organic blob with sine-wave deformation, driven by neural state
-  const chaos = 1 - smoothing.sht; // low serotonin = chaotic shape
+  const chaos = Math.max(1 - smoothing.sht, feChaos * 0.7); // low serotonin OR high free energy = chaotic
   const droop = smoothing.pressure * 0.3; // tired = sagging
   const pulse = 1 + Math.sin(bodyPhase * 3) * 0.02 * (1 + smoothing.rate); // heartbeat
 
@@ -259,18 +264,24 @@ function animateAvatar() {
   }
 
   // === CONSCIOUSNESS HALO ===
-  // a soft ring around the body whose opacity = awareness level
-  if (lastSnapshot && lastSnapshot.Consciousness > 0.1) {
-    const haloR = baseR * 1.4;
-    const haloAlpha = lastSnapshot.Consciousness * 0.15;
-    const halo = ctx.createRadialGradient(cx, cy, baseR, cx, cy, haloR);
-    halo.addColorStop(0, `hsla(${hue}, 50%, 60%, 0)`);
-    halo.addColorStop(0.5, `hsla(${hue}, 50%, 60%, ${haloAlpha})`);
-    halo.addColorStop(1, `hsla(${hue}, 50%, 60%, 0)`);
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
-    ctx.fill();
+  // directly driven by Φ (integrated information theory) — this IS consciousness
+  // made visible. When Φ drops (sleep), the halo fades. When Φ rises (wake/dream),
+  // the halo glows. This is Tononi's IIT 3.0 prediction rendered as light.
+  if (lastSnapshot && lastSnapshot.Phi !== undefined) {
+    const phiHalo = lastSnapshot.Phi;
+    if (phiHalo > 0.05) {
+      const haloR = baseR * (1.2 + phiHalo * 0.5);
+      const haloAlpha = phiHalo * 0.2;
+      const halo = ctx.createRadialGradient(cx, cy, baseR, cx, cy, haloR);
+      const phiColor = phiHalo > 0.4 ? "61, 219, 184" : phiHalo > 0.15 ? "240, 180, 92" : "240, 112, 128";
+      halo.addColorStop(0, `rgba(${phiColor}, 0)`);
+      halo.addColorStop(0.5, `rgba(${phiColor}, ${haloAlpha})`);
+      halo.addColorStop(1, `rgba(${phiColor}, 0)`);
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // === STATE LABEL (minimal, inside the creature) ===
