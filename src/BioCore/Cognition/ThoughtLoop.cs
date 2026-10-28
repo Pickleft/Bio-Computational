@@ -74,6 +74,16 @@ public sealed class ThoughtLoop
     private float _lastChainEndMs = -1e9f;
     private float _lastTickMs;
     private int _strikes;
+    /// <summary>Scheduled somatic read: spike totals of the language cortex at
+    /// injection time, so the substrate's RESPONSE to its own thought can be
+    /// measured one delay later (Damasio-style somatic appraisal).</summary>
+    private (float LinkTimeMs, ulong LangCounts, ulong PfcCounts, float TimeMs)? _somaticPending;
+
+    /// <summary>Resonance from the measured response rate (spikes/sec/neuron in
+    /// the language cortex + its prefrontal target after inner-speech
+    /// injection). CALIBRATE: 0.8 Hz/neuron reads as full resonance.</summary>
+    public static float ResonanceFromRate(float spikesPerSecPerNeuron) =>
+        Math.Clamp(spikesPerSecPerNeuron / 0.8f, 0f, 1f);
 
     /// <summary>Thread-safe: the async interpreter posts its generated text here.</summary>
     public void PostResult(string text)
@@ -95,6 +105,37 @@ public sealed class ThoughtLoop
             string text;
             lock (_inboxGate) { if (!_inbox.TryDequeue(out text)) break; }
             Evaluate(net, idle, text);
+        }
+
+        // 1b. somatic appraisal: how did the substrate RESPOND to its own
+        // thought? measured one delay after the inner-speech injection. A
+        // thought that resonates (the network amplifies it) gains salience
+        // and plasticity; one that lands on deaf neurons fades (Damasio 1996
+        // somatic marker: the body votes on the thought).
+        if (_somaticPending is { } sp && net.TimeMs - sp.TimeMs >= 200f)
+        {
+            _somaticPending = null;
+            float dtSec = MathF.Max(0.001f, (net.TimeMs - sp.TimeMs) / 1000f);
+            int langN = 1, pfcN = 1;
+            ulong delta = RegionSpikes(net, "Lang", ref langN) - sp.LangCounts
+                        + RegionSpikes(net, "PFC", ref pfcN) - sp.PfcCounts;
+            float rate = delta / (float)(langN + pfcN) / dtSec;
+            float resonance = ResonanceFromRate(rate);
+            for (int i = _chain.Count - 1; i >= 0; i--)
+                if (_chain[i].TimeMs == sp.LinkTimeMs)
+                {
+                    var a = _chain[i].Affect;
+                    var adjusted = a with
+                    {
+                        // a thought that lands on quiet neurons fades, but is
+                        // never killed by measurement alone (floor 0.75)
+                        Salience = Math.Clamp(a.Salience * (0.75f + 0.45f * resonance) + 0.15f * resonance, 0f, 1f),
+                        Plasticity = Math.Clamp(a.Plasticity * (0.7f + 0.6f * resonance), 0f, 1f),
+                    };
+                    _chain[i] = _chain[i] with { Affect = adjusted };
+                    SomaticFeedback?.Invoke(_chain[i], resonance);
+                    break;
+                }
         }
 
         // 2. salience decay (persistence without permanence): exponential in
@@ -154,6 +195,13 @@ public sealed class ThoughtLoop
         if (text.Length == 0) return null;
         var (affect, warmth) = ScoreAffect(text);
         var tags = ExtractTags(text);
+
+        // somatic marker (Damasio 1996): the brain's CURRENT reward state tints
+        // the appraisal before any of this thought's own releases land - the
+        // body votes on the valence, not just the dictionary
+        float da = net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
+        affect = affect with { Valence = Math.Clamp(
+            0.75f * affect.Valence + 0.25f * MathF.Tanh((da - 0.3f) * 3f), -1f, 1f) };
 
         // habituation: near-duplicates lose most of their salience (Sokolov);
         // three strikes end the chain - this is the anti-rumination guard
@@ -216,6 +264,14 @@ public sealed class ThoughtLoop
         // strength scales with salience: a passing fancy whispers, an obsession shouts
         InnerSpeech(net, text, (6f + 14f * affect.Salience) * (suppressed ? 0.35f : 1f));
 
+        // schedule the somatic read: spike totals now, response measured later
+        if (!killed && _somaticPending is null)
+        {
+            int langN = 1, pfcN = 1;
+            _somaticPending = (link.TimeMs, RegionSpikes(net, "Lang", ref langN),
+                RegionSpikes(net, "PFC", ref pfcN), net.TimeMs);
+        }
+
         // ---- H memory write: thinking about something becomes itself a memory ----
         net.EpisodeStore.Encode(net, "CA3", ["thought", .. tags], affect.Valence, minMeanRateHz: 0.001f);
 
@@ -239,16 +295,22 @@ public sealed class ThoughtLoop
     }
 
     /// <summary>
-    /// Associative + mood-congruent recall (Bower 1981: mood biases retrieval
-    /// toward congruent memories - a sad brain finds sad memories easier to
-    /// reach). Tag overlap with the dying thought dominates; valence congruence,
-    /// recency and significance shape the rest; the sim RNG breaks ties.
+    /// Associative + mood-congruent recall, cued by BOTH neural-code similarity
+    /// (how the network is representing this moment vs how it represented the
+    /// stored one - memory cuing by representation) and symbolic tag overlap.
+    /// The developmental weight shifts with experience: a young brain retrieves
+    /// mostly by word tags, an experienced one mostly by neural similarity -
+    /// the symbolic scaffolding fades into the subsymbolic as the substrate
+    /// learns its own codes. Mood congruence follows Bower 1981.
     /// </summary>
     public (Episode Episode, string Why) RetrieveMoodCongruent(SpikingNetwork net, IdleController idle)
     {
         float mood = idle.Feelings.Last.Valence;
         string[] seed = Current?.Tags ?? [];
         var episodes = net.EpisodeStore.Episodes;
+        var queryCode = net.EpisodeStore.CurrentCode(net, "CA3");
+        // CALIBRATE: full neural retrieval by ~200 stored episodes
+        float wCode = MathF.Min(1f, episodes.Count / 200f);
 
         Episode? best1 = null, best2 = null, best3 = null;
         float s1 = -1e9f, s2 = -1e9f, s3 = -1e9f;
@@ -260,16 +322,28 @@ public sealed class ThoughtLoop
             foreach (var q in seed)
                 foreach (var t in e.Tags)
                     if (string.Equals(q, t, StringComparison.OrdinalIgnoreCase)) { overlap++; break; }
-            float congruence = MathF.Abs(e.Valence - mood) < 0.35f ? 1.2f : 0.2f;
             float age = MathF.Max(1f, (net.TimeMs - e.TimeMs) / 1000f);
-            float score = overlap * 2f + congruence + 2f / MathF.Sqrt(age) + MathF.Abs(e.Valence) * 0.4f;
+            float score = ScoreEpisode(overlap, EpisodeMemory.CodeSimilarity(queryCode, e.CodeNeurons),
+                mood, e.Valence, age, wCode);
             if (score > s1) { (best3, s3) = (best2, s2); (best2, s2) = (best1, s1); (best1, s1) = (e, score); }
             else if (score > s2) { (best3, s3) = (best2, s2); (best2, s2) = (e, score); }
             else if (score > s3) { (best3, s3) = (e, score); }
         }
         var pool = new[] { best1, best2, best3 }.Where(e => e is not null).ToArray();
         var pick = pool.Length > 0 ? pool[net.Rng.NextInt(pool.Length)] : episodes[^1];
-        return (pick, $"tag-overlap + mood-congruence (mood {(mood >= 0 ? "+" : "")}{mood:F1})");
+        return (pick, $"code-similarity {(wCode * 100f):F0}% + tag-overlap + mood-congruence (mood {(mood >= 0 ? "+" : "")}{mood:F1})");
+    }
+
+    /// <summary>Episode retrieval score: neural-code similarity, symbolic tag
+    /// overlap, mood congruence (Bower 1981), recency and emotional
+    /// significance, blended by the developmental weight wCode (0 = words, 1 =
+    /// neurons).</summary>
+    public static float ScoreEpisode(int tagOverlap, float codeSimilarity, float moodValence,
+        float episodeValence, float ageSec, float wCode)
+    {
+        float congruence = MathF.Abs(episodeValence - moodValence) < 0.35f ? 1.2f : 0.2f;
+        return (1f - wCode) * tagOverlap * 2f + wCode * codeSimilarity * 6f
+            + congruence + 2f / MathF.Sqrt(MathF.Max(1f, ageSec)) + MathF.Abs(episodeValence) * 0.4f;
     }
 
     private void EndChain(float timeMs, string reason)
@@ -285,6 +359,23 @@ public sealed class ThoughtLoop
     public event Action<string>? ChainEnded;
     /// <summary>Fires for every evaluated link (sim thread, from Tick's drain).</summary>
     public event Action<ThoughtLink>? LinkEvaluated;
+    /// <summary>Fires when the substrate's response to its own thought has been
+    /// measured: how much the thought resonated (0 = deaf neurons, 1 = amplified).</summary>
+    public event Action<ThoughtLink, float>? SomaticFeedback;
+
+    private static ulong RegionSpikes(SpikingNetwork net, string name, ref int neuronCount)
+    {
+        foreach (var r in net.Regions)
+            if (r.Name == name)
+            {
+                neuronCount = r.Count;
+                ulong sum = 0;
+                for (int i = 0; i < r.Count; i++) sum += net.Recorder.Counts[r.Start + i];
+                return sum;
+            }
+        neuronCount = 1;
+        return 0;
+    }
 
     /// <summary>
     /// Lexicon-based affect scoring (ANEW-style subset). Honest about what it is:

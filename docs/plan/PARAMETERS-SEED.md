@@ -62,13 +62,17 @@ LZ76/source-entropy (Casali et al. 2013 Sci Transl Med 5; Casarotto et al. 2016 
 valence = 1.0·(DA−DA₀) − 0.4·energyDeficit − 0.3·stress + 0.3·socialRecent; arousal = 0.5·NA + 0.3·|rateDev| + 0.4·surpriseEMA.
 Named states by quadrant + drive overrides (bored: low novelty EMA > 10 min; tired: sleep pressure > 0.8).
 
-## Thought-recycling loop (Bower 1981 Am Psychol 36; Sokolov habituation 1963)
+## Thought-recycling loop (Bower 1981 Am Psychol 36; Sokolov habituation 1963; Damasio 1996 Phil Trans R Soc B 351)
 Four independent affect channels per thought: valence, activation, salience, plasticity (lexicon
-scoring, ANEW-style subsets). Salience decay tau 9 s; link interval 3 s scaled by salience;
-repeat inhibition at token-overlap > 0.6 (65 percent salience loss, 3 strikes end the chain);
-chain depth cap 6; displacement window 1.2 s after external events. Mood-congruent retrieval:
-congruence bonus when |episode.valence - mood| < 0.35 (Bower 1981). Inner speech: FNV-1a
-text hash to 12 Lang neurons, 6-20 pA scaled by salience.
+scoring, ANEW-style subsets). Valence tinted 75/25 by current dopamine tone (somatic marker,
+Damasio 1996). Salience decay tau 9 s; link interval 3 s scaled by salience; repeat inhibition at
+token-overlap > 0.6 (65 percent salience loss, 3 strikes end the chain); chain depth cap 6;
+displacement window 1.2 s after external events. Mood-congruent retrieval: congruence bonus when
+|episode.valence - mood| < 0.35 (Bower 1981). Inner speech: FNV-1a text hash to 12 Lang neurons,
+6-20 pA scaled by salience. Somatic resonance: Lang+PFC rate in the 200 ms after injection,
+saturated at 0.8 Hz/neuron, scales salience (0.75+0.45r) and plasticity (0.7+0.6r) - the substrate
+votes on its own thoughts. Retrieval cue mix: neural-code Jaccard (CA3 top-48 rates) weighted
+min(1, episodes/200) against tag overlap - recall develops from words toward neurons.
 
 ## Sleep (Borbély 1982 Hum Neurobiol 1)
 S rises 0.02/min awake, decays 0.12/min NREM; circadian C(t) = 0.5+0.5·sin(2π(t−14h)/24h); wake to drowsy when S·(1−C) > 0.7;

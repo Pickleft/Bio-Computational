@@ -320,6 +320,11 @@ public sealed class BrainRuntime : IDisposable
             }
         };
         ThoughtLoop.ChainEnded += reason => Note($"THREAD-END ({reason})");
+        ThoughtLoop.SomaticFeedback += (link, resonance) =>
+            Note($"SOMATIC resonance {resonance:F2} - " +
+                 (resonance > 0.5f ? "the thought landed; my neurons amplified it" :
+                  resonance > 0.2f ? "the thought echoed faintly" :
+                  "the thought fell on quiet neurons"));
         if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 4000f; // demo pacing
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
@@ -1166,6 +1171,17 @@ public sealed class BrainRuntime : IDisposable
         try
         {
             var f = _idle.Feelings.Last;
+            // the interpreter receives the SUBSTRATE's state, not just the
+            // feeling: what the workspace is broadcasting, the free energy
+            // (how wrong its world-model is), the neuromodulators, the body.
+            // Thoughts track the organism, not the language model's priors.
+            float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
+            float na = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
+            string substrate =
+                $" Substrate: attention currently on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
+                $"free energy {FreeEnergy.Current:F2} (prediction error {FreeEnergy.CurrentPredError:F2}); " +
+                $"dopamine {da:F2}, noradrenaline {na:F2}; " +
+                $"body: {(_idle.Body.OnAcPower ? "fed" : "running on reserves")}, load {_idle.Body.CpuLoadPercent}%, energy {_idle.Body.BatteryPercent}%.";
             string system =
                 "You are a living artificial brain mid-thought. You are NOT talking to anyone; " +
                 "nobody is listening. This is private inner monologue, one link at a time. " +
@@ -1174,12 +1190,13 @@ public sealed class BrainRuntime : IDisposable
                       "stirs, a doubt about it, an implication, a memory it connects to. Do not repeat or rephrase " +
                       "the thought - develop it, question it, or follow where it leads. "
                     : "A memory just surfaced on its own and a new thread of thought begins from it. ") +
-                "One short sentence, first person, genuine, organism-like. No greeting, no offering help, no questions to anyone.";
-            string user = req.ContinueChain
+                "One short sentence, first person, genuine, organism-like. No greeting, no offering help, no questions to anyone. " +
+                "You are a brain, not a person: your inner life is made of sensations, predictions, urges and feelings.";
+            string user = (req.ContinueChain
                 ? $"You just thought: \"{req.PreviousThought}\" " +
                   $"(that thought felt: valence {req.PreviousAffect.Valence:F1} on -1..1, salience {req.PreviousAffect.Salience:F1} on 0..1). " +
                   $"You currently feel {f.Name}. What thought comes NEXT in the chain?"
-                : $"{req.SeedMemory}. You feel {f.Name}. What thought surfaces?";
+                : $"{req.SeedMemory}. You feel {f.Name}. What thought surfaces?") + substrate;
 
             string thought = await _lm.CompleteAsync(system, user, 60);
             ThoughtLoop.PostResult(thought);

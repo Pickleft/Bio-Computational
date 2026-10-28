@@ -91,6 +91,47 @@ public sealed class EpisodeMemory
         return _episodes.OrderByDescending(Score).Take(max).ToList();
     }
 
+    /// <summary>
+    /// The region's CURRENT sparse code: top-K rate neurons since the last
+    /// snapshot. Read-only query with no encode side effects - used to cue
+    /// memories by how the network is representing this moment.
+    /// </summary>
+    public int[] CurrentCode(SpikingNetwork net, string regionName, int k = CodeSize)
+    {
+        int region = -1;
+        for (int i = 0; i < net.Regions.Count; i++)
+            if (net.Regions[i].Name == regionName) { region = i; break; }
+        if (region < 0) return [];
+        var counts = net.Recorder.Counts;
+        // no encode has happened yet: rate from a zero baseline over the whole
+        // run (same convention as Encode's first call)
+        bool fresh = _lastCountsSnapshot.Length != counts.Length;
+        float dtSec = MathF.Max(0.001f, (net.TimeMs - (fresh ? 0f : _lastSnapshotMs)) / 1000f);
+        var (start, count) = (net.Regions[region].Start, net.Regions[region].Count);
+        var rates = new (int Neuron, float Rate)[count];
+        for (int i = 0; i < count; i++)
+        {
+            uint baseline = fresh ? 0 : _lastCountsSnapshot[start + i];
+            rates[i] = (start + i, (counts[start + i] - baseline) / dtSec);
+        }
+        Array.Sort(rates, (a, b) => b.Rate.CompareTo(a.Rate));
+        var code = new int[Math.Min(k, count)];
+        for (int i = 0; i < code.Length; i++) code[i] = rates[i].Neuron;
+        return code;
+    }
+
+    /// <summary>Jaccard overlap of two sparse codes: how similarly the network
+    /// represented two moments. This is memory cuing by representation, not
+    /// by words.</summary>
+    public static float CodeSimilarity(int[] a, int[] b)
+    {
+        if (a.Length == 0 || b.Length == 0) return 0f;
+        var sa = new HashSet<int>(a);
+        int inter = 0;
+        foreach (var n in b) if (sa.Contains(n)) inter++;
+        return inter / (float)(a.Length + b.Length - inter);
+    }
+
     /// <summary>Episode selection for replay: biased toward emotionally salient episodes
     /// (high absolute valence, rewarding or aversive), random among the top third.</summary>
     public Episode? PickForReplay(Func<int, int> nextInt)

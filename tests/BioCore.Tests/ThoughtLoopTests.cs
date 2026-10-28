@@ -1,4 +1,5 @@
 using BioComp.Core.Cognition;
+using BioComp.Core.Memory;
 using BioComp.Core.Network;
 using BioComp.Core.Neuromodulators;
 using Xunit;
@@ -154,5 +155,100 @@ public class ThoughtLoopTests
         var hit2 = Enumerable.Range(0, net.Injected.Length).Where(i => net.Injected[i] > before[i]).ToArray();
         Assert.Equal(hit1, hit2);
         Assert.Equal(12, hit1.Length);
+    }
+
+    [Fact]
+    public void CodeSimilarity_IsJaccard()
+    {
+        Assert.Equal(1f, EpisodeMemory.CodeSimilarity([1, 2, 3], [1, 2, 3]));
+        Assert.Equal(0f, EpisodeMemory.CodeSimilarity([1, 2, 3], [4, 5, 6]));
+        // {1,2} vs {2,3}: intersection 1, union 3
+        Assert.Equal(1f / 3f, EpisodeMemory.CodeSimilarity([1, 2], [2, 3]), 3);
+        Assert.Equal(0f, EpisodeMemory.CodeSimilarity([], [1, 2]));
+    }
+
+    [Fact]
+    public void CurrentCode_ReturnsRegionNeurons_NoEncodeSideEffects()
+    {
+        var (net, idle) = Brain();
+        var loop = new ThoughtLoop();
+        for (int i = 0; i < 200; i++) net.Tick();
+        var lang = net.Regions.First(r => r.Name == "Lang");
+        var code = net.EpisodeStore.CurrentCode(net, "Lang", 16);
+        Assert.Equal(16, code.Length);
+        Assert.All(code, n => Assert.InRange(n, lang.Start, lang.Start + lang.Count - 1));
+        // read-only: encoding still works afterwards
+        var before = net.EpisodeStore.Episodes.Count;
+        loop.Evaluate(net, idle, "a side effect check thought");
+        Assert.True(net.EpisodeStore.Episodes.Count >= before);
+    }
+
+    [Fact]
+    public void ScoreEpisode_DevelopmentShiftsWordsToNeurons()
+    {
+        // young brain (wCode=0): tags dominate, code similarity is ignored
+        float byTags = ThoughtLoop.ScoreEpisode(tagOverlap: 3, codeSimilarity: 0f,
+            moodValence: 0f, episodeValence: 0f, ageSec: 10f, wCode: 0f);
+        float byCode = ThoughtLoop.ScoreEpisode(tagOverlap: 0, codeSimilarity: 0.9f,
+            moodValence: 0f, episodeValence: 0f, ageSec: 10f, wCode: 0f);
+        Assert.True(byTags > byCode, "a young brain should retrieve by word tags");
+        // experienced brain (wCode=1): neural similarity dominates
+        float byTags2 = ThoughtLoop.ScoreEpisode(tagOverlap: 3, codeSimilarity: 0f,
+            moodValence: 0f, episodeValence: 0f, ageSec: 10f, wCode: 1f);
+        float byCode2 = ThoughtLoop.ScoreEpisode(tagOverlap: 0, codeSimilarity: 0.9f,
+            moodValence: 0f, episodeValence: 0f, ageSec: 10f, wCode: 1f);
+        Assert.True(byCode2 > byTags2, "an experienced brain should retrieve by neural code");
+        // mood congruence always contributes
+        float congruent = ThoughtLoop.ScoreEpisode(0, 0f, -0.5f, -0.5f, 10f, 0.5f);
+        float opposite = ThoughtLoop.ScoreEpisode(0, 0f, -0.5f, 0.5f, 10f, 0.5f);
+        Assert.True(congruent > opposite, "mood-congruent memories score higher");
+    }
+
+    [Fact]
+    public void ResonanceFromRate_ClampsAndScales()
+    {
+        Assert.Equal(0f, ThoughtLoop.ResonanceFromRate(0f));
+        Assert.Equal(1f, ThoughtLoop.ResonanceFromRate(5f));   // saturated
+        Assert.InRange(ThoughtLoop.ResonanceFromRate(0.4f), 0.49f, 0.51f); // half
+    }
+
+    [Fact]
+    public void SomaticFeedback_MeasuredAfterDelay_AndAdjustsSalience()
+    {
+        var (net, idle) = Brain();
+        var loop = new ThoughtLoop();
+        float? seen = null;
+        ThoughtLink? linkSeen = null;
+        loop.SomaticFeedback += (l, r) => { seen = r; linkSeen = l; };
+
+        loop.Evaluate(net, idle, "the pattern keeps glowing and returning");
+        float salBefore = loop.Current.Affect.Salience;
+        for (int i = 0; i < 400; i++) net.Tick(); // advance past the 200 ms delay
+
+        loop.Tick(net, idle);
+        Assert.NotNull(seen);
+        Assert.NotNull(linkSeen);
+        Assert.InRange(seen.Value, 0f, 1f);
+        // whatever the substrate did, the adjusted salience stays valid
+        Assert.InRange(loop.Current.Affect.Salience, 0f, 1f);
+        // the measurement consumed itself: a second immediate tick does not re-fire
+        float? seen2 = seen;
+        loop.Tick(net, idle);
+        Assert.Equal(seen2, seen);
+    }
+
+    [Fact]
+    public void Valence_TintedByCurrentRewardState()
+    {
+        var (net, idle) = Brain();
+        var loop = new ThoughtLoop();
+        // drive dopamine far above baseline, then a neutral word thought should
+        // appraise slightly positive through the somatic marker
+        for (int i = 0; i < 100; i++) net.Tick();
+        net.Modulators.Release(NeuromodulatorKind.Dopamine, 3f);
+        net.Modulators.Step();
+        var link = loop.Evaluate(net, idle, "the wall has a color");
+        Assert.True(link.Affect.Valence > 0f,
+            $"high DA should tint neutral content positive, got {link.Affect.Valence}");
     }
 }

@@ -19,6 +19,26 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - the substrate takes over from the symbols
+
+- Somatic appraisal (Damasio 1996, somatic marker): after a thought is injected as inner speech,
+  the substrate's RESPONSE is measured 200 ms later (Lang + PFC rate). Thoughts that resonate -
+  the network amplifies them - gain salience and plasticity; thoughts that land on quiet neurons
+  fade. The dictionary is no longer the only judge of a thought: the brain's own network votes.
+- Valence tint: appraisal is blended 75/25 with the current dopamine tone before any of the
+  thought's own releases land, so the reward state colors how new content is appraised.
+- Neural-code retrieval: episodic recall is now cued by Jaccard similarity between the CURRENT
+  CA3 sparse code and each stored episode's code, alongside tag overlap. The mix develops with
+  experience - weight min(1, episodes/200) - so a young brain retrieves mostly by words and an
+  experienced one mostly by neural representation. The symbolic scaffolding fades into the
+  subsymbolic by design.
+- Interpreter grounding: thought generation now receives what the workspace is broadcasting,
+  free energy, dopamine/noradrenaline tones and interoception (body energy/load), so thoughts
+  track the organism instead of the language model's conversational priors.
+- Tests: 6 new (Jaccard code similarity, CurrentCode region bounds + no encode side effects,
+  developmental words-to-neurons retrieval shift, resonance clamps, somatic measurement flow,
+  dopamine-tinted valence). Suite 90/90 green.
+
 ## 2026-10-28 (latest) - the thought-recycling loop (founding architecture closed)
 
 - ThoughtLoop (src/BioCore/Cognition/ThoughtLoop.cs): thoughts now chain instead of being isolated samples. Each interpreter-generated link is EVALUATED (four independent affect channels scored lexically from its own words: valence, activation, salience, plasticity), CARRIED into the next cycle by neuromodulator releases, RE-INJECTED into the network as inner speech (deterministic FNV text-to-neuron injection into Lang, strength scales with salience), and WRITTEN to episodic memory (thinking becomes memory, recallable and dreamable).
