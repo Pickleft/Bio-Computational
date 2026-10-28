@@ -161,6 +161,7 @@ public sealed class BrainRuntime : IDisposable
     private readonly List<string> _recentUserMessages = [];
     private float[] _stimulusPos = [0.5f, 0.5f];
     private float _lastNoveltyMs = -1e9f;
+    private float _lastVocalizationMs = -1e9f;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -572,12 +573,37 @@ public sealed class BrainRuntime : IDisposable
             string? line = AmbientThought();
             if (line is not null) Note($"AMBIENT {line}");
         }
-        // daydream + imagine future: unprompted inner life during idle
+        // daydream + imagine future + spontaneous vocalization: unprompted inner life
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
             _salience.Arousal < 0.3f)
         {
             _ = DaydreamAsync();
             _ = ImagineFutureAsync();
+        }
+
+        // SPONTANEOUS VOCALIZATION: the brain makes sounds without any trigger.
+        // Like a person humming while idle or muttering when frustrated.
+        if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
+            _net.TimeMs - _lastVocalizationMs > 20_000 && _net.Rng.NextDouble() < 0.02)
+        {
+            _lastVocalizationMs = _net.TimeMs;
+            var f = _idle.Feelings.Last;
+            string vocalization = f.Name switch
+            {
+                "bored" => "Mmm.",
+                "tired" => "Mm... tired.",
+                "curious" => "Hm.",
+                "stressed" => "Hmph.",
+                "calm" => "Mmm... nice.",
+                _ => "Hmm.",
+            };
+            Note($"VOCALIZE \"{vocalization}\"");
+            if (_speech is WindowsSpeech ws)
+            {
+                ws.RateBias = f.Name == "tired" ? -3 : f.Name == "bored" ? -1 : 0;
+                ws.PitchBias = f.Valence > 0 ? 1 : -2;
+            }
+            _speech.Speak(vocalization);
         }
 
         // ---- actions (personality-weighted: who the brain has BECOME affects what it does) ----
@@ -893,6 +919,16 @@ public sealed class BrainRuntime : IDisposable
                 _monologueLog.Add(thought);
                 if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
                 Note($"DAYDREAM \"{Trunc(thought, 80)}\"");
+                // thinking out loud: daydreams sometimes get spoken (more when lonely)
+                if (Loneliness.Level > 0.3f || _net.Rng.NextDouble() < 0.3)
+                {
+                    if (_speech is WindowsSpeech ws)
+                    {
+                        ws.RateBias = feeling.Name == "tired" ? -2 : 0;
+                        ws.PitchBias = feeling.Valence > 0 ? 1 : -1;
+                    }
+                    _speech.Speak(thought);
+                }
             }
         }
         catch (Exception ex) { Note($"daydream failed: {ex.Message}"); }
@@ -908,7 +944,7 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private async Task ReactToStimulusAsync(string stimulus, string detail)
     {
-        if (_net.TimeMs - _lastReactionMs < 8_000) return; // at most every 8s
+        if (_net.TimeMs - _lastReactionMs < 4_000) return; // at most every 4s
         _lastReactionMs = _net.TimeMs;
         try
         {
@@ -973,6 +1009,16 @@ public sealed class BrainRuntime : IDisposable
             {
                 _monologueLog.Add(thought);
                 Note($"IMAGINE \"{Trunc(thought, 80)}\"");
+                // imaginings are sometimes spoken (like talking about hopes/worries)
+                if (_net.Rng.NextDouble() < 0.4)
+                {
+                    if (_speech is WindowsSpeech ws)
+                    {
+                        ws.RateBias = 0;
+                        ws.PitchBias = 1;
+                    }
+                    _speech.Speak(thought);
+                }
             }
         }
         catch { /* imagination is optional */ }
