@@ -49,16 +49,21 @@ public sealed class DreamGenerator
         _lastDreamMs = net.TimeMs;
         Log.Add((net.TimeMs, file, prompt));
 
-        // generate a narrative description of what the dream is about
+        // narrative that references specific people and events from the memory
         string? narrative = null;
         if (narrator is not null)
         {
             try
             {
                 string sys = "You are a living artificial brain describing your own dream in one " +
-                    "short, poetic sentence. First person, private, genuine. What was the dream about?";
-                string usr = $"You dreamed about: {string.Join(", ", episode.Tags)}. " +
-                    $"The feeling in the dream was {idle.Feelings.Last.Name}.";
+                    "short, poetic sentence. First person, private, genuine. " +
+                    "Reference the SPECIFIC person or event you're dreaming about by name/detail. " +
+                    "This is a real dream based on a real memory.";
+                string memoryDetail = string.Join(", ", episode.Tags);
+                string usr = $"You dreamed about: {memoryDetail}. " +
+                    $"This happened {((net.TimeMs - episode.TimeMs) / 1000.0):F0} seconds ago. " +
+                    $"The feeling was {idle.Feelings.Last.Name}. " +
+                    (episode.Valence > 0.3 ? "It was a good memory. " : episode.Valence < -0.3 ? "It was a difficult memory. " : "");
                 narrative = await narrator.CompleteAsync(sys, usr, 50);
             }
             catch { /* narrative is optional */ }

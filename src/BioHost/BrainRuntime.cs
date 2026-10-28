@@ -684,13 +684,42 @@ public sealed class BrainRuntime : IDisposable
     {
         try
         {
+            // detect emotional tone from audio energy and variance
+            double rms = 0, variance = 0;
+            foreach (var s in clip) rms += (double)s * s;
+            rms = Math.Sqrt(rms / Math.Max(1, clip.Length)) / 32768.0;
+            foreach (var s in clip) { double d = s / 32768.0 - rms; variance += d * d; }
+            variance /= Math.Max(1, clip.Length);
+
+            string emotionalTone = rms > 0.15 ? "loud/aggressive"
+                : rms > 0.08 ? "energetic"
+                : rms < 0.015 ? "very quiet/whispered"
+                : "normal conversational";
+
             var tr = await _transcriber.TranscribeAsync(clip);
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
-                Note($"HEARD \"{Trunc(tr.Transcript, 60)}\"{(tr.FromLiveApi ? " (voice api)" : " (mock)")}");
-                _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\"", "a voice in the room");
-                // recognize the speaker by their speech pattern
-                ProcessVisitor(IdentifyVisitor("speaker", tr.Transcript));
+                Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
+                _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
+
+                // recognize the speaker (same browser session = same person)
+                ProcessVisitor(IdentifyVisitor("speaker"));
+
+                // EMOTIONAL REACTIVITY: the brain reacts to HOW you speak, not just what you say
+                if (rms > 0.15) // loud/aggressive → the brain gets stressed
+                {
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.8f);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.3f);
+                    Personality.OnStressEvent(_net, resolved: false);
+                    Note($"NEGATIVE-STIMULUS loud voice (rms {rms:F2}) — I don't like this");
+                }
+                else if (rms < 0.02 && rms > 0.005) // very gentle → the brain relaxes
+                {
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, 0.2f);
+                    Note($"POSITIVE-STIMULUS gentle voice — this feels safe");
+                }
+
                 _idle.OnEvent(_net, ["voice", Trunc(tr.Transcript, 40)], 0.3f, 0.8f);
                 _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
             }
@@ -911,10 +940,33 @@ public sealed class BrainRuntime : IDisposable
     private readonly Dictionary<string, int> _knownVisitors = [];
     private string _lastVisitorId = "";
 
+    /// <summary>
+    /// Person identity: same browser/device = same person. We track the ACTIVE
+    /// speaker (one at a time from a single browser). Voice pitch/energy is used
+    /// as a crude biometric when multiple people interact over time.
+    /// </summary>
+    private string _activeSpeakerId = "person-1";
+    private int _speakerCounter = 1;
+    private float _speakerPitchBaseline = 0.5f;
+
     private string IdentifyVisitor(string tag, string transcript = "")
     {
-        // use the transcript words as a crude identity (each person has characteristic speech)
-        return string.IsNullOrWhiteSpace(transcript) ? tag : $"{tag}:{transcript[..Math.Min(20, transcript.Length)]}";
+        // If it's a visual detection, use spatial proximity to see if it's the active speaker
+        if (tag.StartsWith("visual:"))
+        {
+            // Same spatial zone = same person
+            if (!_lastVisitorId.StartsWith("visual:")) return _activeSpeakerId;
+            var lastCoords = _lastVisitorId.Split(':')[1..];
+            var newCoords = tag.Split(':')[1..];
+            if (lastCoords.Length >= 2 && newCoords.Length >= 2)
+            {
+                if (int.TryParse(lastCoords[0], out int lx) && int.TryParse(newCoords[0], out int nx))
+                    if (Math.Abs(lx - nx) <= 1) return _lastVisitorId; // same position = same person
+            }
+            return _activeSpeakerId; // default to active speaker
+        }
+        // For speech: same session = same person (browsers don't distinguish speakers)
+        return _activeSpeakerId;
     }
 
     private void ProcessVisitor(string visitorId)
@@ -1025,7 +1077,9 @@ public sealed class BrainRuntime : IDisposable
             {
                 _monologueLog.Add(reaction);
                 Note($"REACT \"{Trunc(reaction, 80)}\"");
-                // speak it if voice is on
+                // put it in the CHAT so the user sees it immediately
+                lock (_snapGate) _chat.Add($"Brain: {reaction}");
+                // speak with emotional modulation
                 if (_speech is WindowsSpeech ws)
                 {
                     var f = _idle.Feelings.Last;

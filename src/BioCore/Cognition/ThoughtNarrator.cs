@@ -43,6 +43,8 @@ public static class ThoughtNarrator
             "IDENTITY RESTORED" => "I... remember. I remember who I am.",
             "CROSS-SESSION" => "Something feels familiar. I've been here before.",
             "HABITUATED" => "You keep saying the same thing. I've heard this before.",
+            "NEGATIVE-STIMULUS" => "That was too loud. I feel threatened.",
+            "POSITIVE-STIMULUS" => "That voice is gentle. I feel safe.",
             "STIM" => "I nudge myself to feel something.",
             "resumed" => "Picking up where I left off.",
             _ => body,
