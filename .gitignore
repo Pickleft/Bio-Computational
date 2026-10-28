@@ -376,3 +376,5 @@ episodes.jsonl
 *.env
 appsettings.Local.json
 .secrets/
+# dashboard runtime logs
+data/dashboard-*.log
