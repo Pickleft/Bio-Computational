@@ -51,8 +51,8 @@ function drawPhiGauge(s) {
   ctx.fillText(`Φ ${phi.toFixed(2)}`, cx, cy + 8);
   ctx.fillStyle = "#5a6474";
   ctx.font = "500 10px 'JetBrains Mono', monospace";
-  ctx.fillText("integrated information", cx, cy + r * 0.5);
-  ctx.fillText(s.PhiStateLabel || "", cx, cy + r * 0.5 + 14);
+  ctx.fillText("integrated information", cx, cy + r + 26);
+  ctx.fillText(s.PhiStateLabel || "", cx, cy + r + 42);
 
   // Φ history sparkline
   const hist = s.PhiHistory || [];

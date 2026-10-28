@@ -5,257 +5,143 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bio-Computational</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
 <header id="topbar">
-  <div class="brand">
-    <span class="logo"></span>
-    <span class="name">BIO<span class="accent">·</span>COMPUTATIONAL</span>
-  </div>
+  <div class="brand"><span class="logo"></span><span class="name">Bio·Computational</span></div>
   <div class="stats">
-    <span class="stat"><span class="stat-label">state</span><span id="state" class="stat-value">boot</span></span>
-    <span class="stat"><span class="stat-label">feeling</span><span id="feeling" class="stat-value accent-purple">—</span></span>
-    <span class="stat"><span class="stat-label">t</span><span id="clock" class="stat-value mono">0s</span></span>
-    <span class="stat"><span class="stat-label">rate</span><span id="rate" class="stat-value mono">0 Hz</span></span>
-    <span class="stat"><span class="stat-label">api</span><span id="cost" class="stat-value mono">$0.00</span></span>
-    <span class="stat"><span class="stat-label">senses</span><span id="senses" class="stat-value dim">mock</span></span>
+    <div class="stat"><span>state</span><b id="state">boot</b></div>
+    <div class="stat"><span>feeling</span><b id="feeling" class="hot">—</b></div>
+    <div class="stat"><span>age</span><b id="clock" class="mono">0s</b></div>
+    <div class="stat"><span>firing</span><b id="rate" class="mono">0 Hz</b></div>
+    <div class="stat"><span>senses</span><b id="senses" class="mono dim">mock</b></div>
+    <div class="stat"><span>api spend</span><b id="cost" class="mono">$0.00</b></div>
+    <div class="stat"><span>meta</span><b id="meta-badge" class="mono hot">mock</b></div>
   </div>
-  <span id="rec" title="camera live">●</span>
+  <div class="tools">
+    <button id="sense-toggle" onclick="enableBrowserSenses()" title="Give the brain this device's camera and microphone">👁 senses</button>
+    <button id="voice-test" onclick="testVoice()" title="Hear the brain speak">🔊 voice</button>
+    <button id="music-toggle" onclick="toggleBrainMusic()" title="Hear the neural state as music">♪ listen</button>
+    <a id="export-brain" href="/api/export-brain" download title="Download the brain's full state">⬇ export</a>
+    <button id="log-toggle" title="Raw event log (L)">log</button>
+    <button id="fs-toggle" title="Fullscreen (F)">⛶</button>
+  </div>
 </header>
 
-<main class="grid">
+<main id="shell">
+  <aside id="left">
+    <section class="pane">
+      <h2>Integration Φ <small>Tononi IIT 3.0</small></h2>
+      <div class="cv sq"><canvas id="phi-gauge"></canvas></div>
+    </section>
+    <section class="pane grow">
+      <h2>Emotional journey <small>valence ↔ arousal</small></h2>
+      <div class="cv"><canvas id="journey"></canvas></div>
+    </section>
+  </aside>
 
-  <section class="card span-3 avatar-card">
-    <div class="card-body avatar-body">
-      <canvas id="avatar" data-aspect="3.0"></canvas>
-    </div>
+  <section id="stage" aria-label="The creature">
+    <canvas id="avatar"></canvas>
+    <p id="feeling-narrative">…</p>
+    <span id="rec">● camera live</span>
   </section>
 
-  <section class="card span-3 eeg-card">
-    <div class="card-body eeg-body">
-      <canvas id="eeg"></canvas>
-    </div>
-  </section>
+  <aside id="right">
+    <section class="pane">
+      <h2>Thought thread <small>one chain developing, link by link · <span id="thread-stats" class="mono">0 chains</span></small></h2>
+      <div class="scroll" style="flex:0 0 34%;min-height:120px"><ul id="thread" class="list thoughts"></ul></div>
+    </section>
+    <section class="pane grow">
+      <h2>Thoughts <small>in its own words</small></h2>
+      <div class="scroll"><ul id="plain" class="list thoughts"></ul></div>
+    </section>
+    <section class="pane chatpane">
+      <h2>Conversation</h2>
+      <div id="chat" class="chatlog"></div>
+    </section>
+  </aside>
 
-  <section class="card span-1 nobel-card">
-    <div class="card-head">
-      <h2>Φ — consciousness</h2>
-      <span class="card-sub">Tononi IIT 3.0</span>
-    </div>
-    <div class="card-body" style="align-items:center;justify-content:center;">
-      <canvas id="phi-gauge" data-aspect="1"></canvas>
-    </div>
-  </section>
+  <section id="eegband"><canvas id="eeg"></canvas></section>
 
-  <section class="card span-1 nobel-card">
-    <div class="card-head">
-      <h2>free energy</h2>
-      <span class="card-sub">Friston 2010</span>
+  <section id="dock">
+    <div class="card regions">
+      <h2>Region activity <small>glow = firing rate · edges = traffic</small></h2>
+      <div class="cv"><canvas id="regions"></canvas></div>
     </div>
-    <div class="card-body">
-      <canvas id="free-energy" data-aspect="1.2"></canvas>
-    </div>
-  </section>
+    <div class="card tabs">
+      <nav role="tablist">
+        <button class="on" data-tab="science">Science</button>
+        <button data-tab="body">Body</button>
+        <button data-tab="mind">Mind</button>
+        <button data-tab="social">Social</button>
+      </nav>
 
-  <section class="card span-1 nobel-card">
-    <div class="card-head">
-      <h2>neural manifold</h2>
-      <span class="card-sub">Stringer 2019</span>
-    </div>
-    <div class="card-body">
-      <canvas id="manifold" data-aspect="1.2"></canvas>
-    </div>
-  </section>
+      <div class="tabpane on" data-pane="science">
+        <div class="mini"><h3>EEG proxy <small>1/f <b id="lfp-slope" class="mono">—</b> · α <b id="alpha-ratio" class="mono">—</b></small></h3><div class="cv"><canvas id="spectrogram"></canvas></div></div>
+        <div class="mini"><h3>Free energy <small>Friston 2010</small></h3><div class="cv"><canvas id="free-energy"></canvas></div></div>
+        <div class="mini"><h3>Neural manifold <small>Stringer 2019</small></h3><div class="cv"><canvas id="manifold"></canvas></div></div>
+      </div>
 
-  <section class="card span-3" style="grid-row: span 1;">
-    <div class="card-head">
-      <h2>brain activity</h2>
-      <span class="card-sub">regions glow with firing rate · edges pulse with traffic</span>
-    </div>
-    <div class="card-body">
-      <canvas id="regions" data-aspect="2.8"></canvas>
-    </div>
-  </section>
+      <div class="tabpane" data-pane="body">
+        <div class="mini"><h3>Neuromodulators</h3><div id="mods" class="scroll"></div></div>
+        <div class="mini"><h3>Awareness</h3><div class="cv"><canvas id="consciousness"></canvas></div><div id="consciousness-label">—</div></div>
+        <div class="mini"><h3>Feeling circumplex</h3><div class="cv"><canvas id="circumplex"></canvas></div></div>
+        <div class="mini"><h3>Sleep <small>pressure <b id="pressure" class="mono">—</b></small></h3>
+          <div class="cv strip"><canvas id="sleepstrip"></canvas></div>
+          <dl class="vitals">
+            <div><dt>ignitions</dt><dd id="ignitions">0</dd></div><div><dt>surprises</dt><dd id="surprises">0</dd></div>
+            <div><dt>replays</dt><dd id="replays">0</dd></div><div><dt>clock</dt><dd id="clockrate">1.0×</dd></div>
+            <div><dt>subjective</dt><dd id="subj">0 min</dd></div><div><dt>energy</dt><dd id="energy">0</dd></div>
+          </dl>
+        </div>
+      </div>
 
-  <section class="card span-1 consciousness-card">
-    <div class="card-head">
-      <h2>awareness</h2>
-    </div>
-    <div class="card-body consciousness-body">
-      <canvas id="consciousness" data-aspect="1.2"></canvas>
-      <div class="consciousness-label" id="consciousness-label">—</div>
-    </div>
-  </section>
+      <div class="tabpane" data-pane="mind">
+        <div class="mini"><h3>Inner voice</h3><div class="scroll"><ul id="monologue" class="list compact"></ul></div></div>
+        <div class="mini"><h3>Episodes <small><b id="episode-count" class="mono">0</b> stored</small></h3><div class="scroll"><ul id="episodes" class="list compact"></ul></div></div>
+        <div class="mini"><h3>Memory palace</h3><div class="cv"><canvas id="palace"></canvas></div></div>
+        <div class="mini"><h3>Dreams</h3><div class="scroll"><div id="dreams" class="dreamgrid"></div><ul id="dream-stories" class="list compact"></ul></div></div>
+      </div>
 
-  <section class="card span-2">
-    <div class="card-head">
-      <h2>emotional journey</h2>
-      <span class="card-sub">valence ↔ arousal over time</span>
-    </div>
-    <div class="card-body">
-      <canvas id="journey" data-aspect="3.0"></canvas>
-    </div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>memory palace</h2>
-      <span class="card-sub">emotional map of memories</span>
-    </div>
-    <div class="card-body">
-      <canvas id="palace" data-aspect="1"></canvas>
-    </div>
-  </section>
-
-  <section class="card span-2">
-    <div class="card-head">
-      <h2>eeg proxy</h2>
-      <span class="card-sub">1/f <span id="lfp-slope" class="mono">—</span> · α <span id="alpha-ratio" class="mono">—</span></span>
-    </div>
-    <div class="card-body">
-      <canvas id="spectrogram" data-aspect="3.2"></canvas>
-    </div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>feeling</h2>
-    </div>
-    <div class="card-body feeling-body">
-      <canvas id="circumplex" data-aspect="1"></canvas>
-      <div class="feeling-info">
-        <div id="feeling-narrative">…</div>
-        <div class="mini-grid">
-          <div><span class="mini-label">clock</span><span id="clockrate" class="mono">1.0×</span></div>
-          <div><span class="mini-label">subj</span><span id="subj" class="mono">0 min</span></div>
-          <div><span class="mini-label">energy</span><span id="energy" class="mono">0</span></div>
+      <div class="tabpane" data-pane="social">
+        <div class="mini wide"><h3>Social bonds <small>who the brain knows</small></h3><div id="social-bonds" class="scroll"></div></div>
+        <div class="mini wide"><h3>Psychology <small>who it is becoming</small></h3>
+          <dl class="vitals">
+            <div><dt>attachment</dt><dd id="attach-style">—</dd></div>
+            <div><dt>mirroring</dt><dd id="empathy-mood">—</dd></div>
+            <div><dt>learning</dt><dd id="curiosity-prog">—</dd></div>
+            <div><dt>play</dt><dd id="play-count">0</dd></div>
+            <div><dt>insights</dt><dd id="insight-count">0</dd></div>
+            <div><dt>body</dt><dd id="allostatic">—</dd></div>
+            <div><dt>own voice</dt><dd id="voice-growth">—</dd></div>
+          </dl>
         </div>
       </div>
     </div>
   </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>neuromodulators</h2>
-    </div>
-    <div class="card-body" id="mods"></div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>sleep</h2>
-      <span class="card-sub">pressure <span id="pressure" class="mono">—</span></span>
-    </div>
-    <div class="card-body">
-      <canvas id="sleepstrip" data-aspect="4"></canvas>
-      <div class="mini-grid">
-        <div><span class="mini-label">ign</span><span id="ignitions" class="mono">0</span></div>
-        <div><span class="mini-label">sur</span><span id="surprises" class="mono">0</span></div>
-        <div><span class="mini-label">rep</span><span id="replays" class="mono">0</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>episodes</h2>
-      <span class="card-sub"><span id="episode-count" class="mono">0</span> stored</span>
-    </div>
-    <div class="card-body scroll">
-      <ul id="episodes" class="list compact"></ul>
-    </div>
-  </section>
-
-  <section class="card span-3">
-    <div class="card-head">
-      <h2>thought thread</h2>
-      <span class="card-sub">one chain developing, link by link | <span id="thread-stats" class="mono">0 chains</span></span>
-    </div>
-    <div class="card-body scroll tall">
-      <ul id="thread" class="list thoughts"></ul>
-    </div>
-  </section>
-
-  <section class="card span-3">
-    <div class="card-head">
-      <h2>thoughts</h2>
-      <span class="card-sub">what it is experiencing, in its own words</span>
-    </div>
-    <div class="card-body scroll tall">
-      <ul id="plain" class="list thoughts"></ul>
-    </div>
-  </section>
-
-  <section class="card span-2">
-    <div class="card-head">
-      <h2>inner voice</h2>
-    </div>
-    <div class="card-body scroll">
-      <ul id="monologue" class="list compact"></ul>
-    </div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>dreams</h2>
-    </div>
-    <div class="card-body scroll">
-      <div id="dreams" class="dreamgrid"></div>
-      <ul id="dream-stories" class="list compact" style="margin-top:8px;"></ul>
-    </div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>social bonds</h2>
-      <span class="card-sub">who the brain knows</span>
-    </div>
-    <div class="card-body scroll" id="social-bonds"></div>
-  </section>
-
-  <section class="card span-1">
-    <div class="card-head">
-      <h2>events</h2>
-      <span class="card-sub">raw log</span>
-    </div>
-    <div class="card-body scroll tall">
-      <ul id="thought" class="list mono-list compact"></ul>
-    </div>
-  </section>
-
-  <section class="card span-2">
-    <div class="card-head">
-      <h2>talk to it</h2>
-    </div>
-    <div class="card-body">
-      <div id="chat" class="chatlog"></div>
-      <form id="chatform">
-        <input id="chatbox" placeholder="say something…" autocomplete="off" maxlength="200">
-        <button type="submit">↩</button>
-      </form>
-    </div>
-  </section>
-
 </main>
 
-<footer>
-  <span>research platform — computational proxies, not clinical claims</span>
-  <span id="meta-badge">mock</span>
-  <button id="sense-toggle" onclick="enableBrowserSenses()" title="Use this device's camera and mic as the brain's senses">👁 senses</button>
-  <button id="music-toggle" onclick="toggleBrainMusic()" title="Listen to the brain's neural state as music">♪ listen</button>
-  <button id="voice-test" onclick="testVoice()" title="Test if the brain can speak">🔊 voice</button>
-  <a id="export-brain" href="/api/export-brain" title="Download this brain" download>⬇ brain</a>
-</footer>
+<form id="chatform" autocomplete="off">
+  <input id="chatbox" placeholder="Say something to it…" maxlength="200" aria-label="Talk to the brain">
+  <button type="submit" aria-label="Send">↩</button>
+</form>
+<p id="disclaimer">Research platform. Computational proxies, not clinical claims.</p>
 
-<script src="brain-music.js"></script>
-<script src="browser-senses.js?v=2"></script>
-<script src="eeg-monitor.js"></script>
-<script src="avatar.js?v=2"></script>
-<script src="nobel-viz.js"></script>
-<script src="app.js?v=2"></script>
+<aside id="drawer" aria-label="Raw event log">
+  <h2>Raw event log <small>press L to close</small></h2>
+  <div class="scroll"><ul id="thought" class="list mono-list compact"></ul></div>
+</aside>
+
+<script src="brain-music.js?v=3"></script>
+<script src="eeg-monitor.js?v=3"></script>
+<script src="browser-senses.js?v=3"></script>
+<script src="avatar.js?v=3"></script>
+<script src="nobel-viz.js?v=3"></script>
+<script src="app.js?v=3"></script>
+<script src="ui.js?v=3"></script>
 <script>initAvatar(); initEEG();</script>
 </body>
 </html>

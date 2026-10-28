@@ -164,6 +164,18 @@ function render(s) {
   setFeed($("monologue"), s.Monologues);
   setFeed($("episodes"), s.RecentEpisodes);
   drawThread(s);
+
+  // psychology readout (Social tab): who the brain is becoming
+  const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  set("attach-style", s.Attachment || "forming");
+  set("empathy-mood", (s.EmpathyConfidence || 0) > 0.3 ? `${s.UserMood} voice` : "no voice yet");
+  set("curiosity-prog", `progress ${(s.CuriosityProgress || 0).toFixed(2)}, reward ${(s.CuriosityReward || 0).toFixed(2)}`);
+  set("play-count", `${s.PlayBursts || 0} bursts${s.Playful ? " (playing now)" : ""}`);
+  set("insight-count", `${s.Insights || 0}${s.OpenLoops ? ` (+${s.OpenLoops} unresolved)` : ""}`);
+  set("allostatic", s.AllostaticNote || "body steady");
+  set("voice-growth", s.VoiceSyllables > 0
+    ? `${s.VoiceSyllables} syllables, ${s.VoiceClipsHeard} voices heard${s.VoiceMimicries ? `, ${s.VoiceMimicries} mimicked` : ""}`
+    : "listening");
   setFeed($("thought"), s.Thought);
   if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }
