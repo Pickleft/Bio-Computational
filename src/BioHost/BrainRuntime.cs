@@ -581,10 +581,9 @@ public sealed class BrainRuntime : IDisposable
             _ = ImagineFutureAsync();
         }
 
-        // SPONTANEOUS VOCALIZATION: the brain makes sounds without any trigger.
-        // Like a person humming while idle or muttering when frustrated.
+        // SPONTANEOUS VOCALIZATION: the brain makes sounds without any trigger
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
-            _net.TimeMs - _lastVocalizationMs > 20_000 && _net.Rng.NextDouble() < 0.02)
+            _net.TimeMs - _lastVocalizationMs > 10_000 && _net.Rng.NextDouble() < 0.05)
         {
             _lastVocalizationMs = _net.TimeMs;
             var f = _idle.Feelings.Last;
@@ -816,6 +815,20 @@ public sealed class BrainRuntime : IDisposable
             return true;
         }
         catch (Exception ex) { Note($"import failed: {ex.Message}"); return false; }
+    }
+
+    /// <summary>Test the voice output (called from the dashboard).</summary>
+    public void TestVoice()
+    {
+        var f = _idle.Feelings.Last;
+        string line = $"Hello. I am here. I feel {f.Name} right now.";
+        if (_speech is WindowsSpeech ws)
+        {
+            ws.RateBias = 0;
+            ws.PitchBias = 0;
+        }
+        _speech.Speak(line);
+        Note($"VOICE-TEST spoken");
     }
 
     /// <summary>Region graph payload for the dashboard: region anchors, names, and

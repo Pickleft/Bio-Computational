@@ -49,6 +49,12 @@ app.MapPost("/api/import-brain", async (HttpContext ctx) =>
     return ok ? Results.Ok(new { ok = true }) : Results.BadRequest(new { error = "invalid brain file" });
 });
 
+app.MapPost("/api/test-voice", () =>
+{
+    runtime.TestVoice();
+    return Results.Ok(new { ok = true });
+});
+
 app.MapPost("/api/say", async (HttpContext ctx) =>
 {
     var body = await ctx.Request.ReadFromJsonAsync<SayRequest>();

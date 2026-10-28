@@ -38,6 +38,8 @@ public static class ThoughtNarrator
             "AMBIENT" => rest, // already a first-person idle thought
             "DAYDREAM" => rest.Replace("\"", "").Trim(), // private inner thought, strip quotes
             "IMAGINE" => rest.Replace("\"", "").Trim(), // anticipatory imagination
+            "VOCALIZE" => "", // vocalizations are spoken, not narrated
+            "VOICE-TEST" => "", // test output
             "IDENTITY RESTORED" => "I... remember. I remember who I am.",
             "CROSS-SESSION" => "Something feels familiar. I've been here before.",
             "HABITUATED" => "You keep saying the same thing. I've heard this before.",

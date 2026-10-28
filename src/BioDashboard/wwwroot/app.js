@@ -555,6 +555,20 @@ window.addEventListener("beforeunload", async (ev) => {
   ev.returnValue = "";
 });
 let resizeTimer;
+// ---- test voice button ----
+async function testVoice() {
+  try {
+    const r = await fetch("/api/test-voice", { method: "POST" });
+    if (r.ok) {
+      const btn = document.getElementById("voice-test");
+      btn.textContent = "🔊 speaking...";
+      setTimeout(() => btn.textContent = "🔊 voice", 3000);
+    } else {
+      alert("Voice not available. Run with --voice and check Windows TTS voices.");
+    }
+  } catch (e) { alert("Could not test voice: " + e.message); }
+}
+
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => { if (lastSnap) render(lastSnap); }, 150);

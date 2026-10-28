@@ -486,6 +486,19 @@ footer {
   gap: 12px;
 }
 
+#voice-test {
+  background: var(--bg-inset);
+  color: var(--amber);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+#voice-test:hover { background: var(--bg-card-hover); border-color: var(--amber); }
+
 #music-toggle {
   background: var(--bg-inset);
   color: var(--accent);
