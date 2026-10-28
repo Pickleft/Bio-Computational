@@ -94,6 +94,9 @@ public sealed class SleepController
 
     public void ForceWake(SpikingNetwork net) => SetState(net, BrainState.Wake);
 
+    /// <summary>Test/experiment hook: drop directly into NREM (mirrors ForceWake).</summary>
+    public void ForceNREM(SpikingNetwork net) => SetState(net, BrainState.NREM);
+
     /// <summary>
     /// Wake/sleep neuromodulator drive: histamine is the wake flip-flop
     /// (high in wake, collapses in NREM — Haas et al. 2008); melatonin follows

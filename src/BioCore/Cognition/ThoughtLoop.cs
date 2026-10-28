@@ -61,10 +61,15 @@ public sealed class ThoughtLoop
 
     public ThoughtLink? Current { get; private set; }
     public IReadOnlyList<ThoughtLink> Chain => _chain;
+    /// <summary>Unresolved threads: salient chains that died (capped, displaced)
+    /// instead of resolving. Incubation may resolve them later - the insight.</summary>
+    public IReadOnlyList<ThoughtLink> OpenLoops => _openLoops;
     public int LinksEvaluated { get; private set; }
     public int InhibitedRepeats { get; private set; }
     public int ChainsStarted { get; private set; }
+    public int Insights { get; private set; }
 
+    private readonly List<ThoughtLink> _openLoops = [];
     private readonly List<ThoughtLink> _chain = [];
     private readonly List<string> _recentTexts = [];   // inhibition window
     private readonly Queue<string> _inbox = new();     // sim-input from the async interpreter
@@ -154,7 +159,16 @@ public sealed class ThoughtLoop
         if (net.TimeMs - externalEventMs < 1200f && _chain.Count > 0)
             EndChain(net.TimeMs, reason: "displaced by the world");
 
-        // 4. request the next link?
+        // 4. a chain that thought itself out ends immediately (state change,
+        // not a request): if still salient it becomes an open loop for
+        // incubation to resolve later
+        if (Current is { } done && done.Depth >= MaxChainDepth)
+        {
+            EndChain(net.TimeMs, reason: "thought itself out");
+            return null;
+        }
+
+        // 5. request the next link?
         if (net.TimeMs < _nextEligibleMs) return null;
         if (Current is { } cur && cur.Affect.Salience >= InterestFloor && cur.Depth < MaxChainDepth)
         {
@@ -351,10 +365,47 @@ public sealed class ThoughtLoop
     private void EndChain(float timeMs, string reason)
     {
         if (_chain.Count == 0) return;
+        // an unresolved thread becomes an OPEN LOOP: a thought left hanging
+        // that incubation may later resolve (Sio and Ormerod 2009)
+        var last = _chain[^1];
+        if (last.Affect.Salience > 0.45f && last.Depth >= 2 && reason != "ruminating on repeat")
+        {
+            _openLoops.Add(last);
+            while (_openLoops.Count > 8) _openLoops.RemoveAt(0);
+        }
         _lastChainEndMs = timeMs;
         _chain.Clear();
         Current = null;
         ChainEnded?.Invoke(reason);
+    }
+
+    /// <summary>
+    /// Pop an incubated open loop that is ripe for resolution: it has simmered
+    /// for at least IncubationMs (incubation effect: distance from the problem
+    /// breeds the solution), preferring the oldest. Returns null when nothing
+    /// is ripe. The resolution arrives through PostResult like every thought;
+    /// the caller marks it with MarkInsight when it lands.
+    /// </summary>
+    public ThoughtLink? PopIncubated(float nowMs)
+    {
+        ThoughtLink? best = null;
+        foreach (var l in _openLoops)
+            if (nowMs - l.TimeMs >= IncubationMs && (best is null || l.TimeMs < best.TimeMs))
+                best = l;
+        if (best is not null) _openLoops.Remove(best);
+        return best;
+    }
+
+    /// <summary>Minimum simmering time before an open loop can resolve. CALIBRATE.</summary>
+    public float IncubationMs { get; set; } = 60_000f;
+
+    /// <summary>The insight landed: count it and pay the reward.</summary>
+    public void MarkInsight(SpikingNetwork net)
+    {
+        Insights++;
+        // the Aha moment is its own reward (Kounios and Beeman 2009): a phasic
+        // dopamine burst that tags the restructuring as worth keeping
+        net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.35f);
     }
 
     /// <summary>Fires when a chain ends (displaced, bored out, or ruminating on repeat).</summary>

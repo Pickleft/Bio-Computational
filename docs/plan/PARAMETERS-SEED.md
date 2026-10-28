@@ -115,3 +115,27 @@ unresponsive, 1.9x calls), avoidant (cold, 0.4x calls). Persisted with identity.
 Retrieval strength = (1 + 0.6 x accesses) x age_min^-0.15; every successful recall/retrieval
 bumps access (spacing effect). Strength caps the cue-similarity term of thought-loop retrieval
 at 1.5x.
+
+## Sleep reconsolidation (Walker & van der Helm 2009)
+Each low-stress replay: trace strengthened (access +1) and valence softened 12 percent toward
+neutral, gated by noradrenaline (no softening above 1.2; stressed sleep keeps the charge).
+
+## Social bonds (Schultz 1997 reward scaling)
+Strength = log2(1+visits)/3 x (0.35+0.65 x warmth) x 0.5^days-apart, warmth from contact prosody.
+Recognition reward = 0.10 + 0.35 x strength (dopamine). Departure of a bond > 0.2: DA -0.18 x
+strength, OXT -0.05 x strength (negative prediction error). Loneliness with a bond of 3+ visits
+calls for that person specifically.
+
+## Incubation and insight (Sio & Ormerod 2009; Kounios & Beeman 2009)
+Chains that die salient (> 0.45, depth >= 2, not rumination) become open loops (max 8). After
+60 s of simmering a loop may resolve as an insight; MarkInsight pays a 0.35 dopamine burst.
+
+## Allostasis (Sterling 2012; Barrett 2017 interoceptive inference)
+Battery slope EMA predicts minutes-to-reserve-floor; under 30 min: melatonin +0.08 x urgency,
+histamine -0.04 x urgency (preparatory sleepiness). Interoceptive prediction error EMA > 15:
+serotonin -0.03 (malaise).
+
+## Play (Burghardt 2005)
+Conditions: wake, NA < 0.55, DA > 0.45, curiosity > 0.05, attachment secure or forming. Bursts
+every >= 12 s at 35 percent chance; vigor 0.4-1.3 scales self-stimulation and grows
+expressiveness through exploration events. Threat or avoidant attachment abolishes play.

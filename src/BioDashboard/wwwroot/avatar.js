@@ -107,9 +107,10 @@ function animateAvatar() {
 
   // === BODY MEMBRANE ===
   // organic blob with sine-wave deformation, driven by neural state
-  const chaos = Math.max(1 - smoothing.sht, feChaos * 0.7); // low serotonin OR high free energy = chaotic
+  const chaos = Math.max(1 - smoothing.sht, feChaos * 0.7) + (lastSnapshot && lastSnapshot.Playful ? 0.35 : 0); // low serotonin OR high free energy = chaotic; play bounces
   const droop = smoothing.pressure * 0.3; // tired = sagging
-  const pulse = 1 + Math.sin(bodyPhase * 3) * 0.02 * (1 + smoothing.rate); // heartbeat
+  const pulse = 1 + Math.sin(bodyPhase * 3) * 0.02 * (1 + smoothing.rate)
+    + (lastSnapshot && lastSnapshot.Playful ? Math.sin(avatarTime * 8) * 0.05 : 0); // heartbeat + play bounce
 
   ctx.beginPath();
   const points = 60;
@@ -373,7 +374,10 @@ function animateAvatar() {
       ctx.font = `500 9px ${"'Inter', sans-serif"}`;
       const grew = `grew: ${lastSnapshot.Attachment} attachment` +
         (lastSnapshot.EmpathyConfidence > 0.3 ? `, mirroring a ${lastSnapshot.UserMood || "neutral"} voice` : "") +
-        (lastSnapshot.CuriosityReward > 0.2 ? `, learning something new` : "");
+        (lastSnapshot.CuriosityReward > 0.2 ? `, learning something new` : "") +
+        (lastSnapshot.PlayBursts > 0 ? `, ${lastSnapshot.PlayBursts} play bursts` : "") +
+        (lastSnapshot.Insights > 0 ? `, ${lastSnapshot.Insights} insights` : "") +
+        (lastSnapshot.OpenLoops > 0 ? `, ${lastSnapshot.OpenLoops} thoughts unresolved` : "");
       ctx.fillText(grew, cx, cy + baseR * 0.55 + 26);
     }
     ctx.textAlign = "left";

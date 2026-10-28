@@ -16,6 +16,9 @@ public sealed class ReplayScheduler
     public float ReplayWindowMs { get; set; } = 150f;   // ~15x compression of a ~2 s episode
     public float InjectionPicoAmps { get; set; } = 25f;
     public float DopaminePerReplay { get; set; } = 0.25f;
+    /// <summary>Fraction of emotional charge stripped per low-stress replay
+    /// (Walker and van der Helm 2009). CALIBRATE.</summary>
+    public float EmotionalSoftening { get; set; } = 0.12f;
 
     public int ReplayCount { get; private set; }
     public Episode? Current { get; private set; }
@@ -44,9 +47,16 @@ public sealed class ReplayScheduler
                 // replaying an emotionally salient memory re-evokes a fraction of its
                 // original affect: positive memories tick DA, negative tick 5-HT down
                 if (Current.Valence > 0.2f)
-                    net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f * Current.Valence);
+                    net.Modulators.Release(NeuromodulatorKind.Dopamine, 0.2f * Current.Valence);
                 else if (Current.Valence < -0.2f)
-                    net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.15f * Current.Valence);
+                    net.Modulators.Release(NeuromodulatorKind.Serotonin, -0.15f * Current.Valence);
+                // RECONSOLIDATION (Walker and van der Helm 2009): the replayed trace
+                // strengthens (consolidation) while its emotional charge softens toward
+                // neutral - but only in low-stress sleep: high noradrenaline during
+                // sleep preserves the charge (stressed sleep fails to heal)
+                float na = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
+                var touched = net.EpisodeStore.Touch(Current);
+                net.EpisodeStore.SoftenValence(touched, EmotionalSoftening * MathF.Max(0f, 1f - na / 1.2f));
                 Current = null;
                 _cooldownUntil = net.TickIndex + (long)Cooldown.TotalMilliseconds;
                 ReplayCount++;

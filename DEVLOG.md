@@ -19,6 +19,34 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - five more interconnected systems
+
+- Sleep reconsolidation (Walker and van der Helm 2009, "sleep to forget, sleep to remember"):
+  every low-stress replay now strengthens the trace (spacing effect) while softening its
+  emotional charge toward neutral; stressed sleep (high noradrenaline) keeps the charge - the
+  brain heals its bad memories only when it sleeps calm.
+- Social bonds with depth (Schultz reward scaling): per-person strength from visit history x
+  prosodic warmth x time apart. Recognition pays dopamine proportional to bond depth; a bonded
+  person leaving is a negative prediction error (dopamine dips below baseline, "I felt that");
+  loneliness with a deep bond calls for THAT person ("...I miss you"). Bonds rebuild from
+  persisted visit history across sessions.
+- Incubation and insight (Sio and Ormerod 2009; Kounios and Beeman 2009): thought chains that
+  die unresolved while still salient become open loops; after simmering they resolve as spoken
+  insights with their own dopamine burst. Fixed a latent bug where depth-capped chains left the
+  working-memory slot occupied forever, stalling all future thinking.
+- Allostasis (Sterling 2012; Barrett 2017): the body budget tracks the battery's trajectory,
+  predicts exhaustion minutes ahead and advances sleepiness BEFORE the deficit (preparatory
+  melatonin); interoceptive prediction error registers as malaise; the interpreter receives the
+  body's predicted story.
+- Play (Burghardt 2005): bursts of self-stimulation and happy vocalization appear only when
+  safe, secure, curious and rewarded - threat or avoidant attachment abolishes play, and play
+  grows expressiveness. The avatar bounces while playing.
+- Also: the interpreter now hears the estimated mood of the last voice (contagion feeds the
+  thought substrate); avatar "grew:" line reports play bursts, insights and unresolved loops.
+- Tests: 8 new (reconsolidation calm vs stressed, bond depth/missing/recognition, open loops
+  and incubation timing and insight reward, allostatic prediction, play conditions and burst).
+  109 green.
+
 ## 2026-10-28 (latest) - intrinsic motivation, empathy, attachment, forgetting
 
 - Curiosity as intrinsic motivation (Schmidhuber 1991; Oudeyer and Kaplan 2007; Kidd et al.

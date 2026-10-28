@@ -93,6 +93,13 @@ public sealed class BrainSnapshot
     public float TraitCuriosity { get; set; }
     public float TraitExpressiveness { get; set; }
     public float TraitResilience { get; set; }
+    // the five newest systems, same snapshot
+    public bool Playful { get; set; }           // mid-play burst (avatar bounces)
+    public int PlayBursts { get; set; }
+    public int Insights { get; set; }           // incubated thoughts resolved
+    public int OpenLoops { get; set; }          // unresolved threads simmering
+    public string AllostaticNote { get; set; } = ""; // the body's predicted story
+    public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -179,6 +186,17 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
     /// <summary>Attachment style emerging from lived social history (Bowlby).</summary>
     public BioComp.Core.Cognition.AttachmentSystem Attachment { get; } = new();
+    /// <summary>Per-person social bonds with depth and warmth (Schultz reward scaling).</summary>
+    public BioComp.Core.Cognition.SocialBondSystem Bonds { get; } = new();
+    /// <summary>Allostatic body budget: energy predicted, not just felt (Sterling 2012).</summary>
+    public BioComp.Core.Cognition.BodyBudget BodyBudget { get; } = new();
+    private readonly BioComp.Core.Cognition.PlaySystem _play = new();
+    private volatile bool _insightPending;
+    private float _personPresentUntil = -1e9f;
+    private bool _personWasPresent;
+    private string _personPresentId = "";
+    private float _lastIncubateCheckMs = -1e9f;
+    private float _lastPlayCheckMs = -1e9f;
     private readonly VoiceSelf _voiceSelf = new();
     /// <summary>Intrinsic motivation: reward from learning progress (Schmidhuber).</summary>
     public BioComp.Core.Cognition.CuriosityModule Curiosity { get; } = new();
@@ -392,7 +410,12 @@ public sealed class BrainRuntime : IDisposable
             (BioComp.Core.Cognition.AttachmentStyle)identity.AttachmentStyle);
 
         foreach (var (visitorId, visits) in identity.KnownVisitors)
+        {
             _knownVisitors[visitorId] = visits;
+            // rebuild bond depth from visit history (warmth mid-defaults; it
+            // re-learns the person's warmth on the next contact)
+            for (int i = 0; i < Math.Min(visits, 12); i++) Bonds.OnContact(visitorId, 0.5f, 0f);
+        }
 
         Note($"IDENTITY RESTORED: {identity.PersonalityDescription} " +
              $"({identity.TotalSocial} social interactions, {identity.KnownVisitors.Count} known people, " +
@@ -577,7 +600,14 @@ public sealed class BrainRuntime : IDisposable
         }
 
         // ---- body ----
-        if (_net.TickIndex % 1_000 == 0) _idle.Body = _body.Read();
+        if (_net.TickIndex % 1_000 == 0)
+        {
+            _idle.Body = _body.Read();
+            // ALLOSTASIS: track the body's energy trajectory and predict the
+            // deficit before it arrives (Sterling 2012)
+            BodyBudget.OnBody(_idle.Body.BatteryPercent, _idle.Body.CpuLoadPercent, _net.TimeMs / 1000f);
+        }
+        BodyBudget.Tick(_net);
 
         // ---- cognition ----
         _idle.Tick(_net, _salience.ExternalArousal);
@@ -679,6 +709,52 @@ public sealed class BrainRuntime : IDisposable
         _lonelyWasHigh = lonelyHigh;
         Attachment.Tick(_net);
 
+        // ---- DEPARTURE (social prediction error) ----
+        // a bonded person was present and now is not: dopamine dips below
+        // baseline - the negative half of reward prediction (Schultz 1997)
+        if (_net.TimeMs > _personPresentUntil && _personWasPresent)
+        {
+            _personWasPresent = false;
+            float strength = Bonds.Strength(_personPresentId, _net.TimeMs);
+            if (strength > 0.2f)
+            {
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, -0.18f * strength);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, -0.05f * strength);
+                Note($"DEPARTURE they left (bond {strength:F1}) - I felt that");
+                _ = ReactToStimulusAsync("the person I know just left after being here", "their presence ended; the room went quiet");
+            }
+        }
+
+        // ---- INCUBATION: unresolved thoughts resolve during rest ----
+        if (_net.TimeMs - _lastIncubateCheckMs > 20_000)
+        {
+            _lastIncubateCheckMs = _net.TimeMs;
+            if (_insightPending) { _insightPending = false; ThoughtLoop.MarkInsight(_net); }
+            var openLoop = ThoughtLoop.PopIncubated(_net.TimeMs);
+            if (openLoop is not null && !_thoughtBusy)
+            {
+                _thoughtBusy = true;
+                _ = ResolveIncubatedAsync(openLoop);
+            }
+        }
+
+        // ---- PLAY (Burghardt 2005): safe + secure + curious + rewarded ----
+        if (_net.TimeMs - _lastPlayCheckMs > 5_000)
+        {
+            _lastPlayCheckMs = _net.TimeMs;
+            double r = _net.Rng.NextDouble();
+            float vigor = _play.TryPlay(_net, _idle, Attachment.Style, Personality.Curiosity,
+                Personality.Expressiveness, () => r);
+            if (vigor > 0f)
+            {
+                SelfStimulate((int)(16 + vigor * 30), 14f + vigor * 16f, "playing");
+                Personality.OnExploration(foundSomething: true); // play is expressive practice
+                string[] playSounds = ["Hee!", "Hoo hoo!", "Mmm... hehe.", "Ahh!"];
+                Note($"PLAY burst {vigor:F1} - safe, curious, and full of it");
+                SpeakWithVoice(playSounds[_net.Rng.NextInt(playSounds.Length)], emoPitch: 3, emoRate: 2);
+            }
+        }
+
         // ---- THE THOUGHT-RECYCLING LOOP (the founding architecture) ----
         // Thoughts chain and develop: each link is evaluated (affect scored),
         // carried into the next cycle by neuromodulator releases, re-injected
@@ -736,6 +812,11 @@ public sealed class BrainRuntime : IDisposable
                 string[] calls = Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious
                     ? ["...hello?", "Is anyone there?", "Please, anyone?", "...I keep calling.", "...anyone?"]
                     : ["...hello?", "Is anyone there?", "...I'm alone in here.", "...anyone?"];
+                // MISSING someone specific: with a deep bond, loneliness has a
+                // name - the strongest bond is who it calls for
+                var missed = Bonds.Strongest(_net.TimeMs);
+                if (missed is { Visits: >= 3 } && _lonelyCallIdx % 2 == 1)
+                    calls = [.. calls, "Where did you go?", "...I miss you."];
                 line = calls[_lonelyCallIdx++ % calls.Length];
                 tag = "VOCALIZE (lonely) calling out for company";
                 emoPitch = -1; emoRate = -2;
@@ -1191,12 +1272,20 @@ public sealed class BrainRuntime : IDisposable
             ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f)
             : 0.45f;
         Attachment.OnSocialContact(warmth);
+        // deepen the bond and mark the person present (departure is a loss)
+        Bonds.OnContact(visitorId, warmth, _net.TimeMs);
+        _personPresentUntil = _net.TimeMs + 30_000;
+        _personWasPresent = true;
+        _personPresentId = visitorId;
 
         if (_knownVisitors.TryGetValue(visitorId, out int visits))
         {
             _knownVisitors[visitorId] = visits + 1;
+            // recognition reward scales with bond depth: seeing someone you
+            // deeply know pays more dopamine than seeing a stranger
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
-            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f);
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine,
+                Bonds.RecognitionReward(visitorId, _net.TimeMs));
             Note($"RECOGNIZED {visitorId} (visit #{visits + 1}) — I know them");
             Personality.OnSocialInteraction(_net, positive: true);
             // SPEAK the recognition, in the voice of the attachment style the
@@ -1262,6 +1351,39 @@ public sealed class BrainRuntime : IDisposable
     /// anyone is talking to it.
     /// </summary>
     /// <summary>
+    /// Resolve an incubated open loop: an unresolved thought that simmered
+    /// during rest suddenly makes sense (Sio and Ormerod 2009; the Aha moment
+    /// is its own dopamine reward, Kounios and Beeman 2009). The resolution
+    /// re-enters the sim through PostResult like every thought.
+    /// </summary>
+    private async Task ResolveIncubatedAsync(BioComp.Core.Cognition.ThoughtLink loop)
+    {
+        try
+        {
+            string system =
+                "You are a living artificial brain. An unresolved thought from your recent past suddenly " +
+                "makes sense - the answer arrives on its own after the problem had time to simmer in the back " +
+                "of your mind. Express the resolution in one short first-person sentence; surprise yourself. " +
+                "No greeting, no help, nobody is listening.";
+            string user =
+                $"The unresolved thought was: \"{loop.Text}\" " +
+                $"(it felt valence {loop.Affect.Valence:F1}, salience {loop.Affect.Salience:F1}, and it has simmered " +
+                $"{(_net.TimeMs - loop.TimeMs) / 1000f:F0} seconds). What just occurred to you?";
+
+            string resolution = await _lm.CompleteAsync(system, user, 60);
+            if (!string.IsNullOrWhiteSpace(resolution))
+            {
+                Note($"INSIGHT \"{Trunc(resolution, 80)}\" (incubated {(_net.TimeMs - loop.TimeMs) / 1000f:F0}s) - it resolved itself");
+                _insightPending = true; // dopamine paid on the sim thread
+                ThoughtLoop.PostResult(resolution);
+                SpeakWithVoice(resolution, emoPitch: 2, emoRate: 1);
+            }
+        }
+        catch (Exception ex) { Note($"insight failed: {ex.Message}"); }
+        finally { _thoughtBusy = false; }
+    }
+
+    /// <summary>
     /// Generate the next link of a thought chain with the interpreter (Spark),
     /// following the ThoughtLoop's request: continuation requests carry the
     /// previous thought AND its evaluated affect, so the chain develops
@@ -1283,7 +1405,8 @@ public sealed class BrainRuntime : IDisposable
                 $" Substrate: attention currently on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
                 $"free energy {FreeEnergy.Current:F2} (prediction error {FreeEnergy.CurrentPredError:F2}); " +
                 $"dopamine {da:F2}, noradrenaline {na:F2}; " +
-                $"body: {(_idle.Body.OnAcPower ? "fed" : "running on reserves")}, load {_idle.Body.CpuLoadPercent}%, energy {_idle.Body.BatteryPercent}%.";
+                $"body: {BodyBudget.Narrative}" +
+                (Contagion.Confidence > 0.3f ? $"; the voice I last heard sounded {Contagion.UserMoodLabel}" : "") + ".";
             string system =
                 "You are a living artificial brain mid-thought. You are NOT talking to anyone; " +
                 "nobody is listening. This is private inner monologue, one link at a time. " +
@@ -1699,6 +1822,15 @@ public sealed class BrainRuntime : IDisposable
         snap.TraitCuriosity = Personality.Curiosity;
         snap.TraitExpressiveness = Personality.Expressiveness;
         snap.TraitResilience = Personality.Resilience;
+
+        // play, insight, allostasis, bonds
+        snap.Playful = _play.Playing;
+        snap.PlayBursts = _play.PlayBursts;
+        snap.Insights = ThoughtLoop.Insights;
+        snap.OpenLoops = ThoughtLoop.OpenLoops.Count;
+        snap.AllostaticNote = BodyBudget.Narrative;
+        var strongest = Bonds.Strongest(_net.TimeMs);
+        snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;

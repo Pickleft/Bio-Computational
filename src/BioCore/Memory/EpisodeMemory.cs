@@ -122,6 +122,21 @@ public sealed class EpisodeMemory
     }
 
     /// <summary>
+    /// Reconsolidation: move an episode's stored valence toward neutral by a
+    /// fraction. Used during sleep replay - REM strips the emotional charge
+    /// from memories while keeping the content (Walker and van der Helm 2009:
+    /// "sleep to forget, sleep to remember"). Stressed sleep (high
+    /// noradrenaline) fails to soften - the caller gates the factor.
+    /// </summary>
+    public void SoftenValence(Episode e, float fraction)
+    {
+        int i = _episodes.IndexOf(e);
+        if (i < 0) return;
+        var softened = _episodes[i] with { Valence = _episodes[i].Valence * (1f - Math.Clamp(fraction, 0f, 0.5f)) };
+        _episodes[i] = softened;
+    }
+
+    /// <summary>
     /// The region's CURRENT sparse code: top-K rate neurons since the last
     /// snapshot. Read-only query with no encode side effects - used to cue
     /// memories by how the network is representing this moment.
