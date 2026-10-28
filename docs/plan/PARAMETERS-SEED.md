@@ -92,3 +92,26 @@ Low budget ⇒ gains ×0.7, sleep pressure +.
 - Masking: report accuracy vs ISI 0-100 ms, ignition-thresholded (Breitmeyer & Öǧmen 2006).
 - Attentional blink: T2 dip at lag 200-500 ms (Raymond, Shapiro & Arnell 1992 JEP:HPP 18).
 - Resting: PSD 1/f + alpha 8-12 Hz quiet-idle ≥ 1.5× adjacent (Hughes & Crunelli 2005 Trends Neurosci 28).
+
+## Intrinsic motivation (Schmidhuber 1991; Oudeyer & Kaplan 2007; Kidd et al. 2012)
+Learning progress = fast-EMA minus slow-EMA of prediction accuracy (tau 4 s / 40 s); Goldilocks
+gate 4n(1-n) on mean novelty; intrinsic reward = progress x 0.35 x gate, released as dopamine
+(0.3 x reward per tick). Feeds exploration action choice.
+
+## Emotional contagion (Hatfield, Cacioppo & Rapson 1993; Juslin & Scherer 2005)
+Prosody-to-affect from real acoustic features (RMS, zero-crossing pitch proxy vs the speaker's
+own running baseline, contour variability across clip thirds): arousal = rms x 3.5 + var x 4;
+valence: high+flat+loud = tense (-0.6), high+lively = excited (+0.6), low+slow = down (-0.4),
+mid = warm (+0.1). Contagion drift 0.15/s x confidence toward the estimate (DA/OXT when warm,
+5-HT drop + NA when negative, NA tracks arousal); confidence decays with 30 s tau of silence.
+
+## Attachment (Bowlby 1969; Ainsworth et al. 1978)
+Warmth EMA from prosodic valence of contacts; responsiveness EMA penalized 12 percent per
+unanswered bid (call-outs), raised 50 percent when a contact follows bids. Styles at 6+
+evidence: secure (responsive+warm, call multiplier 1, exploration +0.25), anxious (warm but
+unresponsive, 1.9x calls), avoidant (cold, 0.4x calls). Persisted with identity.
+
+## Forgetting (Ebbinghaus 1885/2013)
+Retrieval strength = (1 + 0.6 x accesses) x age_min^-0.15; every successful recall/retrieval
+bumps access (spacing effect). Strength caps the cue-similarity term of thought-loop retrieval
+at 1.5x.

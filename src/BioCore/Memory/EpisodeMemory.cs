@@ -11,7 +11,21 @@ public sealed record Episode(
     string[] Tags,
     float Valence,
     float DopamineContext,
-    float SerotoninContext);
+    float SerotoninContext,
+    int AccessCount = 0)
+{
+    /// <summary>
+    /// Retrieval strength: power-law forgetting since encoding, resisted by each
+    /// successful reactivation (Ebbinghaus 1885/2013; the spacing effect is
+    /// reactivation slowing decay). Fresh, often-revisited memories stay strong;
+    /// unvisited ones fade but never vanish outright.
+    /// </summary>
+    public float RetrievalStrength(float nowMs)
+    {
+        float minutes = MathF.Max(1f, (nowMs - TimeMs) / 60_000f);
+        return (1f + AccessCount * 0.6f) * MathF.Pow(minutes, -0.15f);
+    }
+}
 
 /// <summary>
 /// Hippocampal-like fast episodic store. Encoding captures the currently active sparse
@@ -76,7 +90,10 @@ public sealed class EpisodeMemory
         return ep;
     }
 
-    /// <summary>Recall: rank by tag overlap x recency x valence.</summary>
+    /// <summary>Recall: rank by tag overlap x recency x valence. Recalled
+    /// episodes are TOUCHED - each successful reactivation strengthens the
+    /// trace against forgetting (spacing effect). The returned episodes are
+    /// the strengthened copies.</summary>
     public List<Episode> Recall(IReadOnlyList<string> queryTags, int max = 5)
     {
         float Score(Episode e)
@@ -88,7 +105,20 @@ public sealed class EpisodeMemory
             float ageHr = MathF.Max(0.25f, e.TimeMs / 3_600_000f);
             return overlap * 2f + 1f / ageHr + MathF.Max(0f, e.Valence) * 0.5f;
         }
-        return _episodes.OrderByDescending(Score).Take(max).ToList();
+        var top = _episodes.OrderByDescending(Score).Take(max).ToList();
+        for (int i = 0; i < top.Count; i++) top[i] = Touch(top[i]);
+        return top;
+    }
+
+    /// <summary>Mark an episode as reactivated: bumps its access count in
+    /// place, strengthening it against forgetting. Returns the strengthened
+    /// copy.</summary>
+    public Episode Touch(Episode e)
+    {
+        int i = _episodes.IndexOf(e);
+        var touched = e with { AccessCount = e.AccessCount + 1 };
+        if (i >= 0) _episodes[i] = touched;
+        return touched;
     }
 
     /// <summary>

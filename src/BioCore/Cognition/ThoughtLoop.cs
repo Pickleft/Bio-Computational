@@ -337,12 +337,14 @@ public sealed class ThoughtLoop
     /// <summary>Episode retrieval score: neural-code similarity, symbolic tag
     /// overlap, mood congruence (Bower 1981), recency and emotional
     /// significance, blended by the developmental weight wCode (0 = words, 1 =
-    /// neurons).</summary>
+    /// neurons). retrievalStrength is Ebbinghaus forgetting resistance: often
+    /// revisited memories surface more easily than faded ones.</summary>
     public static float ScoreEpisode(int tagOverlap, float codeSimilarity, float moodValence,
-        float episodeValence, float ageSec, float wCode)
+        float episodeValence, float ageSec, float wCode, float retrievalStrength = 1f)
     {
         float congruence = MathF.Abs(episodeValence - moodValence) < 0.35f ? 1.2f : 0.2f;
-        return (1f - wCode) * tagOverlap * 2f + wCode * codeSimilarity * 6f
+        return ((1f - wCode) * tagOverlap * 2f + wCode * codeSimilarity * 6f)
+            * MathF.Min(1.5f, retrievalStrength)
             + congruence + 2f / MathF.Sqrt(MathF.Max(1f, ageSec)) + MathF.Abs(episodeValence) * 0.4f;
     }
 

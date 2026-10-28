@@ -52,7 +52,7 @@ function pickVoice() {
   ];
   for (const re of prefer) {
     const v = voices.find((x) => re.test(x.name));
-    if (v) return v;
+    if (v) { console.log("[voice] using", v.name); return v; }
   }
   return voices.find((v) => /^en/i.test(v.lang)) || voices[0];
 }
@@ -67,7 +67,10 @@ function speakBrain(s) {
     u.pitch = s.SpeakPitch || 1;
     u.onstart = () => { window.brainBrowserSpeaking = true; };
     u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
-    speechSynthesis.cancel(); // one thought at a time: the brain interrupts itself
+    // one thought at a time: the brain interrupts itself - but only cancel
+    // when something is actually speaking (cancel+speak back-to-back can
+    // silently drop the utterance in some browsers)
+    if (speechSynthesis.speaking) speechSynthesis.cancel();
     speechSynthesis.speak(u);
   }
 }
@@ -75,6 +78,20 @@ function speakBrain(s) {
 if ("speechSynthesis" in window) {
   pickedVoice = pickVoice();
   speechSynthesis.onvoiceschanged = () => { pickedVoice = pickVoice(); };
+  // mobile autoplay policy: speech needs one user gesture before it can
+  // start. Unlock on the first tap/click anywhere, then re-pick voices
+  // (Android populates the voice list only after interaction).
+  const unlock = () => {
+    try {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      speechSynthesis.speak(u);
+      pickedVoice = pickVoice();
+      console.log("[voice] unlocked by user gesture");
+    } catch { }
+    document.removeEventListener("pointerdown", unlock);
+  };
+  document.addEventListener("pointerdown", unlock);
 }
 
 fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; });

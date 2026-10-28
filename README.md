@@ -141,7 +141,7 @@ commit (Oct 27) contains only the empty scaffold plus pre-event planning notes i
 | Emotionally reinforced thought-recycling loop: thoughts chain link by link, each evaluated on four independent affect channels, carried by neuromodulator releases, re-injected as inner speech, written to episodic memory; somatic appraisal (the substrate's measured response votes on each thought, Damasio 1996); retrieval develops from word tags toward neural-code similarity; associative + mood-congruent (Bower 1981); habituation and displacement regulate rumination | src/BioCore/Cognition/ThoughtLoop.cs, src/BioHost | this week, see git log |
 | Developing voice: prosody learned from heard voices (ZCR pitch proxy, energy, syllable rate), babble vocabulary from heard syllables, vocal mimicry of non-verbal sounds, natural browser neural voices with the brain's own prosody on every watching device | src/BioHost/VoiceSelf.cs, src/BioHost/Speech.cs | this week, see git log |
 | Daemon + live dashboard (10 Hz WebSocket UI, thought-process feed, thought-thread panel, TTS, checkpoints) | src/BioHost, src/BioDashboard | afea947 |
-| Test suite: 90 tests (determinism, Dale, STDP signs, checkpoint identity, sleep cycle, replay, episodes, thought loop...) | tests/BioCore.Tests | all of the above |
+| Test suite: 101 tests (determinism, Dale, STDP signs, checkpoint identity, sleep cycle, replay, episodes, thought loop, curiosity, contagion, attachment, forgetting...) | tests/BioCore.Tests | all of the above |
 
 ## Documentation
 

@@ -18,10 +18,13 @@ public static class IdentityPersistence
         int TotalSocial, int TotalExplorations, int TotalStressors,
         Dictionary<string, int> KnownVisitors,
         float LonelinessLevel,
-        string PersonalityDescription);
+        string PersonalityDescription,
+        float AttachmentWarmth = 0, float AttachmentResponsiveness = 0,
+        int AttachmentSeparations = 0, int AttachmentContacts = 0,
+        int AttachmentStyle = 0);
 
     public static void Save(EmergentPersonality personality, LonelinessTracker loneliness,
-        Dictionary<string, int> socialBonds)
+        Dictionary<string, int> socialBonds, AttachmentSystem? attachment = null)
     {
         try
         {
@@ -32,7 +35,10 @@ public static class IdentityPersistence
                 personality.TotalSocial, personality.TotalExplorations, personality.TotalStressors,
                 socialBonds,
                 loneliness.Level,
-                personality.Describe());
+                personality.Describe(),
+                attachment?.Warmth ?? 0, attachment?.Responsiveness ?? 0,
+                attachment?.Separations ?? 0, attachment?.Contacts ?? 0,
+                (int)(attachment?.Style ?? 0));
             File.WriteAllText(FileName, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { /* identity persistence must never crash the brain */ }

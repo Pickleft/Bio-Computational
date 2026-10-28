@@ -19,7 +19,8 @@ let particles = [];
 let eyeState = { x: 0, y: 0, blink: 0, nextBlink: 0, widen: 0 };
 let bodyPhase = 0;
 let lastRate = 0;
-let smoothing = { da: 0.3, sht: 0.5, na: 0.2, ach: 0.3, hist: 0.6, rate: 0.1, valence: 0, arousal: 0.3, pressure: 0, lonely: 0 };
+let smoothing = { da: 0.3, sht: 0.5, na: 0.2, ach: 0.3, hist: 0.6, rate: 0.1, valence: 0, arousal: 0.3, pressure: 0, lonely: 0,
+  traitCuriosity: 0, traitExpressiveness: 0, userValence: 0, empathy: 0 };
 
 function initAvatar() {
   avatarCanvas = document.getElementById("avatar");
@@ -66,6 +67,21 @@ function updateAvatarState(s) {
   smoothing.arousal += (s.Arousal - smoothing.arousal) * k;
   smoothing.pressure += (s.SleepPressure - smoothing.pressure) * k;
   smoothing.lonely += ((s.SocialBonds ? 1 / Math.max(1, Object.keys(s.SocialBonds).length) : 0.5) - smoothing.lonely) * k * 0.1;
+
+  // WHO THE BRAIN BECAME shapes its resting face: a curious, expressive brain
+  // rests interested (brows sit higher); learned detachment flattens it
+  smoothing.traitCuriosity += ((s.TraitCuriosity || 0) - smoothing.traitCuriosity) * k * 0.2;
+  smoothing.traitExpressiveness += ((s.TraitExpressiveness || 0) - smoothing.traitExpressiveness) * k * 0.2;
+  // empathy by contagion: while someone is talking, the face starts mirroring
+  // THEIR mood (that is literally what emotional contagion looks like)
+  smoothing.userValence += ((s.UserValence || 0) - smoothing.userValence) * k;
+  smoothing.empathy += ((s.EmpathyConfidence || 0) - smoothing.empathy) * k;
+}
+
+// the displayed valence: its own feeling, blended toward the speaker's
+// estimated mood in proportion to empathy confidence
+function displayedValence() {
+  return smoothing.valence * (1 - 0.55 * smoothing.empathy) + smoothing.userValence * 0.55 * smoothing.empathy;
 }
 
 function animateAvatar() {
@@ -217,10 +233,16 @@ function animateAvatar() {
   // angry: inner ends pulled down (negative valence + arousal)
   // sad/worried: inner ends pulled up (negative valence, low arousal)
   // happy: gently raised. surprised: lifted high with the widening eyes
-  const browY = eyeY - eyeR * 1.6;
-  const angryAmt = Math.max(0, -smoothing.valence) * Math.min(1, smoothing.arousal * 2);
-  const sadAmt = Math.max(0, -smoothing.valence) * Math.max(0, 1 - smoothing.arousal * 2);
-  const happyAmt = Math.max(0, smoothing.valence);
+  // the RESTING position carries the learned personality: curiosity and
+  // expressiveness raise the resting brow (an interested face), learned
+  // distance (avoidant attachment) flattens it
+  const dispVal = displayedValence();
+  const restLift = Math.max(0, smoothing.traitCuriosity) * 0.35 + Math.max(0, smoothing.traitExpressiveness) * 0.25
+    - (lastSnapshot && lastSnapshot.Attachment === "avoidant" ? 0.3 : 0);
+  const browY = eyeY - eyeR * (1.6 + restLift * 0.8);
+  const angryAmt = Math.max(0, -dispVal) * Math.min(1, smoothing.arousal * 2);
+  const sadAmt = Math.max(0, -dispVal) * Math.max(0, 1 - smoothing.arousal * 2);
+  const happyAmt = Math.max(0, dispVal);
   for (const side of [-1, 1]) {
     const bx = cx + side * eyeSpacing;
     const innerX = bx - side * eyeR * 0.9;
@@ -254,11 +276,13 @@ function animateAvatar() {
   }
 
   // === MOUTH (emotional expression + speaking animation) ===
-  // valence drives curvature: positive = smile, negative = frown
-  // when speaking, the mouth opens and closes rhythmically
+  // displayed valence (own feeling, empathy-mirrored); the mouth's amplitude
+  // when speaking scales with learned expressiveness - an expressive brain
+  // articulates visibly, a reserved one barely moves its lips
   const mouthY = cy + baseR * 0.25;
   const mouthW = baseR * 0.4;
-  const curve = smoothing.valence * baseR * 0.15;
+  const curve = dispVal * baseR * 0.15;
+  const expressAmt = 0.65 + 0.7 * Math.max(0, smoothing.traitExpressiveness);
 
   // speaking animation: mouth opens/closes rapidly
   if (isSpeaking) {
@@ -269,8 +293,9 @@ function animateAvatar() {
 
   // draw the mouth as a filled shape when speaking, or a line when silent
   if (mouthOpen > 0.05) {
-    // open mouth (speaking): an ellipse that varies with mouthOpen
-    const mo = mouthOpen * baseR * 0.12;
+    // open mouth (speaking): an ellipse that varies with mouthOpen, sized by
+    // how expressive this brain has learned to be
+    const mo = mouthOpen * baseR * 0.12 * expressAmt;
     ctx.save();
     ctx.beginPath();
     ctx.ellipse(cx, mouthY + curve * 0.5, mouthW * 0.7, mo, 0, 0, Math.PI * 2);
@@ -341,6 +366,15 @@ function animateAvatar() {
         `${lastSnapshot.VoiceClipsHeard} voices heard` +
         (lastSnapshot.VoiceMimicries > 0 ? `, ${lastSnapshot.VoiceMimicries} sounds mimicked` : "");
       ctx.fillText(voiceText, cx, cy + baseR * 0.55 + 14);
+    }
+    // who it BECAME: attachment style + learned traits, under the voice line
+    if (lastSnapshot.Attachment && lastSnapshot.Attachment !== "") {
+      ctx.fillStyle = `hsla(${hue}, 30%, 70%, ${0.25 + smoothing.hist * 0.25})`;
+      ctx.font = `500 9px ${"'Inter', sans-serif"}`;
+      const grew = `grew: ${lastSnapshot.Attachment} attachment` +
+        (lastSnapshot.EmpathyConfidence > 0.3 ? `, mirroring a ${lastSnapshot.UserMood || "neutral"} voice` : "") +
+        (lastSnapshot.CuriosityReward > 0.2 ? `, learning something new` : "");
+      ctx.fillText(grew, cx, cy + baseR * 0.55 + 26);
     }
     ctx.textAlign = "left";
   }

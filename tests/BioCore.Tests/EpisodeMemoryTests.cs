@@ -38,7 +38,9 @@ public class EpisodeMemoryTests : IDisposable
         Assert.Contains(ep!.CodeNeurons, n => driven.Contains(n));
 
         var recalled = net.EpisodeStore.Recall(["person"]);
-        Assert.Contains(ep, recalled);
+        // recall now STRENGTHENS the trace (spacing effect): the returned copy
+        // carries the bumped access count
+        Assert.Contains(recalled, r => r.Id == ep!.Id && r.AccessCount >= 1);
     }
 
     [Fact]

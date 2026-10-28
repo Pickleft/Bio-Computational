@@ -123,6 +123,22 @@ public sealed class VoiceSelf
         return crossings / (float)clip.Length;
     }
 
+    /// <summary>
+    /// Acoustic profile of a clip for prosody-based affect estimation: energy,
+    /// pitch proxy (zero-crossing rate) and their variabilities across thirds
+    /// of the clip (rising/falling contours matter, not just levels).
+    /// </summary>
+    public static (float Rms, float Zcr, float ZcrVariability, float RmsVariability) AcousticProfile(short[] clip)
+    {
+        int third = Math.Max(1, clip.Length / 3);
+        float r0 = Rms(clip[..third]), r1 = Rms(clip[third..(2 * third)]), r2 = Rms(clip[(2 * third)..]);
+        float z0 = ZeroCrossingRate(clip[..third]), z1 = ZeroCrossingRate(clip[third..(2 * third)]), z2 = ZeroCrossingRate(clip[(2 * third)..]);
+        float rm = (r0 + r1 + r2) / 3f, zm = (z0 + z1 + z2) / 3f;
+        float rVar = (MathF.Abs(r0 - rm) + MathF.Abs(r1 - rm) + MathF.Abs(r2 - rm)) / 3f;
+        float zVar = (MathF.Abs(z0 - zm) + MathF.Abs(z1 - zm) + MathF.Abs(z2 - zm)) / 3f;
+        return (rm, zm, zVar, rVar);
+    }
+
     private static int SyllableCount(string t)
     {
         int c = 0; bool vowel = false;

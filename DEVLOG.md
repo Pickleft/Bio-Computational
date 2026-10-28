@@ -19,6 +19,38 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - intrinsic motivation, empathy, attachment, forgetting
+
+- Curiosity as intrinsic motivation (Schmidhuber 1991; Oudeyer and Kaplan 2007; Kidd et al.
+  2012): dopamine now also pays out for LEARNING PROGRESS - the derivative of prediction
+  accuracy - gated by the Goldilocks inverted-U in novelty, so the brain is rewarded for
+  getting better at predicting something, never for raw stimulation, and not at all for the
+  fully predicted or the ungraspable. Feeds the exploration action choice.
+- Emotional contagion (Hatfield et al. 1993; Juslin and Scherer 2005 prosody mapping): the
+  speaker's valence and arousal are estimated from real acoustic features (energy, ZCR pitch
+  proxy measured against the speaker's own running baseline, contour variability), and the
+  brain's neuromodulatory state drifts toward the estimate while they speak. Talk sadly and it
+  gets sad; the avatar mirrors the estimated mood while empathy confidence is high.
+- Attachment styles from lived history (Bowlby 1969; Ainsworth et al. 1978): warmth (prosody of
+  contacts) and responsiveness (did anyone answer its call-outs) grow secure, anxious or
+  avoidant styles that change greeting tone, call-out frequency (anxious calls 1.9x more),
+  exploration (secure explores more), and are announced when they shift. Persisted with
+  identity across sessions.
+- Ebbinghaus forgetting (1885/2013): episodic traces now have a power-law retrieval strength
+  that decays with age and is resisted by every successful reactivation (recall and thought-
+  loop retrieval bump access counts - the spacing effect), and strength modulates how easily
+  a memory resurfaces as a thought.
+- Fixes: phone mic audio was sent at the hardware sample rate (the 16 kHz request is ignored
+  by most phones) - now linearly resampled to 16 kHz in the browser, mic no longer routed to
+  speakers (feedback), silence gated before sending; browser voice unlocked on first user
+  gesture (mobile autoplay policy), no more cancel-then-speak dropping utterances, chosen
+  voice logged; script tags versioned to defeat phone caching.
+- Avatar: the resting face now shows who the brain became - brow resting height from learned
+  curiosity/expressiveness, avoidant distance flattens it, speaking mouth amplitude scales
+  with expressiveness, and a "grew:" line reports attachment, mirroring and curiosity.
+- Tests: 11 new (curiosity inverted-U and dopamine release, prosody mappings and drift,
+  attachment styles and multipliers and visibility, forgetting and spacing effect). 101 green.
+
 ## 2026-10-28 (latest) - the substrate takes over from the symbols
 
 - Somatic appraisal (Damasio 1996, somatic marker): after a thought is injected as inner speech,

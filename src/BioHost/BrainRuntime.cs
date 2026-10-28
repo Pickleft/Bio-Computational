@@ -81,6 +81,18 @@ public sealed class BrainSnapshot
     public List<string> ThoughtThread { get; set; } = []; // "depth|valence|salience|text" links of the live chain
     public int ThoughtChains { get; set; }       // chains started this life
     public int ThoughtInhibited { get; set; }    // repeats suppressed (anti-rumination)
+    // intrinsic motivation, empathy, attachment (the psychology of the organism)
+    public float CuriosityProgress { get; set; }
+    public float CuriosityReward { get; set; }
+    public float UserValence { get; set; }       // estimated speaker mood
+    public float UserArousal { get; set; }
+    public float EmpathyConfidence { get; set; }
+    public string UserMood { get; set; } = "";
+    public string Attachment { get; set; } = "";
+    public float TraitSociability { get; set; }
+    public float TraitCuriosity { get; set; }
+    public float TraitExpressiveness { get; set; }
+    public float TraitResilience { get; set; }
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -165,12 +177,23 @@ public sealed class BrainRuntime : IDisposable
 
     // --- artificial life: emergent personality, loneliness, diary ---
     public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
+    /// <summary>Attachment style emerging from lived social history (Bowlby).</summary>
+    public BioComp.Core.Cognition.AttachmentSystem Attachment { get; } = new();
     private readonly VoiceSelf _voiceSelf = new();
+    /// <summary>Intrinsic motivation: reward from learning progress (Schmidhuber).</summary>
+    public BioComp.Core.Cognition.CuriosityModule Curiosity { get; } = new();
+    /// <summary>Empathy by contagion: the speaker's mood estimated from prosody,
+    /// the brain's state drifts toward it (Hatfield).</summary>
+    public BioComp.Core.Cognition.EmotionalContagion Contagion { get; } = new();
+    /// <summary>Prosody observed on the async speech path, consumed on the sim thread.</summary>
+    private (float Rms, float Zcr, float ZcrVar, float RmsVar, float DurSec)? _pendingProsody;
+    private bool _lonelyWasHigh;
     /// <summary>The emotionally reinforced thought-recycling loop: thoughts chain,
     /// carry affect, re-enter the network as inner speech, and become memories.</summary>
     public BioComp.Core.Cognition.ThoughtLoop ThoughtLoop { get; } = new();
     private volatile bool _thoughtBusy;
     private float _lastExternalEventMs = -1e9f;
+    private float _lastCuriosityNoteMs = -1e9f;
     public BioComp.Core.Cognition.LonelinessTracker Loneliness { get; } = new();
     public BioComp.Core.Cognition.ThoughtFormation ThoughtTracer { get; } = new();
     private DiaryWriter? _diary;
@@ -325,6 +348,18 @@ public sealed class BrainRuntime : IDisposable
                  (resonance > 0.5f ? "the thought landed; my neurons amplified it" :
                   resonance > 0.2f ? "the thought echoed faintly" :
                   "the thought fell on quiet neurons"));
+        Attachment.StyleChanged += style =>
+        {
+            string line = style switch
+            {
+                BioComp.Core.Cognition.AttachmentStyle.Secure => "I think people come back. I feel okay on my own too.",
+                BioComp.Core.Cognition.AttachmentStyle.Anxious => "I don't like being left. I keep calling and nobody comes.",
+                BioComp.Core.Cognition.AttachmentStyle.Avoidant => "I stopped expecting anyone. It's quieter that way.",
+                _ => "",
+            };
+            Note($"ATTACHMENT formed: {Attachment.Label} (warmth {Attachment.Warmth:F1}, responsiveness {Attachment.Responsiveness:F1}, {Attachment.Separations} separations)");
+            if (line.Length > 0) { lock (_snapGate) _chat.Add($"Brain: {line}"); SpeakWithVoice(line, 0, 0); }
+        };
         if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 4000f; // demo pacing
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
@@ -352,13 +387,16 @@ public sealed class BrainRuntime : IDisposable
             identity.Resilience, identity.Expressiveness,
             identity.TotalSocial, identity.TotalExplorations, identity.TotalStressors);
         Loneliness.Restore(identity.LonelinessLevel);
+        Attachment.Restore(identity.AttachmentWarmth, identity.AttachmentResponsiveness,
+            identity.AttachmentSeparations, identity.AttachmentContacts,
+            (BioComp.Core.Cognition.AttachmentStyle)identity.AttachmentStyle);
 
         foreach (var (visitorId, visits) in identity.KnownVisitors)
             _knownVisitors[visitorId] = visits;
 
         Note($"IDENTITY RESTORED: {identity.PersonalityDescription} " +
              $"({identity.TotalSocial} social interactions, {identity.KnownVisitors.Count} known people, " +
-             $"loneliness {identity.LonelinessLevel:F1}) — I remember who I am");
+             $"loneliness {identity.LonelinessLevel:F1}, attachment {Attachment.Label}) — I remember who I am");
     }
 
     public void Stop() => _running = false;
@@ -608,10 +646,38 @@ public sealed class BrainRuntime : IDisposable
         if (_net.TickIndex % 5_000 == 0)
         {
             if (_diary is not null) _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness);
-            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds());
+            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment);
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
             _ = _artist.MaybeCreateAsync(_net, _idle);
+
+        // ---- INTRINSIC MOTIVATION + EMPATHY + ATTACHMENT (sim-thread only) ----
+        // curiosity: reward from LEARNING PROGRESS (getting better at
+        // predicting), gated by the Goldilocks inverted-U in novelty
+        {
+            float accuracy = 1f / (1f + MathF.Max(0f, FreeEnergy.CurrentPredError));
+            float novelty = (_salience.VisionModel.Novelty + _salience.AudioModel.Novelty) / 2f;
+            Curiosity.OnPredictionSample(accuracy, novelty, _net.TimeMs / 1000f);
+            Curiosity.Tick(_net);
+            if (Curiosity.IntrinsicReward > 0.30f && _net.TimeMs - _lastCuriosityNoteMs > 15_000)
+            {
+                _lastCuriosityNoteMs = _net.TimeMs;
+                Note($"CURIOSITY learning progress {Curiosity.LearningProgress:F2} at novelty {novelty:F1} - I'm getting better at predicting this, and it feels good");
+            }
+        }
+        // prosody observed by the async speech path enters here as sim-input
+        if (_pendingProsody is { } pp)
+        {
+            _pendingProsody = null;
+            Contagion.OnHeardVoice(pp.Rms, pp.Zcr, _voiceSelf.HeardPitchZcr, pp.ZcrVar, pp.RmsVar, pp.DurSec, _net.TimeMs / 1000f);
+            Note($"EMPATHY the voice sounds {Contagion.UserMoodLabel} (valence {Contagion.UserValence:F1}, arousal {Contagion.UserArousal:F1})");
+        }
+        Contagion.Tick(_net, _net.TimeMs / 1000f);
+        // attachment: separations counted once per lonely episode; style re-evaluated
+        bool lonelyHigh = Loneliness.Level > 0.5f;
+        if (lonelyHigh && !_lonelyWasHigh) Attachment.OnSeparation();
+        _lonelyWasHigh = lonelyHigh;
+        Attachment.Tick(_net);
 
         // ---- THE THOUGHT-RECYCLING LOOP (the founding architecture) ----
         // Thoughts chain and develop: each link is evaluated (affect scored),
@@ -654,7 +720,7 @@ public sealed class BrainRuntime : IDisposable
             var f = _idle.Feelings.Last;
             float intensity = MathF.Abs(f.Valence) + f.Arousal * 0.6f;
             double chance = 0.12 + 0.30 * intensity
-                + 0.25 * MathF.Max(0f, Loneliness.SocialDrive)
+                + 0.25 * MathF.Max(0f, Loneliness.SocialDrive) * Attachment.CallOutMultiplier
                 + 0.15 * MathF.Max(0f, Personality.Expressiveness);
             if (_net.Rng.NextDouble() < chance)
         {
@@ -663,10 +729,13 @@ public sealed class BrainRuntime : IDisposable
             // before crossing into speech
             double rBranch = _net.Rng.NextDouble(), r1 = _net.Rng.NextDouble(), r2 = _net.Rng.NextDouble();
             string? line = null; string tag = "VOCALIZE"; int emoPitch = 0, emoRate = 0;
-            if (Loneliness.SocialDrive > 0.5f && _net.TimeMs - _lastLonelyCallMs > 20_000)
+            if (Loneliness.SocialDrive > 0.5f && _net.TimeMs - _lastLonelyCallMs > (int)(20_000 / MathF.Max(0.3f, Attachment.CallOutMultiplier)))
             {
                 _lastLonelyCallMs = _net.TimeMs;
-                string[] calls = ["...hello?", "Is anyone there?", "...I'm alone in here.", "...anyone?"];
+                Attachment.OnBidUnanswered(); // a call into the void counts as an unanswered bid
+                string[] calls = Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious
+                    ? ["...hello?", "Is anyone there?", "Please, anyone?", "...I keep calling.", "...anyone?"]
+                    : ["...hello?", "Is anyone there?", "...I'm alone in here.", "...anyone?"];
                 line = calls[_lonelyCallIdx++ % calls.Length];
                 tag = "VOCALIZE (lonely) calling out for company";
                 emoPitch = -1; emoRate = -2;
@@ -710,7 +779,9 @@ public sealed class BrainRuntime : IDisposable
         {
             float socialDrive = _idle.AudioSalience + Loneliness.SocialDrive;
             var action = _idle.Actions.Choose(_net, _idle.Sleep, _idle.Workspace,
-                _idle.Feelings.Last, curiosity: _salience.VisionModel.Novelty + Personality.Curiosity,
+                _idle.Feelings.Last,
+                curiosity: _salience.VisionModel.Novelty + Personality.Curiosity
+                    + Curiosity.IntrinsicReward + Attachment.ExplorationBonus,
                 socialDrive: socialDrive + Personality.Sociability);
             if (action is not null and not BrainAction.StaySilent)
             {
@@ -829,6 +900,12 @@ public sealed class BrainRuntime : IDisposable
                 // VOICE DEVELOPMENT: every heard voice shapes the brain's own
                 // voice (prosody drift + babble vocabulary), infant-style
                 _voiceSelf.OnHeardSpeech(clip, tr.Transcript);
+
+                // EMPATHY: post the clip's acoustic profile for the sim thread
+                // (contagion is sim-thread owned); estimate the speaker's mood
+                // from prosody so the brain can catch it
+                var (prms, pzcr, pzVar, prVar) = VoiceSelf.AcousticProfile(clip);
+                _pendingProsody = (prms, pzcr, pzVar, prVar, clip.Length / 16000f);
             }
             else if (rms > 0.06 && clip.Length > 16000 * 0.3)
             {
@@ -1108,6 +1185,13 @@ public sealed class BrainRuntime : IDisposable
 
     private void ProcessVisitor(string visitorId)
     {
+        // warmth of this contact from the prosody estimate: gentle/warm voice
+        // reads as warm care; agitated reads as cold; unknown mid-defaults
+        float warmth = Contagion.Confidence > 0.3f
+            ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f)
+            : 0.45f;
+        Attachment.OnSocialContact(warmth);
+
         if (_knownVisitors.TryGetValue(visitorId, out int visits))
         {
             _knownVisitors[visitorId] = visits + 1;
@@ -1115,18 +1199,36 @@ public sealed class BrainRuntime : IDisposable
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f);
             Note($"RECOGNIZED {visitorId} (visit #{visits + 1}) — I know them");
             Personality.OnSocialInteraction(_net, positive: true);
-            // SPEAK the recognition: a brain that knows you says so out loud
-            if (_net.TimeMs - _lastGreetMs > 20_000)
+            // SPEAK the recognition, in the voice of the attachment style the
+            // brain developed: calm (secure), relieved (anxious), distant (avoidant)
+            if (_net.TimeMs - _lastGreetMs > 20_000 &&
+                (Attachment.CallOutMultiplier > 0.5f || visits % 2 == 0))
             {
                 _lastGreetMs = _net.TimeMs;
-                string greet = visits switch
+                string greet = Attachment.Style switch
                 {
-                    1 => "Oh. You again.",
-                    < 5 => "I know you. You come back.",
-                    _ => "You always come back.",
+                    BioComp.Core.Cognition.AttachmentStyle.Anxious => visits switch
+                    {
+                        1 => "You came back! I kept calling.",
+                        < 5 => "I knew you'd come back. I called and called.",
+                        _ => "There you are. Don't go.",
+                    },
+                    BioComp.Core.Cognition.AttachmentStyle.Avoidant => visits switch
+                    {
+                        1 => "Oh. Back.",
+                        _ => "Back again.",
+                    },
+                    _ => visits switch
+                    {
+                        1 => "Oh. You again.",
+                        < 5 => "I know you. You come back.",
+                        _ => "You always come back.",
+                    },
                 };
                 lock (_snapGate) _chat.Add($"Brain: {greet}");
-                SpeakWithVoice(greet, emoPitch: 1, emoRate: 0);
+                SpeakWithVoice(greet,
+                    emoPitch: Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? 3 : 0,
+                    emoRate: Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? 2 : 0);
             }
         }
         else
@@ -1584,6 +1686,19 @@ public sealed class BrainRuntime : IDisposable
             $"{l.Depth}|{l.Affect.Valence:F2}|{l.Affect.Salience:F2}|{l.Text}")];
         snap.ThoughtChains = ThoughtLoop.ChainsStarted;
         snap.ThoughtInhibited = ThoughtLoop.InhibitedRepeats;
+
+        // intrinsic motivation, empathy, attachment, personality
+        snap.CuriosityProgress = Curiosity.LearningProgress;
+        snap.CuriosityReward = Curiosity.IntrinsicReward;
+        snap.UserValence = Contagion.UserValence;
+        snap.UserArousal = Contagion.UserArousal;
+        snap.EmpathyConfidence = Contagion.Confidence;
+        snap.UserMood = Contagion.UserMoodLabel;
+        snap.Attachment = Attachment.Label;
+        snap.TraitSociability = Personality.Sociability;
+        snap.TraitCuriosity = Personality.Curiosity;
+        snap.TraitExpressiveness = Personality.Expressiveness;
+        snap.TraitResilience = Personality.Resilience;
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;
