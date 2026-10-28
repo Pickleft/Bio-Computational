@@ -72,6 +72,14 @@ public sealed class BrainSnapshot
     public float[] LfpSignal { get; set; } = []; // raw time-domain signal for the scrolling EEG
     public float[] StimulusPosition { get; set; } = [0.5f, 0.5f]; // normalized [x, y] the avatar eyes track
     public bool IsSpeaking { get; set; }
+    public float Phi { get; set; }
+    public string PhiStateLabel { get; set; } = "";
+    public float[] PhiHistory { get; set; } = [];
+    public float FreeEnergyValue { get; set; }
+    public float FreeEnergyError { get; set; }
+    public List<float[]> FreeEnergyHistory { get; set; } = [];
+    public List<float[]> ManifoldProjection { get; set; } = [];
+    public float ManifoldDimensionality { get; set; }
     public List<float[]> Raster { get; set; } = [];   // [tSec, neuronFrac, regionIdx]
     public List<string> Thought { get; set; } = [];   // the thinking-process feed
     public List<string> Monologues { get; set; } = [];
@@ -116,6 +124,11 @@ public sealed class BrainRuntime : IDisposable
     private readonly uint[] _regionLastCounts;
     private MapData? _mapData;
     public BioComp.Core.Metrics.LfpProxy Lfp { get; } = new();
+    public BioComp.Core.Metrics.FreeEnergyMonitor FreeEnergy { get; } = new();
+    public BioComp.Core.Metrics.NeuralManifold Manifold { get; } = new();
+    public float Phi { get; private set; }
+    public string PhiLabel { get; private set; } = "";
+    private float[] _phiHistory = [];
     private readonly float[] _lfpRing = new float[500]; // ~5s at 100ms sampling
     private int _lfpRingPos;
     private readonly List<short> _audioBuffer = [];
@@ -363,6 +376,26 @@ public sealed class BrainRuntime : IDisposable
         Lfp.AddSample(lfp);
         _lfpRing[_lfpRingPos] = lfp;
         _lfpRingPos = (_lfpRingPos + 1) % _lfpRing.Length;
+
+        // ---- NOBEL-LEVEL METRICS (computed at appropriate intervals) ----
+        // Φ (integrated information) every 2s (expensive)
+        if (_net.TickIndex % 2_000 == 0 && _net.TickIndex > 0)
+        {
+            var phiResult = BioComp.Core.Metrics.IntegratedInformation.Measure(_net, _idle.Sleep.State);
+            Phi = phiResult.Phi;
+            PhiLabel = phiResult.State;
+            Array.Resize(ref _phiHistory, Math.Min(_phiHistory.Length + 1, 120));
+            _phiHistory[^1] = Phi;
+        }
+
+        // free energy every 100ms (cheap)
+        if (_net.TickIndex % 100 == 0 && _lastRegionRates is { Length: > 0 })
+        {
+            float totalActivity = 0;
+            foreach (var r in _lastRegionRates) totalActivity += r;
+            FreeEnergy.Update(_net, totalActivity);
+            Manifold.Update(_lastRegionRates);
+        }
 
         // ---- vision ----
         if (_mockCamera is not null) _mockCamera.Advance(1);
@@ -1145,6 +1178,16 @@ public sealed class BrainRuntime : IDisposable
         snap.LfpSignal = lfpSignal;
         snap.StimulusPosition = _stimulusPos;
         snap.IsSpeaking = _speech.IsSpeaking;
+
+        // NOBEL-LEVEL METRICS
+        snap.Phi = Phi;
+        snap.PhiStateLabel = PhiLabel;
+        snap.PhiHistory = _phiHistory;
+        snap.FreeEnergyValue = FreeEnergy.Current;
+        snap.FreeEnergyError = FreeEnergy.CurrentPredError;
+        snap.FreeEnergyHistory = [.. FreeEnergy.History.TakeLast(120).Select(h => new[] { h.TimeMs, h.FreeEnergy, h.PredError })];
+        snap.ManifoldProjection = [.. Manifold.Projection.Select(p => new[] { p.X, p.Y })];
+        snap.ManifoldDimensionality = Manifold.Dimensionality;
 
         lock (_snapGate) _latest = snap;
     }

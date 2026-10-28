@@ -72,6 +72,9 @@ function render(s) {
   if (typeof brainMusicTick === "function") brainMusicTick(s);
   if (typeof updateAvatarState === "function") updateAvatarState(s);
   if (typeof drawEEG === "function") drawEEG(s);
+  if (typeof drawPhiGauge === "function") drawPhiGauge(s);
+  if (typeof drawFreeEnergy === "function") drawFreeEnergy(s);
+  if (typeof drawManifold === "function") drawManifold(s);
 
   $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
 
