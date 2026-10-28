@@ -19,6 +19,12 @@ public sealed class VoiceSelf
     private readonly object _gate = new();
     private readonly Dictionary<string, int> _syllables = [];
     private readonly List<(float Energy, float Zcr, float Dur)> _heardSounds = [];
+    private static readonly HashSet<string> StopWords = new(
+        ["the", "and", "that", "this", "with", "just", "what", "when", "then", "than", "have", "been",
+         "were", "will", "would", "could", "about", "maybe", "because", "there", "their", "these",
+         "those", "some", "more", "most", "very", "really", "like", "know", "them", "they", "your",
+         "you", "was", "are", "for", "but", "not", "all", "can", "how", "who", "why", "get", "got",
+         "its", "it's", "dont", "doesn", "isn", "him", "her", "she", "hes", "she's"], StringComparer.OrdinalIgnoreCase);
 
     /// Running averages of heard voices (exponential, consolidating with age).</summary>
     public float HeardPitchZcr { get; private set; }
@@ -29,6 +35,25 @@ public sealed class VoiceSelf
     public int SyllablesLearned { get { lock (_gate) return _syllables.Count; } }
     public int Mimicries { get; private set; }
     public int SoundsHeard { get { lock (_gate) return _heardSounds.Count; } }
+
+    private readonly Dictionary<string, int> _words = [];
+    private string? _firstWordSaid;
+
+    /// <summary>
+    /// The FIRST WORD milestone: once enough speech has been heard, the most
+    /// frequent meaningful word is ready to be spoken as the brain's first
+    /// real word (the vocabulary spurt has to start somewhere). Returns the
+    /// word exactly once, then null forever.
+    /// </summary>
+    public string? FirstWord()
+    {
+        if (_firstWordSaid is not null) return null;
+        string? top = null; int topN = 0, total = 0;
+        foreach (var (w, n) in _words) { total += n; if (n > topN && w.Length >= 3) { topN = n; top = w; } }
+        if (total < 40 || topN < 5 || top is null) return null;
+        _firstWordSaid = top;
+        return top;
+    }
 
     /// <summary>Feed a transcribed speech clip: learn its prosody and syllables.</summary>
     public void OnHeardSpeech(short[] clip, string transcript)
@@ -49,6 +74,13 @@ public sealed class VoiceSelf
                 _syllables[s] = _syllables.TryGetValue(s, out int n) ? n + 1 : 1;
                 if (_syllables.Count > 400)
                     _syllables.Remove(_syllables.OrderBy(kv => kv.Value).First().Key);
+            }
+            // whole-word counts feed the first-word milestone
+            foreach (var w in transcript.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var clean = new string(w.Where(char.IsLetter).ToArray());
+                if (clean.Length is >= 3 and <= 12 && !StopWords.Contains(clean))
+                    _words[clean] = _words.TryGetValue(clean, out int n) ? n + 1 : 1;
             }
         }
     }

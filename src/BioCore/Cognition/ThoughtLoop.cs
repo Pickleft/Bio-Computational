@@ -180,6 +180,11 @@ public sealed class ThoughtLoop
             _chainId++;
             _chain.Clear();
             _nextEligibleMs = net.TimeMs + MinIntervalMs;
+            // a live concern may override memory-driven seeding (missing
+            // someone, an allostatic urge): the world today beats the past
+            var ext = ExternalSeedProvider?.Invoke();
+            if (ext is not null)
+                return new ThoughtRequest(false, null, default, ["person"], ext, _chainId, 1);
             if (net.EpisodeStore.Episodes.Count == 0)
             {
                 // a newborn brain has no memories to retrieve - its first
@@ -321,6 +326,10 @@ public sealed class ThoughtLoop
     {
         float mood = idle.Feelings.Last.Valence;
         string[] seed = Current?.Tags ?? [];
+        // SPREADING ACTIVATION: the current thought's concepts reach their
+        // learned associates (semantic memory), so the next memory can be
+        // cued by association even without a direct tag match
+        string[] cues = [.. seed, .. net.EpisodeStore.Concepts.Spread(seed)];
         var episodes = net.EpisodeStore.Episodes;
         var queryCode = net.EpisodeStore.CurrentCode(net, "CA3");
         // CALIBRATE: full neural retrieval by ~200 stored episodes
@@ -333,7 +342,7 @@ public sealed class ThoughtLoop
             // mostly think about the world; occasionally about having thought
             if (e.Tags.Contains("thought") && net.Rng.NextDouble() > 0.3) continue;
             int overlap = 0;
-            foreach (var q in seed)
+            foreach (var q in cues)
                 foreach (var t in e.Tags)
                     if (string.Equals(q, t, StringComparison.OrdinalIgnoreCase)) { overlap++; break; }
             float age = MathF.Max(1f, (net.TimeMs - e.TimeMs) / 1000f);
@@ -398,6 +407,14 @@ public sealed class ThoughtLoop
 
     /// <summary>Minimum simmering time before an open loop can resolve. CALIBRATE.</summary>
     public float IncubationMs { get; set; } = 60_000f;
+
+    /// <summary>
+    /// Optional seed provider (runtime): occasionally a new chain begins not
+    /// from an episode but from a live concern - e.g. missing a specific
+    /// person. Called on the sim thread inside Tick; null = use normal
+    /// associative retrieval.
+    /// </summary>
+    public Func<string?>? ExternalSeedProvider { get; set; }
 
     /// <summary>The insight landed: count it and pay the reward.</summary>
     public void MarkInsight(SpikingNetwork net)

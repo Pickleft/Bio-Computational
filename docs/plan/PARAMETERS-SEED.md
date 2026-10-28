@@ -139,3 +139,16 @@ serotonin -0.03 (malaise).
 Conditions: wake, NA < 0.55, DA > 0.45, curiosity > 0.05, attachment secure or forming. Bursts
 every >= 12 s at 35 percent chance; vigor 0.4-1.3 scales self-stimulation and grows
 expressiveness through exploration events. Threat or avoidant attachment abolishes play.
+
+## Semantic memory (Hopfield-style co-occurrence; Collins & Quillian 1969 associative flavor)
+Concept links +0.25 per episode co-occurrence (cap 3, prune below 0.15); announcement at 0.45.
+Spreading activation: one hop, activation = strength x log2(1+use)/3 capped 1; incoming edges 0.8x.
+Spread concepts join the thought-loop retrieval cues.
+
+## Turn-taking (Levinson & Torreira 2016)
+Hold 2.5 s after the partner's utterance (no interrupting); engagement = 3+ utterances in 10 min;
+pattern break = silence > max(20 s, 3 x median gap) while engaged, latched until they return.
+
+## First word (vocabulary onset)
+After 40+ heard content words with a top word of 5+ occurrences, the top word is spoken once as
+the brain's first real word, with a dopamine+oxytocin celebration.

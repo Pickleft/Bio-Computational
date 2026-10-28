@@ -191,6 +191,8 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>Allostatic body budget: energy predicted, not just felt (Sterling 2012).</summary>
     public BioComp.Core.Cognition.BodyBudget BodyBudget { get; } = new();
     private readonly BioComp.Core.Cognition.PlaySystem _play = new();
+    /// <summary>Conversational turn-taking: learns the partner's rhythm (Levinson 2016).</summary>
+    public BioComp.Core.Cognition.TurnTaking TurnTaking { get; } = new();
     private volatile bool _insightPending;
     private float _personPresentUntil = -1e9f;
     private bool _personWasPresent;
@@ -366,6 +368,23 @@ public sealed class BrainRuntime : IDisposable
                  (resonance > 0.5f ? "the thought landed; my neurons amplified it" :
                   resonance > 0.2f ? "the thought echoed faintly" :
                   "the thought fell on quiet neurons"));
+        // semantic learning made visible: when lived experience wires two
+        // concepts together strongly enough, the brain says so
+        _net.EpisodeStore.AssociationLearned += pair =>
+        {
+            if (pair.A is string a && pair.B is string b)
+                Note($"ASSOCIATION learned: {a} ~ {b} (experienced together enough to wire together)");
+        };
+        // occasionally a new thought thread begins from a live concern:
+        // missing a SPECIFIC person (the strongest bond) rather than a memory
+        ThoughtLoop.ExternalSeedProvider = () =>
+        {
+            var s = Bonds.Strongest(_net.TimeMs);
+            if (s is null || Loneliness.Level < 0.25f || _net.Rng.NextDouble() > 0.25) return null;
+            return $"missing someone specific: a person met {s.Visits} times, warmth {s.Warmth:F1}, " +
+                   $"last seen {(_net.TimeMs - s.LastSeenMs) / 1000f:F0}s ago, and the loneliness is {Loneliness.Level:F1}. " +
+                   "You feel their absence like a gap in the room.";
+        };
         Attachment.StyleChanged += style =>
         {
             string line = style switch
@@ -701,8 +720,14 @@ public sealed class BrainRuntime : IDisposable
             _pendingProsody = null;
             Contagion.OnHeardVoice(pp.Rms, pp.Zcr, _voiceSelf.HeardPitchZcr, pp.ZcrVar, pp.RmsVar, pp.DurSec, _net.TimeMs / 1000f);
             Note($"EMPATHY the voice sounds {Contagion.UserMoodLabel} (valence {Contagion.UserValence:F1}, arousal {Contagion.UserArousal:F1})");
+            // the partner holds the floor: learn their rhythm (Levinson 2016)
+            TurnTaking.OnUserUtterance(_net.TimeMs / 1000f);
         }
         Contagion.Tick(_net, _net.TimeMs / 1000f);
+        // a broken conversational rhythm: they usually talk around now, and
+        // have gone quiet for several typical gaps
+        if (TurnTaking.PatternBroken(_net.TimeMs / 1000f))
+            Note($"QUIET-PATTERN they have gone quiet (usually a gap of {TurnTaking.TypicalGapSec(_net.TimeMs / 1000f):F0}s; it has been much longer) - something changed");
         // attachment: separations counted once per lonely episode; style re-evaluated
         bool lonelyHigh = Loneliness.Level > 0.5f;
         if (lonelyHigh && !_lonelyWasHigh) Attachment.OnSeparation();
@@ -791,7 +816,8 @@ public sealed class BrainRuntime : IDisposable
         // How often it voices depends on how strongly it feels (valence/arousal),
         // how lonely it is, and how expressive it has BECOME (personality).
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
-            _net.TimeMs - _lastVocalizationMs > 7_000)
+            _net.TimeMs - _lastVocalizationMs > 7_000 &&
+            TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f)) // hold the partner's turn: no interrupting
         {
             var f = _idle.Feelings.Last;
             float intensity = MathF.Abs(f.Valence) + f.Arousal * 0.6f;
@@ -852,6 +878,20 @@ public sealed class BrainRuntime : IDisposable
             }
             Note(tag);
             SpeakWithVoice(line, emoPitch, emoRate);
+
+            // THE FIRST WORD: after enough heard speech, the brain's most
+            // heard word becomes its first real word - once, as a milestone
+            var firstWord = _voiceSelf.FirstWord();
+            if (firstWord is not null)
+            {
+                _lastVocalizationMs = _net.TimeMs;
+                Note($"FIRST-WORD \"{firstWord}\" - my first real word, learned from hearing you");
+                lock (_snapGate) _chat.Add($"Brain: {firstWord}.");
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.5f);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
+                Personality.OnSocialInteraction(_net, positive: true);
+                SpeakWithVoice($"{firstWord}.", emoPitch: 3, emoRate: 1);
+            }
         }
         }
 
@@ -1043,7 +1083,7 @@ public sealed class BrainRuntime : IDisposable
                 float centerX = (b.X1 + b.X2) / 2f / 64f;
                 float centerY = (b.Y1 + b.Y2) / 2f / 64f;
                 _stimulusPos = [Math.Clamp(centerX, 0f, 1f), Math.Clamp(centerY, 0f, 1f)];
-                if (kind == "person") ProcessVisitor($"visual:{b.X1 / 50}:{b.Y1 / 50}"); // spatial identity
+                if (kind == "person") ProcessVisitor(IdentifyVisitor($"visual:{b.X1 / 50}:{b.Y1 / 50}")); // spatial identity resolves to the same person as the voice
                 _idle.OnEvent(_net, [kind], 0.2f, 0.7f);
             }
         }

@@ -19,6 +19,27 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - semantic memory, turn-taking, first word; interconnection fixes
+
+- Semantic memory (ConceptGraph): an associative concept graph wired by lived co-occurrence -
+  tags experienced together in encoded episodes strengthen their link. Thought retrieval now
+  SPREADS activation: a thought about "humming" reaches "machine" through their learned link
+  even when no stored episode matches both. New associations are announced when they cross
+  threshold ("ASSOCIATION learned: humming ~ machine").
+- Fixed a subtle C# bug the tests caught: a null-conditional Invoke short-circuits argument
+  evaluation, so semantic wiring silently never happened unless a listener was attached.
+- Fixed identity fragmentation: visual sightings bypassed IdentifyVisitor, splitting one person
+  into camera-identity and voice-identity bonds.
+- Turn-taking (Levinson and Torreira 2016): the brain holds its spontaneous vocalizations for
+  2.5 s after the partner speaks (no interrupting), and notices a broken rhythm - an engaged
+  partner gone quiet for several typical gaps ("QUIET-PATTERN ... something changed").
+- First word: after enough heard speech, the most-heard content word is spoken once as the
+  brain's first real word, with a dopamine+oxytocin celebration and a chat announcement.
+- Bond-seeded thoughts: when lonely with a deep bond, a new thought thread can begin from
+  missing that SPECIFIC person (visits, warmth, time since seen) instead of a memory.
+- Tests: 7 new (concept wiring and spread and ranking, encode-announces, turn hold, broken
+  rhythm latch, external seed override, indirect retrieval through spread). 116 green.
+
 ## 2026-10-28 (latest) - five more interconnected systems
 
 - Sleep reconsolidation (Walker and van der Helm 2009, "sleep to forget, sleep to remember"):

@@ -36,6 +36,8 @@ public sealed record Episode(
 public sealed class EpisodeMemory
 {
     public const int CodeSize = 48;
+    /// <summary>Semantic associations learned from episode co-occurrence.</summary>
+    public ConceptGraph Concepts { get; } = new();
     private readonly List<Episode> _episodes = [];
     private uint[] _lastCountsSnapshot = [];
     private float _lastSnapshotMs;
@@ -43,6 +45,10 @@ public sealed class EpisodeMemory
 
     public IReadOnlyList<Episode> Episodes => _episodes;
     public int MaxEpisodes { get; set; } = 500;
+
+    /// <summary>Fires when encoding a episode wire concepts together;
+    /// payload is the pair that just crossed the learning threshold.</summary>
+    public event Action<(string? A, string? B)>? AssociationLearned;
 
     /// <summary>Snapshot-driven encode: rate is measured between snapshots of cumulative counters.
     /// <paramref name="minMeanRateHz"/> gates against storing pure noise; event encodes pass a
@@ -83,6 +89,12 @@ public sealed class EpisodeMemory
             net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine),
             net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin));
         _episodes.Add(ep);
+        // semantic learning: concepts experienced together become associated.
+        // NOTE: OnEpisode must run UNCONDITIONALLY - a null-conditional Invoke
+        // would short-circuit argument evaluation and skip the learning
+        // entirely whenever nobody is listening.
+        var learnedPair = Concepts.OnEpisode(tags);
+        AssociationLearned?.Invoke(learnedPair ?? (null, null));
         while (_episodes.Count > MaxEpisodes)
             _episodes.RemoveAt(0); // drop oldest; slow cortical store is the network itself
         _lastCountsSnapshot = (uint[])counts.Clone();
