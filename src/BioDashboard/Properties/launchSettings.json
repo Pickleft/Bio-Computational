@@ -11,7 +11,7 @@
     },
     "https": {
       "commandName": "Project",
-      "commandLineArgs": "--live-meta --voice",
+      "commandLineArgs": "--urls=http://0.0.0.0:8080 --live-meta --voice",
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"

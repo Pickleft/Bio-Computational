@@ -234,12 +234,14 @@
 <footer>
   <span>research platform — computational proxies, not clinical claims</span>
   <span id="meta-badge">mock</span>
+  <button id="sense-toggle" onclick="enableBrowserSenses()" title="Use this device's camera and mic as the brain's senses">👁 senses</button>
   <button id="music-toggle" onclick="toggleBrainMusic()" title="Listen to the brain's neural state as music">♪ listen</button>
   <button id="voice-test" onclick="testVoice()" title="Test if the brain can speak">🔊 voice</button>
   <a id="export-brain" href="/api/export-brain" title="Download this brain" download>⬇ brain</a>
 </footer>
 
 <script src="brain-music.js"></script>
+<script src="browser-senses.js"></script>
 <script src="eeg-monitor.js"></script>
 <script src="avatar.js"></script>
 <script src="nobel-viz.js"></script>

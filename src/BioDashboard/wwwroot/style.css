@@ -486,6 +486,20 @@ footer {
   gap: 12px;
 }
 
+#sense-toggle {
+  background: var(--bg-inset);
+  color: var(--blue);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+#sense-toggle:hover { background: var(--bg-card-hover); border-color: var(--blue); }
+#sense-toggle.active { color: var(--blue); border-color: var(--blue); box-shadow: 0 0 8px rgba(92,168,224,0.2); }
+
 #voice-test {
   background: var(--bg-inset);
   color: var(--amber);

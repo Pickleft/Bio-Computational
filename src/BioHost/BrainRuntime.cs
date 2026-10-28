@@ -831,6 +831,55 @@ public sealed class BrainRuntime : IDisposable
         Note($"VOICE-TEST spoken");
     }
 
+    /// <summary>
+    /// Receive audio from a browser (phone/PC via getUserMedia). The browser sends
+    /// 16-bit PCM at 16kHz. We process it through the same cochlea/salience pipeline
+    /// as the local mic, making ANY browser a sense organ for the brain.
+    /// </summary>
+    public void ReceiveBrowserAudio(short[] pcm)
+    {
+        if (pcm.Length < 160) return; // ignore very short chunks
+        var block = new BioComp.Core.Abstractions.AudioBlock(pcm, 16_000);
+        _cochlea.Process(block);
+        _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
+        if (_cochlea.VoiceLikely) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
+        else if (_cochlea.OnsetThisBlock) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 0.7f);
+        _audioBuffer.AddRange(pcm);
+        if (_audioBuffer.Count > 16_000 * 8) _audioBuffer.RemoveRange(0, _audioBuffer.Count - 16_000 * 8);
+        if (_cochlea.VoiceLikely && !_wasVoice && _net.TickIndex > _voiceCooldownUntil)
+        {
+            _wasVoice = true;
+            _speechStartMs = _net.TimeMs;
+        }
+        else if (_cochlea.VoiceLikely) _lastVoiceMs = _net.TimeMs;
+        else if (_wasVoice && _net.TimeMs - _lastVoiceMs > 800f && _net.TimeMs - _speechStartMs > 500f)
+        {
+            _wasVoice = false;
+            _voiceCooldownUntil = _net.TickIndex + 5_000;
+            int startIdx = Math.Max(0, _audioBuffer.Count - (int)((_net.TimeMs - _speechStartMs + 500f) * 16));
+            var clip = _audioBuffer.Skip(startIdx).ToArray();
+            if (clip.Length > 1600) _ = HandleSpeechClipAsync(clip);
+        }
+    }
+
+    /// <summary>
+    /// Receive a 64x64 grayscale frame from a browser. Processes through the same
+    /// event-vision encoder as the local camera.
+    /// </summary>
+    public void ReceiveBrowserFrame(byte[] grayPixels)
+    {
+        if (grayPixels.Length != 64 * 64) return;
+        var frame = new BioComp.Core.Abstractions.GrayFrame(grayPixels, 64, 64);
+        var events = _vision.Process(frame);
+        _vision.Inject(_net, _retinaStart, _retinaCount, events);
+        _salience.OnVisionFrame(_net, _vision.ChangeEnergyLastFrame);
+        _idle.VisionSalience = MathF.Max(_idle.VisionSalience, _salience.Arousal * 2f);
+        if (_vision.EventsLastFrame > 20)
+            _lastFramePng = PngFromFrame(frame);
+        if (_salience.SurpriseEvents > 0 && _lastFramePng is not null && _pendingSegment.Count < 2)
+            _pendingSegment.Enqueue((_lastFramePng, _net.TimeMs));
+    }
+
     /// <summary>Region graph payload for the dashboard: region anchors, names, and
     /// the projection edges with weights.</summary>
     public MapData GetMapData()

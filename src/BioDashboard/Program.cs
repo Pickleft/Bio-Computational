@@ -7,6 +7,9 @@ using BioComp.Host;
 // Camera and microphone auto-detect by default; --mock-cam/--mock-mic force the mock world.
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
+// URLs are set by --urls flag. For phone access with camera/mic (getUserMedia),
+// HTTPS is required. Run: dotnet dev-certs https --trust (one-time setup),
+// then: --urls="http://0.0.0.0:8080;https://0.0.0.0:8443"
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -53,6 +56,34 @@ app.MapPost("/api/test-voice", () =>
 {
     runtime.TestVoice();
     return Results.Ok(new { ok = true });
+});
+
+// ---- BROWSER SENSES: receive audio/video from any device's browser ----
+
+app.MapPost("/api/browser-audio", async (HttpContext ctx) =>
+{
+    if (ctx.Request.ContentLength is > 0 and < 2_000_000)
+    {
+        using var ms = new MemoryStream();
+        await ctx.Request.Body.CopyToAsync(ms);
+        byte[] bytes = ms.ToArray();
+        var pcm = new short[bytes.Length / 2];
+        Buffer.BlockCopy(bytes, 0, pcm, 0, bytes.Length);
+        runtime.ReceiveBrowserAudio(pcm);
+    }
+    return Results.Ok();
+});
+
+app.MapPost("/api/browser-frame", async (HttpContext ctx) =>
+{
+    if (ctx.Request.ContentLength is > 0 and < 200_000)
+    {
+        using var ms = new MemoryStream();
+        await ctx.Request.Body.CopyToAsync(ms);
+        // expect 64x64 grayscale bytes
+        runtime.ReceiveBrowserFrame(ms.ToArray());
+    }
+    return Results.Ok();
 });
 
 app.MapPost("/api/say", async (HttpContext ctx) =>
