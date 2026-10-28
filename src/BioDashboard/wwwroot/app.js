@@ -176,6 +176,7 @@ function render(s) {
   set("voice-growth", s.VoiceSyllables > 0
     ? `${s.VoiceSyllables} syllables, ${s.VoiceClipsHeard} voices heard${s.VoiceMimicries ? `, ${s.VoiceMimicries} mimicked` : ""}`
     : "listening");
+  set("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
   setFeed($("thought"), s.Thought);
   if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }

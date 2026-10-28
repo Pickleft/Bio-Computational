@@ -4,7 +4,9 @@
 
 "use strict";
 
-let senseStream = null;
+let senseStream = null;   // combined stream we own
+let camStream = null;     // camera-only when mic unavailable
+let micStream = null;     // mic-only when camera unavailable
 let audioContext = null;
 let audioProcessor = null;
 let videoElement = null;
@@ -19,16 +21,47 @@ async function enableBrowserSenses() {
     return;
   }
 
+  btn.textContent = "⏳ requesting…";
+  // Ask for camera and mic SEPARATELY: requesting them together fails
+  // entirely when either device is missing (a PC with no camera would lose
+  // its working microphone too). Whichever exists gets used.
+  let haveCam = false, haveMic = false;
   try {
-    btn.textContent = "⏳ requesting…";
     senseStream = await navigator.mediaDevices.getUserMedia({
       video: { width: 320, height: 320, facingMode: "user" },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
+    haveCam = haveMic = true;
+  } catch (bothFailed) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+      haveMic = true;
+      console.log("[senses] no camera available - running on microphone only");
+    } catch (micFailed) {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 320, height: 320, facingMode: "user" }
+        });
+        haveCam = true;
+        console.log("[senses] no microphone available - running on camera only");
+      } catch (camFailed) {
+        btn.textContent = "👁 senses";
+        alert("No camera or microphone available on this device.\n\n" +
+              "Camera error: " + camFailed.name + "\nMicrophone error: " + micFailed.name);
+        return;
+      }
+    }
+  }
+  const stream = senseStream ?? micStream ?? camStream;
+  const audioTracks = stream.getAudioTracks();
+  const videoTracks = stream.getVideoTracks();
 
+  if (videoTracks.length > 0) {
     // ---- VIDEO: capture 64x64 grayscale frames ----
     videoElement = document.createElement("video");
-    videoElement.srcObject = senseStream;
+    videoElement.srcObject = new MediaStream(videoTracks);
     videoElement.muted = true;
     videoElement.playsInline = true;
     await videoElement.play();
@@ -39,14 +72,16 @@ async function enableBrowserSenses() {
 
     // send frames at ~10fps
     frameTimer = setInterval(sendVideoFrame, 100);
+  }
 
+  if (audioTracks.length > 0) {
     // ---- AUDIO: capture PCM, resample to 16 kHz, send to server ----
     // The sampleRate option is only a REQUEST: most phones run the context at
     // hardware rate (44.1/48 kHz). If we sent that raw, the server would hear
     // chipmunk-speed audio and nothing would transcribe. So we ALWAYS read
     // audioContext.sampleRate and linearly resample to 16000 here.
     audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    const source = audioContext.createMediaStreamSource(senseStream);
+    const source = audioContext.createMediaStreamSource(new MediaStream(audioTracks));
 
     // Use ScriptProcessorNode for PCM access (deprecated but widely supported)
     audioProcessor = audioContext.createScriptProcessor(2048, 1, 1);
@@ -98,22 +133,12 @@ async function enableBrowserSenses() {
     sink.gain.value = 0;
     audioProcessor.connect(sink);
     sink.connect(audioContext.destination);
-
-    senseActive = true;
-    btn.textContent = "👁 senses ON";
-    btn.classList.add("active");
-    console.log("Browser senses enabled");
-  } catch (err) {
-    console.error("getUserMedia failed:", err);
-    btn.textContent = "👁 senses";
-    if (err.name === "NotAllowedError") {
-      alert("Camera/mic permission denied. Please allow access in your browser settings.");
-    } else if (err.name === "NotFoundError") {
-      alert("No camera or microphone found on this device.");
-    } else {
-      alert("Could not access camera/mic: " + err.message);
-    }
   }
+
+  senseActive = true;
+  btn.textContent = haveCam && haveMic ? "👁 senses ON" : haveMic ? "🎙 mic ON" : "📷 cam ON";
+  btn.classList.add("active");
+  console.log("Browser senses enabled (cam:", haveCam, "mic:", haveMic, ")");
 }
 
 function disableBrowserSenses() {
@@ -122,6 +147,8 @@ function disableBrowserSenses() {
   if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
   if (audioContext) { audioContext.close(); audioContext = null; }
   if (senseStream) { senseStream.getTracks().forEach(t => t.stop()); senseStream = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   if (videoElement) { videoElement.srcObject = null; videoElement = null; }
   const btn = document.getElementById("sense-toggle");
   btn.textContent = "👁 senses";
@@ -140,6 +167,20 @@ function sendVideoFrame() {
   const d = imageData.data;
   for (let i = 0, j = 0; i < d.length; i += 4, j++) {
     gray[j] = Math.round(0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]);
+  }
+
+  // WHAT THE BRAIN SEES: paint the exact 64x64 grayscale frame being sent,
+  // so you can look at the world through its eyes
+  const eyes = document.getElementById("eyes");
+  if (eyes) {
+    const ectx = eyes.getContext("2d");
+    const out = ectx.createImageData(64, 64);
+    for (let j = 0; j < gray.length; j++) {
+      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] = gray[j];
+      out.data[j * 4 + 3] = 255;
+    }
+    ectx.putImageData(out, 0, 0);
+    eyes.classList.add("live");
   }
 
   // Send to server

@@ -100,6 +100,8 @@ public sealed class BrainSnapshot
     public int OpenLoops { get; set; }          // unresolved threads simmering
     public string AllostaticNote { get; set; } = ""; // the body's predicted story
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
+    public int Concepts { get; set; }                // semantic concepts learned from experience
+    public int ConceptLinks { get; set; }            // associations wired by co-occurrence
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -1871,6 +1873,8 @@ public sealed class BrainRuntime : IDisposable
         snap.AllostaticNote = BodyBudget.Narrative;
         var strongest = Bonds.Strongest(_net.TimeMs);
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
+        snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
+        snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;

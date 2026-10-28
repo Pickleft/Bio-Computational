@@ -136,3 +136,9 @@ body.demo{font-size:16px} body.demo .list.thoughts li{font-size:18px}
 @media (prefers-reduced-motion:reduce){.logo,#rec{animation:none} *{transition:none!important}}
 
 @media (max-height:800px){#left .pane:first-child .cv small,#shell{min-height:560px} .sq{max-height:24vh}}
+
+/* what the brain sees: live 64x64 view through its eyes, stage corner */
+#eyes-wrap{position:absolute;right:14px;bottom:14px;margin:0;opacity:.18;transition:opacity .6s;pointer-events:none}
+#eyes-wrap.live{opacity:1}
+#eyes{width:128px;height:128px;border:1px solid var(--line);border-radius:8px;image-rendering:pixelated;background:#000}
+#eyes-wrap figcaption{font:500 10px var(--mono);color:var(--ink2);text-align:center;margin-top:3px;letter-spacing:.06em}
