@@ -31,7 +31,8 @@ public sealed class Cochlea
 
     public float OnsetSensitivity { get; set; } = 2.5f; // x sigma above mean flux // CALIBRATE
     public int MinInterOnsetBlocks { get; set; } = 4;   // ~128 ms refractory at 32 ms blocks
-    public float VoiceFloorRms { get; set; } = 0.0025f;  // CALIBRATE (gaming headsets are quieter)
+    public float VoiceFloorRms { get; set; } = 0.006f;  // higher threshold: only clear speech triggers VAD
+    public int VoiceMinBlocks { get; set; } = 24;        // ~0.75s of sustained speech required
     public float AbsFluxFloor { get; set; } = 0.003f;   // silence guard: flux must clear this too
 
     public Cochlea(float sampleRate = 16_000f)
@@ -94,7 +95,7 @@ public sealed class Cochlea
 
         // voice-activity hint: sustained energy well above the silence floor
         _voiceEnergyBlocks = EnergyRms > VoiceFloorRms ? _voiceEnergyBlocks + 1 : 0;
-        VoiceLikely = _voiceEnergyBlocks >= 16; // ~0.5 s sustained
+        VoiceLikely = _voiceEnergyBlocks >= VoiceMinBlocks; // sustained speech required
     }
 
     private static float HzToErb(float hz) => 21.4f * MathF.Log10(1f + 0.00437f * hz);

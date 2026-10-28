@@ -72,10 +72,19 @@ public sealed class MockTranscriber : ITranscriber
 {
     public Task<TranscriptionResult> TranscribeAsync(short[] pcm16k, CancellationToken ct = default)
     {
-        // deterministic pseudo-transcript seeded by the audio
+        // check if the audio is loud enough to be actual speech
+        double rms = 0;
+        foreach (var s in pcm16k) rms += (double)s * s;
+        rms = Math.Sqrt(rms / Math.Max(1, pcm16k.Length)) / 32768.0;
+
+        // if the audio is near-silence, return empty (no hallucinations)
+        if (rms < 0.003)
+            return Task.FromResult(new TranscriptionResult("", [], FromLiveApi: false));
+
+        // deterministic pseudo-transcript seeded by the audio energy level
         ulong h = 0;
         for (int i = 0; i < pcm16k.Length; i += 97) h = (h ^ (ulong)(ushort)pcm16k[i]) * 0x100000001B3UL;
-        string[] phrases = ["hello there", "is anyone there", "what are you doing", "interesting"];
+        string[] phrases = ["hello there", "is anyone there", "what are you doing", "interesting", "hey"];
         string text = phrases[h % (ulong)phrases.Length];
         var turn = new SpeechTurn(0, MathF.Min(3000, pcm16k.Length / 16f), text, "A");
         return Task.FromResult(new TranscriptionResult(text, [turn], FromLiveApi: false));

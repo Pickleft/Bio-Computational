@@ -481,6 +481,22 @@ public sealed class BrainRuntime : IDisposable
             Note($"SURPRISE {tag} (novelty spike)");
             _idle.OnEvent(_net, [tag], 0.2f, _salience.ExternalArousal);
             _ = ReactToStimulusAsync($"a sudden {tag}", "something changed in the visual field unexpectedly");
+            // make the avatar look toward the visual change
+            if (_lastRegionRates is { Length: > 0 })
+            {
+                var retRegion = _net.Regions.FirstOrDefault(r => r.Name == "Retina");
+                if (retRegion is not null)
+                {
+                    int retIdx = -1;
+                    for (int i = 0; i < _net.Regions.Count; i++)
+                        if (_net.Regions[i].Name == "Retina") { retIdx = i; break; }
+                    if (retIdx >= 0 && retIdx < _lastRegionRates.Length)
+                    {
+                        float retAct = _lastRegionRates[retIdx];
+                        _stimulusPos = [0.5f + Math.Clamp(retAct * 5f, -0.3f, 0.3f), 0.5f];
+                    }
+                }
+            }
         }
         if (_idle.Workspace.IgnitionCount > _lastIgnition)
         {
