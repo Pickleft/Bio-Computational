@@ -61,3 +61,40 @@ public sealed class WindowsSpeech : ISpeechOutput, IDisposable
 
     public void Dispose() => _synth.Dispose();
 }
+
+/// <summary>
+/// The brain's voice spoken by the BROWSER: utterances are published to the
+/// dashboard snapshot and spoken with the Web Speech engine's natural voices
+/// (Edge/Chrome online neural voices, Google voices on Android), carrying the
+/// brain's developed prosody. Heard on every device watching the brain - the
+/// PC and the phone - not just local speakers.
+/// </summary>
+public sealed class BrowserSpeech : ISpeechOutput
+{
+    private readonly object _gate = new();
+    private DateTime _until = DateTime.MinValue;
+
+    public int Seq { get; private set; }
+    public string CurrentText { get; private set; } = "";
+    public float Rate { get; set; } = 1f;    // Web Speech rate, ~0.6..1.6
+    public float Pitch { get; set; } = 1f;   // Web Speech pitch, ~0.4..1.8
+
+    public bool IsSpeaking { get { lock (_gate) return DateTime.UtcNow < _until; } }
+
+    public void Speak(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        lock (_gate)
+        {
+            Seq++;
+            CurrentText = text;
+            // organic micro-variation: identical sentences never sound identical,
+            // the way a real voice never repeats a line exactly the same way
+            Pitch = Math.Clamp(Pitch + ((Seq % 3) - 1) * 0.02f, 0.4f, 1.8f);
+            // rough duration estimate so the avatar's mouth moves while speaking
+            double words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            _until = DateTime.UtcNow.AddSeconds(Math.Clamp(words * 0.38 / Math.Max(0.5f, Rate), 0.8, 8));
+            Console.WriteLine($"[voice] {text}");
+        }
+    }
+}

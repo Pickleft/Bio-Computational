@@ -74,6 +74,10 @@ public sealed class BrainSnapshot
     public float[] LfpSignal { get; set; } = []; // raw time-domain signal for the scrolling EEG
     public float[] StimulusPosition { get; set; } = [0.5f, 0.5f]; // normalized [x, y] the avatar eyes track
     public bool IsSpeaking { get; set; }
+    public string SpeakText { get; set; } = "";  // utterance published for browser voices
+    public int SpeakSeq { get; set; }            // increments per utterance; browser speaks on change
+    public float SpeakRate { get; set; } = 1f;
+    public float SpeakPitch { get; set; } = 1f;
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -806,6 +810,13 @@ public sealed class BrainRuntime : IDisposable
             ws.PitchBias = _voiceSelf.DevelopedPitchBias + emoPitch;
             ws.RateBias = _voiceSelf.DevelopedRateBias + emoRate;
         }
+        else if (_speech is BrowserSpeech bs)
+        {
+            // developed prosody mapped into Web Speech ranges: the voice the
+            // brain grew from heard voices, layered with the current feeling
+            bs.Pitch = Math.Clamp(1f + (_voiceSelf.DevelopedPitchBias + emoPitch) * 0.07f, 0.4f, 1.8f);
+            bs.Rate = Math.Clamp(1f + (_voiceSelf.DevelopedRateBias + emoRate) * 0.08f, 0.6f, 1.6f);
+        }
         _speech.Speak(text);
     }
 
@@ -853,26 +864,22 @@ public sealed class BrainRuntime : IDisposable
         _idle.Self.VoiceOutput(_net.TimeMs + durationMs); // efference copy: this sound is me
 
         // emotional voice modulation: the brain's state shapes how it sounds
-        if (_speech is WindowsSpeech ws)
+        var f = _idle.Feelings.Last;
+        int emoRate = f.Name switch
         {
-            var f = _idle.Feelings.Last;
-            ws.RateBias = f.Name switch
-            {
-                "tired" => -3,       // slow and heavy
-                "curious" => 2,       // faster, engaged
-                "stressed" => 3,      // fast, tense
-                "bored" => -2,        // sluggish
-                _ => 0,               // neutral
-            };
-            ws.PitchBias = f.Valence switch
-            {
-                > 0.2f => 2,          // happy = slightly higher
-                < -0.2f => -3,        // negative = lower
-                _ => 0,
-            };
-        }
-
-        _speech.Speak(line);
+            "tired" => -3,       // slow and heavy
+            "curious" => 2,       // faster, engaged
+            "stressed" => 3,      // fast, tense
+            "bored" => -2,        // sluggish
+            _ => 0,               // neutral
+        };
+        int emoPitch = f.Valence switch
+        {
+            > 0.2f => 2,          // happy = slightly higher
+            < -0.2f => -3,        // negative = lower
+            _ => 0,
+        };
+        SpeakWithVoice(line, emoPitch, emoRate);
         _idle.Actions.OnOutcome(_net, BrainAction.Speak, welcomed: true);
         await Task.CompletedTask;
     }
@@ -933,12 +940,7 @@ public sealed class BrainRuntime : IDisposable
     {
         var f = _idle.Feelings.Last;
         string line = $"Hello. I am here. I feel {f.Name} right now.";
-        if (_speech is WindowsSpeech ws)
-        {
-            ws.RateBias = 0;
-            ws.PitchBias = 0;
-        }
-        _speech.Speak(line);
+        SpeakWithVoice(line, emoPitch: 0, emoRate: 0);
         Note($"VOICE-TEST spoken");
     }
 
@@ -1139,20 +1141,19 @@ public sealed class BrainRuntime : IDisposable
                 if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
                 Note($"DAYDREAM \"{Trunc(thought, 80)}\"");
                 // thinking out loud: daydreams sometimes get spoken (more when lonely)
-                if (Loneliness.Level > 0.3f || _net.Rng.NextDouble() < 0.3)
+                if (Loneliness.Level > 0.3f || ++_daydreamCount % 3 == 0)
                 {
-                    if (_speech is WindowsSpeech ws)
-                    {
-                        ws.RateBias = feeling.Name == "tired" ? -2 : 0;
-                        ws.PitchBias = feeling.Valence > 0 ? 1 : -1;
-                    }
-                    _speech.Speak(thought);
+                    SpeakWithVoice(thought,
+                        emoPitch: feeling.Valence > 0 ? 1 : -1,
+                        emoRate: feeling.Name == "tired" ? -2 : 0);
                 }
             }
         }
         catch (Exception ex) { Note($"daydream failed: {ex.Message}"); }
     }
     private float _lastDaydreamMs = -1e9f;
+    private int _daydreamCount;
+    private int _imagineCount;
     /// The DA tick is small — it's the internal reward of agency, not the full
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
@@ -1227,15 +1228,8 @@ public sealed class BrainRuntime : IDisposable
                 _monologueLog.Add(thought);
                 Note($"IMAGINE \"{Trunc(thought, 80)}\"");
                 // imaginings are sometimes spoken (like talking about hopes/worries)
-                if (_net.Rng.NextDouble() < 0.4)
-                {
-                    if (_speech is WindowsSpeech ws)
-                    {
-                        ws.RateBias = 0;
-                        ws.PitchBias = 1;
-                    }
-                    _speech.Speak(thought);
-                }
+                if (++_imagineCount % 5 < 2)
+                    SpeakWithVoice(thought, emoPitch: 1, emoRate: 0);
             }
         }
         catch { /* imagination is optional */ }
@@ -1480,6 +1474,14 @@ public sealed class BrainRuntime : IDisposable
         snap.LfpSignal = lfpSignal;
         snap.StimulusPosition = _stimulusPos;
         snap.IsSpeaking = _speech.IsSpeaking;
+        // browser voice: publish the current utterance + developed prosody
+        if (_speech is BrowserSpeech bs)
+        {
+            snap.SpeakText = bs.CurrentText;
+            snap.SpeakSeq = bs.Seq;
+            snap.SpeakRate = bs.Rate;
+            snap.SpeakPitch = bs.Pitch;
+        }
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;

@@ -25,7 +25,11 @@ foreach (var (dir, route) in new[] { ("dreams", "/dreams"), ("exports", "/export
     });
 }
 
-var runtime = new BrainRuntime(BrainRuntimeConfig.Parse(args));
+var cfg = BrainRuntimeConfig.Parse(args);
+// --voice routes speech to every connected browser: natural neural voices
+// (Edge/Chrome online, Google on Android) with the brain's developed prosody,
+// instead of robotic local SAPI
+var runtime = new BrainRuntime(cfg, cfg.UseVoice ? new BrowserSpeech() : null);
 runtime.Start();
 Console.WriteLine($"brain running (meta live={runtime.MetaLive}); UI on the bound URL");
 

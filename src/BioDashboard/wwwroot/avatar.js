@@ -52,7 +52,7 @@ function updateAvatarState(s) {
     stimulusTarget = s.StimulusPosition;
   }
 
-  isSpeaking = !!s.IsSpeaking;
+  isSpeaking = !!s.IsSpeaking || !!window.brainBrowserSpeaking;
 
   const k = 0.08;
   const m = s.Modulators || [0.3, 0.5, 0.3, 0.2, 0.15, 0.6, 0.1];

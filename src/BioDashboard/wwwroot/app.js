@@ -34,6 +34,49 @@ const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") +
 ws.onmessage = (ev) => { lastSnap = JSON.parse(ev.data); render(lastSnap); };
 ws.onclose = () => { $("state").textContent = "offline"; setTimeout(() => location.reload(), 3000); };
 
+// ---- the brain's voice ----
+// Natural browser voices (Edge/Chrome online neural voices, Google voices on
+// Android) replace robotic local TTS. Prosody comes from the snapshot: the
+// pitch and rate the brain developed from the voices it heard, layered with
+// its current feeling. The voice is heard on every device watching the brain.
+let spokenSeq = 0;
+let pickedVoice = null;
+window.brainBrowserSpeaking = false;
+
+function pickVoice() {
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  const prefer = [
+    /Natural.*English/i, /Neural.*English/i, /Online.*English/i,
+    /Google (US|UK) English/i, /Microsoft .*English/i, /English \(United States\)/i,
+  ];
+  for (const re of prefer) {
+    const v = voices.find((x) => re.test(x.name));
+    if (v) return v;
+  }
+  return voices.find((v) => /^en/i.test(v.lang)) || voices[0];
+}
+
+function speakBrain(s) {
+  if (!("speechSynthesis" in window)) return;
+  if (s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
+    spokenSeq = s.SpeakSeq;
+    const u = new SpeechSynthesisUtterance(s.SpeakText);
+    if (pickedVoice) u.voice = pickedVoice;
+    u.rate = s.SpeakRate || 1;
+    u.pitch = s.SpeakPitch || 1;
+    u.onstart = () => { window.brainBrowserSpeaking = true; };
+    u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
+    speechSynthesis.cancel(); // one thought at a time: the brain interrupts itself
+    speechSynthesis.speak(u);
+  }
+}
+
+if ("speechSynthesis" in window) {
+  pickedVoice = pickVoice();
+  speechSynthesis.onvoiceschanged = () => { pickedVoice = pickVoice(); };
+}
+
 fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; });
 
 // ---- render ----
@@ -71,6 +114,7 @@ function render(s) {
   drawChat(s);
   if (typeof brainMusicTick === "function") brainMusicTick(s);
   if (typeof updateAvatarState === "function") updateAvatarState(s);
+  speakBrain(s);
   if (typeof drawEEG === "function") drawEEG(s);
   if (typeof drawPhiGauge === "function") drawPhiGauge(s);
   if (typeof drawFreeEnergy === "function") drawFreeEnergy(s);
