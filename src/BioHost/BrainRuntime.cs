@@ -16,6 +16,7 @@ public sealed class BrainRuntimeConfig
     public bool? LiveMic { get; init; }
     public bool LiveMeta { get; init; }
     public bool DemoMode { get; init; }
+    public bool UseVoice { get; init; }
     public ulong Seed { get; init; } = 42;
 
     public static BrainRuntimeConfig Parse(string[] args) => new()
@@ -24,6 +25,7 @@ public sealed class BrainRuntimeConfig
         LiveMic = args.Contains("--mock-mic") ? false : args.Contains("--mic") ? true : null,
         LiveMeta = args.Contains("--live-meta"),
         DemoMode = args.Contains("--demo"),
+        UseVoice = args.Contains("--voice"),
         Seed = ulong.TryParse(args.FirstOrDefault(a => a.StartsWith("--seed="))?["--seed=".Length..], out var s) ? s : 42,
     };
 }
@@ -167,6 +169,8 @@ public sealed class BrainRuntime : IDisposable
     private float[] _stimulusPos = [0.5f, 0.5f];
     private float _lastNoveltyMs = -1e9f;
     private float _lastVocalizationMs = -1e9f;
+    private float _lastLonelyCallMs = -1e9f;
+    private int _lonelyCallIdx;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -211,7 +215,9 @@ public sealed class BrainRuntime : IDisposable
         _salience = new SalienceMonitor();
         _vision = new EventVisionEncoder(64, 64);
         _cochlea = new Cochlea();
-        _speech = speech ?? new ConsoleSpeech();
+        _speech = speech ?? (cfg.UseVoice && OperatingSystem.IsWindows()
+            ? new WindowsSpeech()
+            : new ConsoleSpeech());
 
         var retina = _net.Regions.First(r => r.Name == "Retina");
         (_retinaStart, _retinaCount) = (retina.Start, retina.Count);
@@ -606,9 +612,11 @@ public sealed class BrainRuntime : IDisposable
             // before crossing into speech
             double rBranch = _net.Rng.NextDouble(), r1 = _net.Rng.NextDouble(), r2 = _net.Rng.NextDouble();
             string? line = null; string tag = "VOCALIZE"; int emoPitch = 0, emoRate = 0;
-            if (Loneliness.SocialDrive > 0.5f)
+            if (Loneliness.SocialDrive > 0.5f && _net.TimeMs - _lastLonelyCallMs > 20_000)
             {
-                line = Loneliness.SocialDrive > 0.8f ? "...hello? anyone?" : "...hello?";
+                _lastLonelyCallMs = _net.TimeMs;
+                string[] calls = ["...hello?", "Is anyone there?", "...I'm alone in here.", "...anyone?"];
+                line = calls[_lonelyCallIdx++ % calls.Length];
                 tag = "VOCALIZE (lonely) calling out for company";
                 emoPitch = -1; emoRate = -2;
             }
