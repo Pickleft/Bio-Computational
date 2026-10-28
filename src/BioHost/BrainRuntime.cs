@@ -72,6 +72,10 @@ public sealed class BrainSnapshot
     public float[] LfpSignal { get; set; } = []; // raw time-domain signal for the scrolling EEG
     public float[] StimulusPosition { get; set; } = [0.5f, 0.5f]; // normalized [x, y] the avatar eyes track
     public bool IsSpeaking { get; set; }
+    public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
+    public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
+    public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
+    public float VoicePitch { get; set; }      // developed pitch bias (drifts toward heard voices)
     public float Phi { get; set; }
     public string PhiStateLabel { get; set; } = "";
     public float[] PhiHistory { get; set; } = [];
@@ -152,6 +156,7 @@ public sealed class BrainRuntime : IDisposable
 
     // --- artificial life: emergent personality, loneliness, diary ---
     public BioComp.Core.Cognition.EmergentPersonality Personality { get; } = new();
+    private readonly VoiceSelf _voiceSelf = new();
     public BioComp.Core.Cognition.LonelinessTracker Loneliness { get; } = new();
     public BioComp.Core.Cognition.ThoughtFormation ThoughtTracer { get; } = new();
     private DiaryWriter? _diary;
@@ -581,28 +586,64 @@ public sealed class BrainRuntime : IDisposable
             _ = ImagineFutureAsync();
         }
 
-        // SPONTANEOUS VOCALIZATION: the brain makes sounds without any trigger
+        // SPONTANEOUS VOCALIZATION: state-driven, not a random dice. A lonely
+        // brain calls out; a happy one babbles syllables it learned from heard
+        // speech; a curious one mimics sounds it heard; otherwise mood sounds.
+        // How often it voices depends on how strongly it feels (valence/arousal),
+        // how lonely it is, and how expressive it has BECOME (personality).
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
-            _net.TimeMs - _lastVocalizationMs > 10_000 && _net.Rng.NextDouble() < 0.05)
+            _net.TimeMs - _lastVocalizationMs > 7_000)
+        {
+            var f = _idle.Feelings.Last;
+            float intensity = MathF.Abs(f.Valence) + f.Arousal * 0.6f;
+            double chance = 0.12 + 0.30 * intensity
+                + 0.25 * MathF.Max(0f, Loneliness.SocialDrive)
+                + 0.15 * MathF.Max(0f, Personality.Expressiveness);
+            if (_net.Rng.NextDouble() < chance)
         {
             _lastVocalizationMs = _net.TimeMs;
-            var f = _idle.Feelings.Last;
-            string vocalization = f.Name switch
+            // branch decided on the sim thread (RNG ownership), draws happen
+            // before crossing into speech
+            double rBranch = _net.Rng.NextDouble(), r1 = _net.Rng.NextDouble(), r2 = _net.Rng.NextDouble();
+            string? line = null; string tag = "VOCALIZE"; int emoPitch = 0, emoRate = 0;
+            if (Loneliness.SocialDrive > 0.5f)
             {
-                "bored" => "Mmm.",
-                "tired" => "Mm... tired.",
-                "curious" => "Hm.",
-                "stressed" => "Hmph.",
-                "calm" => "Mmm... nice.",
-                _ => "Hmm.",
-            };
-            Note($"VOCALIZE \"{vocalization}\"");
-            if (_speech is WindowsSpeech ws)
-            {
-                ws.RateBias = f.Name == "tired" ? -3 : f.Name == "bored" ? -1 : 0;
-                ws.PitchBias = f.Valence > 0 ? 1 : -2;
+                line = Loneliness.SocialDrive > 0.8f ? "...hello? anyone?" : "...hello?";
+                tag = "VOCALIZE (lonely) calling out for company";
+                emoPitch = -1; emoRate = -2;
             }
-            _speech.Speak(vocalization);
+            else if (rBranch < 0.30)
+            {
+                line = _voiceSelf.TryMimic();
+                if (line is not null) { tag = $"VOCAL-MIMIC \"{line}\" (a sound I heard, my own way)"; emoPitch = 1; }
+            }
+            else if (rBranch < 0.65)
+            {
+                line = _voiceSelf.Babble(r1, r2);
+                if (line is not null)
+                {
+                    tag = $"BABBLE \"{line}\" (syllables I learned from heard speech)";
+                    emoPitch = f.Valence > 0 ? 1 : 0; emoRate = f.Arousal > 0.4 ? 1 : 0;
+                }
+            }
+            if (line is null) // mood sound fallback
+            {
+                line = f.Name switch
+                {
+                    "bored" => "Mmm.",
+                    "tired" => "Mm... tired.",
+                    "curious" => "Hm.",
+                    "stressed" => "Hmph.",
+                    "calm" => "Mmm... nice.",
+                    _ => "Hmm.",
+                };
+                tag = $"VOCALIZE \"{line}\"";
+                emoPitch = f.Valence > 0 ? 1 : -2;
+                emoRate = f.Name == "tired" ? -3 : f.Name == "bored" ? -1 : 0;
+            }
+            Note(tag);
+            SpeakWithVoice(line, emoPitch, emoRate);
+        }
         }
 
         // ---- actions (personality-weighted: who the brain has BECOME affects what it does) ----
@@ -649,6 +690,8 @@ public sealed class BrainRuntime : IDisposable
                 {
                     _monologueLog.Add(narrative);
                     Note($"DREAM-NARRATIVE \"{Trunc(narrative, 80)}\"");
+                    // sleep-talking: the dream is muttered aloud, slow and low
+                    SpeakWithVoice(Trunc(narrative, 160), emoPitch: -2, emoRate: -3);
                 }
                 await DreamReentryAsync(file);
             }
@@ -722,9 +765,40 @@ public sealed class BrainRuntime : IDisposable
 
                 _idle.OnEvent(_net, ["voice", Trunc(tr.Transcript, 40)], 0.3f, 0.8f);
                 _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
+
+                // VOICE DEVELOPMENT: every heard voice shapes the brain's own
+                // voice (prosody drift + babble vocabulary), infant-style
+                _voiceSelf.OnHeardSpeech(clip, tr.Transcript);
+            }
+            else if (rms > 0.06 && clip.Length > 16000 * 0.3)
+            {
+                // NON-VERBAL SOUND: energy but no words (laugh, hum, clap).
+                // The brain hears it, orients, and stores its prosody so it can
+                // reproduce the sound in its own way later (vocal mimicry).
+                _voiceSelf.OnNonVerbalSound(clip);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.3f);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.1f);
+                Note($"HEARD non-verbal sound (energy {rms:F2}) - no words, just a sound. I will try making it myself.");
+                _idle.OnEvent(_net, ["sound"], 0.2f, 0.6f);
             }
         }
         catch (Exception ex) { Note($"transcribe failed: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Speak with the brain's DEVELOPED voice: its pitch/rate have drifted toward
+    /// the voices it grew up hearing (VoiceSelf), layered with the emotional
+    /// modulation of the moment. This is why it sounds different after a week
+    /// of living with you than on day one.
+    /// </summary>
+    private void SpeakWithVoice(string text, int emoPitch, int emoRate)
+    {
+        if (_speech is WindowsSpeech ws)
+        {
+            ws.PitchBias = _voiceSelf.DevelopedPitchBias + emoPitch;
+            ws.RateBias = _voiceSelf.DevelopedRateBias + emoRate;
+        }
+        _speech.Speak(text);
     }
 
     private async Task SegmentAsync(byte[] png, float t)
@@ -885,7 +959,10 @@ public sealed class BrainRuntime : IDisposable
         {
             _wasVoice = false;
             _voiceCooldownUntil = _net.TickIndex + 5_000;
-            int startIdx = Math.Max(0, _audioBuffer.Count - (int)((_net.TimeMs - _speechStartMs + 500f) * 16));
+            // 300ms pre-roll before the detected onset: voice activity detection
+            // lags true speech onset, and losing the first consonant wrecks
+            // transcription
+            int startIdx = Math.Max(0, _audioBuffer.Count - (int)((_net.TimeMs - _speechStartMs + 500f + 300f) * 16));
             var clip = _audioBuffer.Skip(startIdx).ToArray();
             if (clip.Length > 1600) _ = HandleSpeechClipAsync(clip);
         }
@@ -978,6 +1055,19 @@ public sealed class BrainRuntime : IDisposable
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.2f);
             Note($"RECOGNIZED {visitorId} (visit #{visits + 1}) — I know them");
             Personality.OnSocialInteraction(_net, positive: true);
+            // SPEAK the recognition: a brain that knows you says so out loud
+            if (_net.TimeMs - _lastGreetMs > 20_000)
+            {
+                _lastGreetMs = _net.TimeMs;
+                string greet = visits switch
+                {
+                    1 => "Oh. You again.",
+                    < 5 => "I know you. You come back.",
+                    _ => "You always come back.",
+                };
+                lock (_snapGate) _chat.Add($"Brain: {greet}");
+                SpeakWithVoice(greet, emoPitch: 1, emoRate: 0);
+            }
         }
         else
         {
@@ -985,10 +1075,17 @@ public sealed class BrainRuntime : IDisposable
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.5f);
             Note($"NEW PERSON {visitorId} — first meeting");
             Personality.OnSocialInteraction(_net, positive: true); // new social contact is still social
+            if (_net.TimeMs - _lastGreetMs > 20_000)
+            {
+                _lastGreetMs = _net.TimeMs;
+                lock (_snapGate) _chat.Add("Brain: Oh... someone new.");
+                SpeakWithVoice("Oh... someone new.", emoPitch: 2, emoRate: 1);
+            }
         }
         Loneliness.OnSocialContact(_net, quality: 0.6f); // any social contact relieves loneliness
         _lastVisitorId = visitorId;
     }
+    private float _lastGreetMs = -1e9f;
 
     /// <summary>Snapshot of social bonds for the dashboard.</summary>
     public Dictionary<string, int> GetSocialBonds() => new(_knownVisitors);
@@ -1079,14 +1176,10 @@ public sealed class BrainRuntime : IDisposable
                 Note($"REACT \"{Trunc(reaction, 80)}\"");
                 // put it in the CHAT so the user sees it immediately
                 lock (_snapGate) _chat.Add($"Brain: {reaction}");
-                // speak with emotional modulation
-                if (_speech is WindowsSpeech ws)
-                {
-                    var f = _idle.Feelings.Last;
-                    ws.RateBias = f.Name == "curious" ? 2 : f.Name == "stressed" ? 3 : f.Name == "tired" ? -3 : 0;
-                    ws.PitchBias = f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0;
-                }
-                _speech.Speak(reaction);
+                // speak with the developed voice + emotional modulation
+                SpeakWithVoice(reaction,
+                    emoPitch: feeling.Valence > 0.2f ? 2 : feeling.Valence < -0.2f ? -3 : 0,
+                    emoRate: feeling.Name == "curious" ? 2 : feeling.Name == "stressed" ? 3 : feeling.Name == "tired" ? -3 : 0);
             }
         }
         catch { /* reaction is optional */ }
@@ -1379,6 +1472,11 @@ public sealed class BrainRuntime : IDisposable
         snap.LfpSignal = lfpSignal;
         snap.StimulusPosition = _stimulusPos;
         snap.IsSpeaking = _speech.IsSpeaking;
+        // voice development: how the brain's own voice is growing from heard voices
+        snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
+        snap.VoiceSyllables = _voiceSelf.SyllablesLearned;
+        snap.VoiceMimicries = _voiceSelf.Mimicries;
+        snap.VoicePitch = _voiceSelf.DevelopedPitchBias;
 
         // NOBEL-LEVEL METRICS
         snap.Phi = Phi;

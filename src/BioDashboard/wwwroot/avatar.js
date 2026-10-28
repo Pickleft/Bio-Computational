@@ -213,6 +213,46 @@ function animateAvatar() {
     ctx.restore();
   }
 
+  // === EYEBROWS (the strongest emotional channel on a face) ===
+  // angry: inner ends pulled down (negative valence + arousal)
+  // sad/worried: inner ends pulled up (negative valence, low arousal)
+  // happy: gently raised. surprised: lifted high with the widening eyes
+  const browY = eyeY - eyeR * 1.6;
+  const angryAmt = Math.max(0, -smoothing.valence) * Math.min(1, smoothing.arousal * 2);
+  const sadAmt = Math.max(0, -smoothing.valence) * Math.max(0, 1 - smoothing.arousal * 2);
+  const happyAmt = Math.max(0, smoothing.valence);
+  for (const side of [-1, 1]) {
+    const bx = cx + side * eyeSpacing;
+    const innerX = bx - side * eyeR * 0.9;
+    const outerX = bx + side * eyeR * 0.9;
+    const innerY = browY - eyeR * (happyAmt * 0.5 + sadAmt * 0.6 + eyeState.widen * 0.6) + angryAmt * eyeR * 0.7 + sadAmt * eyeR * 0.4;
+    const outerY = browY + eyeR * 0.2 + angryAmt * eyeR * 0.5 - sadAmt * eyeR * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(outerX, outerY);
+    ctx.quadraticCurveTo(bx, (innerY + outerY) / 2 - eyeR * 0.1, innerX, innerY);
+    ctx.strokeStyle = `hsla(${hue + 30}, 40%, ${light + 25}%, ${0.75 * smoothing.hist})`;
+    ctx.lineWidth = 2.5 + smoothing.na * 2;
+    ctx.lineCap = "round";
+    ctx.stroke();
+  }
+
+  // === BONDING BLUSH ===
+  // oxytocin (social warmth) glows on the cheeks — the mark of feeling safe
+  // with whoever is present
+  const oxt = (lastSnapshot && lastSnapshot.Modulators) ? lastSnapshot.Modulators[4] || 0 : 0;
+  if (oxt > 0.2) {
+    for (const side of [-1, 1]) {
+      const blx = cx + side * baseR * 0.45;
+      const blush = ctx.createRadialGradient(blx, cy + baseR * 0.1, 2, blx, cy + baseR * 0.1, baseR * 0.25);
+      blush.addColorStop(0, `hsla(350, 80%, 65%, ${Math.min(0.35, oxt * 0.3)})`);
+      blush.addColorStop(1, "hsla(350, 80%, 65%, 0)");
+      ctx.fillStyle = blush;
+      ctx.beginPath();
+      ctx.arc(blx, cy + baseR * 0.1, baseR * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   // === MOUTH (emotional expression + speaking animation) ===
   // valence drives curvature: positive = smile, negative = frown
   // when speaking, the mouth opens and closes rhythmically
@@ -293,6 +333,15 @@ function animateAvatar() {
       : lastSnapshot.Feeling || "—";
     ctx.fillStyle = `hsla(${hue}, 30%, 80%, ${0.4 + smoothing.hist * 0.4})`;
     ctx.fillText(stateText, cx, cy + baseR * 0.55);
+    // voice development readout: the brain's own voice grows from what it hears
+    if (lastSnapshot.VoiceSyllables > 0) {
+      ctx.fillStyle = `hsla(${hue}, 30%, 70%, ${0.3 + smoothing.hist * 0.3})`;
+      ctx.font = `500 9px ${"'Inter', sans-serif"}`;
+      const voiceText = `own voice growing: ${lastSnapshot.VoiceSyllables} syllables, ` +
+        `${lastSnapshot.VoiceClipsHeard} voices heard` +
+        (lastSnapshot.VoiceMimicries > 0 ? `, ${lastSnapshot.VoiceMimicries} sounds mimicked` : "");
+      ctx.fillText(voiceText, cx, cy + baseR * 0.55 + 14);
+    }
     ctx.textAlign = "left";
   }
 
