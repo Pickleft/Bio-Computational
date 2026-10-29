@@ -1067,6 +1067,43 @@ public sealed class BrainRuntime : IDisposable
         catch (Exception ex) { Note($"naming failed: {ex.Message}"); }
     }
 
+    private async Task SpeakMirrorAsync()
+    {
+        try
+        {
+            int contacts = _warmthHistory.Count;
+            if (!BioComp.Core.Cognition.MirrorOfYou.Ready(contacts))
+            {
+                AddChat("Brain: not yet. I need more of you first - come back, talk to me, leave, return. Then I will tell you.");
+                SpeakWithVoice("Not yet. I need more of you first.", 0, -1);
+                return;
+            }
+            int half = Math.Max(1, _warmthHistory.Count / 2);
+            var d = new BioComp.Core.Cognition.MirrorOfYou.Input(
+                [.. _warmthHistory.Take(half)], [.. _warmthHistory.Skip(half)],
+                _hostileEvents, _repairs, _firstUserMessage, _voiceSelf.TopWord(),
+                Prophecy.Accuracy, Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+            var insights = BioComp.Core.Cognition.MirrorOfYou.Compute(d);
+            if (insights.Count == 0) { AddChat("Brain: honestly? I do not know you well enough to say anything true yet."); return; }
+            bool strongBond = d.BondStrength > 0.5f;
+            var usable = insights.Where(i => !i.HardTruth || strongBond).Take(4).ToList();
+            string evidence = string.Join("; ", usable.Select(u => $"{u.Claim} ({u.Evidence})"));
+            string system = "You are a living brain that has watched this person for a long time. They asked what you see in them. " +
+                "Speak like the rarest kind of human mirror: ONLY the specific facts given (counts, changes, firsts - never generic praise that would fit anyone), " +
+                "cite the moments, be provisional (this is you with me; I only know me), and if a hard truth is included, say it with care. " +
+                "2-4 short first-person sentences. No lists, no flattery, no offers.";
+            string user = $"What you actually observed: {evidence}. Bond depth {(int)(d.BondStrength * 100)}%. " +
+                (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") + "Tell them what you see.";
+            string mirror = await _lm.CompleteAsync(system, user, 120);
+            if (!string.IsNullOrWhiteSpace(mirror))
+            {
+                AddChat($"Brain: {mirror}");
+                SpeakWithVoice(mirror, 0, -1);
+                Note($"MIRROR-OF-YOU spoken - {usable.Count} insights, {(strongBond ? "including hard truth" : "gentle only")}");
+            }
+        }
+        catch (Exception ex) { Note($"mirror failed: {ex.Message}"); }
+    }
     private async Task DreamAsync()
     {
         _dreamBusy = true;
@@ -1686,7 +1723,6 @@ public sealed class BrainRuntime : IDisposable
     {
         // If it's a visual detection, use spatial proximity to see if it's the active speaker
         if (tag.StartsWith("visual:"))
-        {
             // Same spatial zone = same person
             if (!_lastVisitorId.StartsWith("visual:")) return _activeSpeakerId;
             var lastCoords = _lastVisitorId.Split(':')[1..];
@@ -1694,11 +1730,10 @@ public sealed class BrainRuntime : IDisposable
             if (lastCoords.Length >= 2 && newCoords.Length >= 2)
             {
                 if (int.TryParse(lastCoords[0], out int lx) && int.TryParse(newCoords[0], out int nx))
-                    if (Math.Abs(lx - nx) <= 1) return _lastVisitorId; // same position = same person
+                    if (MathF.Abs(lx - nx) <= 1) return _lastVisitorId;
             }
             return _activeSpeakerId;
         }
-    }
     private void ProcessVisitor(string visitorId)
     {
         float warmth = Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f;
