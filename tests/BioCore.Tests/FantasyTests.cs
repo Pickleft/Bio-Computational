@@ -156,3 +156,47 @@ public class FantasyTests
         Assert.NotEqual(child, Genetics.ChildSeed(43, 0xC0FFEE));       // of the parent
     }
 }
+
+// ---- multimodal hostility appraisal ----
+public class HostilityTests
+{
+    [Fact]
+    public void ThreatsScoreHigh_RegardlessOfTone()
+    {
+        var (s, l) = HostilityClassifier.Classify("i am going to kill you, you are not safe", 0.05f, 0f, 0.2f);
+        Assert.Equal("threatening", l);
+        var (s2, l2) = HostilityClassifier.Classify("murder", 0.02f, 0f, 0.1f);
+        Assert.True(l2 is "threatening" or "hostile");
+    }
+
+    [Fact]
+    public void YellingAloneIsHostile_EvenWordless()
+    {
+        var (s, l) = HostilityClassifier.Classify("hey stop that", 0.2f, -0.5f, 0.8f); // loud + agitated, mild words
+        Assert.True(l is "hostile" or "ambiguous" or "threatening", $"yelling prosody should score, got {l}");
+    }
+
+    [Fact]
+    public void KindWordsScoreNothing_EvenLoud()
+    {
+        var (s, l) = HostilityClassifier.Classify("you are amazing, i love this!", 0.2f, 0.6f, 0.8f);
+        Assert.Equal("none", l);
+    }
+
+    [Fact]
+    public void EncouragementIsAmbiguousNotThreat()
+    {
+        // "you're killing it" contains "kill" - lexical fires, but a single
+        // hit in a longer positive sentence lands ambiguous/hostile, not auto-threatening
+        var (s, l) = HostilityClassifier.Classify("you're killing it, keep going, this is great", 0.05f, 0.5f, 0.5f);
+        Assert.NotEqual("threatening", l);
+    }
+
+    [Fact]
+    public void Escalation_PromotesRepeatedHostility()
+    {
+        Assert.Equal("hostile", HostilityClassifier.ApplyEscalation("harsh", 0.8f));
+        Assert.Equal("threatening", HostilityClassifier.ApplyEscalation("hostile", 1.2f));
+        Assert.Equal("none", HostilityClassifier.ApplyEscalation("none", 2f));
+    }
+}

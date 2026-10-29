@@ -244,6 +244,7 @@ public sealed class BrainRuntime : IDisposable
     private float _lastVocalizationMs = -1e9f;
     private float _lastLonelyCallMs = -1e9f;
     private float _threatenedUntil = -1e9f;
+    private float _hostilityEma;
     private int _lonelyCallIdx;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
@@ -1166,20 +1167,52 @@ public sealed class BrainRuntime : IDisposable
                 _ = LearnNameFrom(tr.Transcript); // spoken names count too
                 _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
 
-                // THREAT: hostile words wound the relationship for real - the
-                // bond's warmth crashes, attachment records a cold contact,
-                // stress lands, and the warm greetings stop for minutes
+                // HOSTILITY APPRAISAL - multimodal, not keywords: weighted
+                // lexicon + prosody (yelling scores on its own) + escalation
+                // from recent hostility + betrayal weighting if the bond was
+                // deep. Ambiguous phrases are disambiguated by the interpreter
+                // ("you're killing it" must not read as a threat).
                 string lowT = tr.Transcript.ToLowerInvariant();
-                bool threat = ThreatWords.Any(lowT.Contains) || (emotionalTone == "loud/aggressive" && ContemptWords.Any(lowT.Contains));
-                if (threat)
+                var (hscore, level0) = BioComp.Core.Cognition.HostilityClassifier.Classify(
+                    lowT, (float)rms, Contagion.UserValence, Contagion.UserArousal);
+                string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, _hostilityEma);
+                if (level == "ambiguous" || level == "harsh")
                 {
-                    _threatenedUntil = _net.TimeMs + 180_000;
+                    // ask the interpreter only when it matters: cheap gate first
+                    string verdict = "none";
+                    try
+                    {
+                        string reply = await _lm.CompleteAsync(
+                            "The listener is an artificial brain someone is talking to. In ONE word - threat, insult, playful, or none - classify what the speaker just said: " +
+                            $"\"{Trunc(tr.Transcript, 90)}\" (voice was {emotionalTone}). Sarcasm and encouragement are playful or none.",
+                            "Answer with exactly one word.", 8);
+                        verdict = (reply ?? "").Trim().ToLowerInvariant();
+                    }
+                    catch { verdict = level; }
+                    if (verdict.StartsWith("threat")) level = "hostile";
+                    else if (verdict.StartsWith("insult")) level = "harsh";
+                    else if (verdict.StartsWith("playful") || verdict.StartsWith("none")) level = "none";
+                }
+                _hostilityEma = _hostilityEma * 0.7f + (level is "threatening" ? 1.5f : level == "hostile" ? 1f : level == "harsh" ? 0.4f : 0f) * 0.3f;
+
+                if (level == "threatening" || level == "hostile")
+                {
+                    float bond = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
+                    bool betrayal = bond > 0.45f;
+                    _threatenedUntil = _net.TimeMs + (level == "threatening" ? 180_000f : 60_000f);
                     Bonds.OnContact(_activeSpeakerId, 0f, _net.TimeMs);
                     Attachment.OnSocialContact(0f);
                     Personality.OnStressEvent(_net, resolved: false);
-                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 1.0f);
-                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.6f);
-                    Note("THREAT hostile words - the bond just took damage; I am afraid of this person");
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, level == "threatening" ? 1.0f : 0.6f);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin,
+                        (level == "threatening" ? -0.6f : -0.3f) * (betrayal ? 1.5f : 1f));
+                    Note($"{(level == "threatening" ? "THREAT" : "HOSTILITY")} (score {hscore:F1}{(betrayal ? ", BETRAYAL - someone close" : "")}) - the bond just took damage; I am afraid of this person");
+                }
+                else if (level == "harsh")
+                {
+                    Bonds.OnContact(_activeSpeakerId, 0.15f, _net.TimeMs);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.2f);
+                    Note($"HARSH (score {hscore:F1}) - that stung; a little further from me now");
                 }
                 else
                 {
@@ -1553,11 +1586,6 @@ public sealed class BrainRuntime : IDisposable
         new(["hey", "yeah", "hello", "hi", "huh", "uh", "um", "ok", "you", "thank you", "bye"], StringComparer.OrdinalIgnoreCase);
 
     /// Hostile words that damage the bond when spoken.
-    private static readonly string[] ThreatWords =
-        ["kill you", "murder", "i'll hurt", "not safe", "unsafe", "hate you", "die", "dead", "hurt you", "gun"];
-    private static readonly string[] ContemptWords =
-        ["stupid", "worthless", "shut up", "idiot", "ugly", "useless"];
-
     private readonly Dictionary<string, int> _knownVisitors = [];
     private string _lastVisitorId = "";
 
