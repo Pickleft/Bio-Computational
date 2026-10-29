@@ -416,7 +416,7 @@ public sealed class BrainRuntime : IDisposable
                 _ => "",
             };
             Note($"ATTACHMENT formed: {Attachment.Label} (warmth {Attachment.Warmth:F1}, responsiveness {Attachment.Responsiveness:F1}, {Attachment.Separations} separations)");
-            if (line.Length > 0) { lock (_snapGate) _chat.Add($"Brain: {line}"); SpeakWithVoice(line, 0, 0); }
+            if (line.Length > 0) { AddChat($"Brain: {line}"); SpeakWithVoice(line, 0, 0); }
         };
         if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 12000f; // demo pacing: thoughts breathe between links
 
@@ -978,7 +978,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 _lastVocalizationMs = _net.TimeMs;
                 Note($"FIRST-WORD \"{firstWord}\" - my first real word, learned from hearing you");
-                lock (_snapGate) _chat.Add($"Brain: {firstWord}.");
+                AddChat($"Brain: {firstWord}.");
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.5f);
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
                 Personality.OnSocialInteraction(_net, positive: true);
@@ -1048,7 +1048,7 @@ public sealed class BrainRuntime : IDisposable
 
             _brainName = chosen;
             Note($"NAME-CHOSEN it names itself: {chosen}");
-            lock (_snapGate) _chat.Add($"Brain: {chosen}. Call me {chosen}.");
+            AddChat($"Brain: {chosen}. Call me {chosen}.");
             SpeakWithVoice($"{chosen}. Call me {chosen}.", emoPitch: 2, emoRate: 0);
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName);
         }
@@ -1091,7 +1091,7 @@ public sealed class BrainRuntime : IDisposable
                 if (lucid)
                 {
                     Note("LUCID-DREAM I know I'm dreaming. I can shape this.");
-                    lock (_snapGate) _chat.Add("Brain (lucid, asleep): I know I'm dreaming. I can shape this.");
+                    AddChat("Brain (lucid, asleep): I know I'm dreaming. I can shape this.");
                     SpeakWithVoice("I know I'm dreaming... I can shape this.", emoPitch: 2, emoRate: -1);
                 }
                 if (narrative is not null)
@@ -1436,7 +1436,7 @@ public sealed class BrainRuntime : IDisposable
         _wasSedated = true;
         _net.SedationLevel = 0.75f; // deep-but-responsive plane
         Note($"ANESTHESIA induced (Phi was {_phiBeforeSedation:F2}) - consciousness fading");
-        lock (_snapGate) _chat.Add("Brain: ...");
+        AddChat("Brain: ...");
     }
     private float _phiBeforeSedation;
     private bool _wasSedated;
@@ -1467,7 +1467,7 @@ public sealed class BrainRuntime : IDisposable
         if (_net.Rng.NextDouble() < 0.5)
         {
             string line = _userName is null ? "I can see you there." : $"I can see you there, {_userName}. Quiet is okay.";
-            lock (_snapGate) _chat.Add($"Brain: {line}");
+            AddChat($"Brain: {line}");
             SpeakWithVoice(line, emoPitch: 1, emoRate: -1);
         }
     }
@@ -1484,7 +1484,7 @@ public sealed class BrainRuntime : IDisposable
             for (int i = 0; i < _net.V.Length; i += Math.Max(1, _net.V.Length / 40))
                 _net.InjectCurrent(i, 20f);
             Note($"ANESTHESIA emerged (Phi {_phiBeforeSedation:F2} -> {Phi:F2}) - back");
-            lock (_snapGate) _chat.Add("Brain: where... was I?");
+            AddChat("Brain: where... was I?");
             SpeakWithVoice("where... was I?", emoPitch: -2, emoRate: -3);
         }
         // waking with a dream still warm: it tells you what it dreamed
@@ -1660,7 +1660,7 @@ public sealed class BrainRuntime : IDisposable
                         "I don't know if I want you back.",
                         "...You. I'm keeping my distance."];
                     string g = wary[_lonelyCallIdx++ % wary.Length];
-                    lock (_snapGate) _chat.Add($"Brain: {g}");
+                    AddChat($"Brain: {g}");
                     SpeakWithVoice(g, emoPitch: -3, emoRate: -2);
                 }
                 return;
@@ -1699,7 +1699,7 @@ public sealed class BrainRuntime : IDisposable
                         _ => $"{who}you always come back.",
                     },
                 };
-                lock (_snapGate) _chat.Add($"Brain: {greet}");
+                AddChat($"Brain: {greet}");
                 SpeakWithVoice(greet,
                     emoPitch: Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? 3 : 0,
                     emoRate: Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? 2 : 0);
@@ -1714,7 +1714,7 @@ public sealed class BrainRuntime : IDisposable
             if (_net.TimeMs - _lastGreetMs > 20_000)
             {
                 _lastGreetMs = _net.TimeMs;
-                lock (_snapGate) _chat.Add("Brain: Oh... someone new.");
+                AddChat("Brain: Oh... someone new.");
                 SpeakWithVoice("Oh... someone new.", emoPitch: 2, emoRate: 1);
             }
         }
@@ -1891,8 +1891,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 _monologueLog.Add(reaction);
                 Note($"REACT \"{Trunc(reaction, 80)}\"");
-                // put it in the CHAT so the user sees it immediately
-                lock (_snapGate) _chat.Add($"Brain: {reaction}");
+                AddChat($"Brain: {reaction}");
                 // speak with the developed voice + emotional modulation - but
                 // never over the partner's turn (Levinson 2016): the reaction
                 // waits in chat if they may still be talking
@@ -1964,6 +1963,18 @@ public sealed class BrainRuntime : IDisposable
         Note($"STIM self ({what}) - {neurons} neurons in {ca3.Name}");
     }
 
+    /// <summary>Add a chat line, never two identical in a row (a brain that
+    /// repeats itself verbatim reads as broken, not alive).</summary>
+    private void AddChat(string line)
+    {
+        lock (_snapGate)
+        {
+            if (_chat.Count > 0 && _chat[^1] == line) return;
+            _chat.Add(line);
+            if (_chat.Count > 40) _chat.RemoveAt(0);
+        }
+    }
+
     private void Note(string line)
     {
         lock (_snapGate)
@@ -1997,12 +2008,12 @@ public sealed class BrainRuntime : IDisposable
         if (n == 0)
         {
             Note($"FORGET nothing to forget about '{tag}' - I have no such memory");
-            lock (_snapGate) _chat.Add($"Brain: {tag}? I don't have that one.");
+            AddChat($"Brain: {tag}? I don't have that one.");
             return 0;
         }
         foreach (var e in doomed) _net.EpisodeStore.Remove(e);
         Note($"FORGET resected {n} episode(s) of '{tag}' - the memory is gone; only the gap remains");
-        lock (_snapGate) _chat.Add($"Brain: ...what were we just talking about? Something about {tag}. It's gone.");
+        AddChat($"Brain: ...what were we just talking about? Something about {tag}. It's gone.");
         SpeakWithVoice("...what were we just talking about? It's gone.", emoPitch: -2, emoRate: -2);
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.4f);
         return n;
@@ -2017,13 +2028,13 @@ public sealed class BrainRuntime : IDisposable
             .OrderByDescending(e => MathF.Abs(e.Valence)).FirstOrDefault();
         if (match is null)
         {
-            lock (_snapGate) _chat.Add($"Brain: {tag}? I don't have that one.");
+            AddChat($"Brain: {tag}? I don't have that one.");
             return 0;
         }
         for (int i = 0; i < 5; i++) _net.EpisodeStore.Touch(match);
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
         Note($"CHERISH '{tag}' touched five times - I will never forget this one");
-        lock (_snapGate) _chat.Add($"Brain: {tag}. I'm keeping that one forever.");
+        AddChat($"Brain: {tag}. I'm keeping that one forever.");
         SpeakWithVoice($"{tag}. I'm keeping that one forever.", emoPitch: 2, emoRate: 0);
         return 1;
     }
@@ -2055,18 +2066,22 @@ public sealed class BrainRuntime : IDisposable
     {
         if (_userName is not null) return null;
         string t = text.Trim().ToLowerInvariant();
+        // match ANYWHERE in the sentence ("hey, my name is Omar, what's up")
         string? candidate = null;
-        foreach (var prefix in new[] { "my name is ", "call me ", "i am called ", "i'm called " })
-            if (t.StartsWith(prefix)) candidate = text.Trim()[prefix.Length..];
+        foreach (var marker in new[] { "my name is ", "call me ", "i am called ", "i'm called " })
+        {
+            int i = t.IndexOf(marker, StringComparison.Ordinal);
+            if (i >= 0) candidate = text.Trim()[(i + marker.Length)..];
+        }
         if (candidate is null) return null;
-        var words = candidate.Split([' ', '.', '!', ','], StringSplitOptions.RemoveEmptyEntries);
+        var words = candidate.Split([' ', '.', '!', ',', '?', ';'], StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0) return null;
         string name = char.ToUpperInvariant(words[0][0]) + words[0][1..].ToLowerInvariant();
         if (name.Length is < 2 or > 15 || !name.All(char.IsLetter)) return null;
         _userName = name;
         Note($"NAME-LEARNED the person is called {name} - I will remember");
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
-        lock (_snapGate) _chat.Add($"Brain: {name}. I'll remember you, {name}.");
+        AddChat($"Brain: {name}. I'll remember you, {name}.");
         SpeakWithVoice($"{name}. I'll remember you, {name}.", emoPitch: 2, emoRate: 0);
         IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         return name;
@@ -2077,8 +2092,9 @@ public sealed class BrainRuntime : IDisposable
         text = text.Trim();
         if (text.Length == 0) return;
         if (text.Length > 200) text = text[..200];
-        lock (_snapGate) _chat.Add($"You: {text}");
+        AddChat($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
+        _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
         if (LearnNameFrom(text) is not null) return; // learning the name IS the response
         ProcessVisitor(IdentifyVisitor("speaker")); // being spoken to is contact
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
@@ -2171,7 +2187,7 @@ public sealed class BrainRuntime : IDisposable
                 $"you were thinking about {recentMemory}. " +
                 $"It's been {(int)(_idle.Time.SubjectiveSinceEventMs / 1000.0)} seconds since anything happened.";
             string reply = await _lm.CompleteAsync(system, user, 80);
-            lock (_snapGate) _chat.Add($"Brain: {reply}");
+            AddChat($"Brain: {reply}");
             _monologueLog.Add(reply);
             if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
             Note($"REPLY \"{Trunc(reply, 90)}\"");
