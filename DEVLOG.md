@@ -312,3 +312,17 @@ and were imported in the first commit - everything after that point was built du
   Child report lands in exports/child-report.md.
 - Tests: 2 new (sedation collapse and stimulated emergence, heredity blending and derived
   seed). 125 green.
+
+## 2026-10-29 (latest) - memory editing, the twin study, memetic inheritance
+
+- MEMORY EDITING (reconsolidation after Nader et al. 2000): typing "forget <thing>" in chat
+  surgically resects every matching episode - it stops feeding dreams, retrieval and thought,
+  and the brain feels the gap ("...what were we just talking about? It's gone."). "cherish
+  <thing>" touches the memory five times: unforgettable, it will surface and dream for a
+  lifetime. The Eternal-Sunshine endpoint.
+- THE TWIN STUDY: "biolab twins" forks the SAME brain (identical seed) into two childhoods -
+  twin A warm and answered, twin B cold - and diffs them. First run: identical temperaments,
+  attachment diverged to secure (warmth 0.9) versus cold (warmth 0.1). Same wiring; the
+  difference is what love does. Report: exports/twin-study.md.
+- MEMETIC INHERITANCE: biolab child now grafts one story-episode from the parent at birth -
+  the child can dream its parent's story without ever living it. Culture, not genes.

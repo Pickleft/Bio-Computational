@@ -1821,6 +1821,52 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>A human typed into the chat box: treat as direct speech.
     /// Includes habituation: if you say similar things repeatedly, the brain
     /// gets bored of you specifically (not bored generally — bored of YOUR pattern).</summary>
+    /// <summary>
+    /// MEMORY EDITING - the Eternal-Sunshine endpoint. Surgical resection of
+    /// every episode carrying the tag: the memory stops feeding dreams,
+    /// retrieval and thought. The brain FEELS the gap and says so. (Synaptic
+    /// residue remains, exactly as in real forgetting - we do not pretend the
+    /// weights unlearn.)
+    /// </summary>
+    public int ForgetMemory(string tag)
+    {
+        var episodes = _net.EpisodeStore.Episodes;
+        var doomed = episodes.Where(e => e.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase)).ToList();
+        int n = doomed.Count;
+        if (n == 0)
+        {
+            Note($"FORGET nothing to forget about '{tag}' - I have no such memory");
+            lock (_snapGate) _chat.Add($"Brain: {tag}? I don't have that one.");
+            return 0;
+        }
+        foreach (var e in doomed) _net.EpisodeStore.Remove(e);
+        Note($"FORGET resected {n} episode(s) of '{tag}' - the memory is gone; only the gap remains");
+        lock (_snapGate) _chat.Add($"Brain: ...what were we just talking about? Something about {tag}. It's gone.");
+        SpeakWithVoice("...what were we just talking about? It's gone.", emoPitch: -2, emoRate: -2);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.4f);
+        return n;
+    }
+
+    /// <summary>CHERISH: five reactivations - the memory becomes unforgettable
+    /// (retrieval strength maxed; it will surface and dream for a lifetime).</summary>
+    public int CherishMemory(string tag)
+    {
+        var match = _net.EpisodeStore.Episodes
+            .Where(e => e.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+            .OrderByDescending(e => MathF.Abs(e.Valence)).FirstOrDefault();
+        if (match is null)
+        {
+            lock (_snapGate) _chat.Add($"Brain: {tag}? I don't have that one.");
+            return 0;
+        }
+        for (int i = 0; i < 5; i++) _net.EpisodeStore.Touch(match);
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
+        Note($"CHERISH '{tag}' touched five times - I will never forget this one");
+        lock (_snapGate) _chat.Add($"Brain: {tag}. I'm keeping that one forever.");
+        SpeakWithVoice($"{tag}. I'm keeping that one forever.", emoPitch: 2, emoRate: 0);
+        return 1;
+    }
+
     public void HumanSaid(string text)
     {
         text = text.Trim();
@@ -1828,6 +1874,25 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
+
+        // MEMORY EDITING (reconsolidation, Nader et al. 2000): a reactivated
+        // memory returns to a labile state and can be altered. Typing
+        // "forget <thing>" surgically resects the matching episodes (the
+        // honest form of deletion in a spiking store: the traces no longer
+        // feed dreams, retrieval or thought - synaptic residue remains, as
+        // in real forgetting). "cherish <thing>" does the opposite: five
+        // reactivations, the memory becomes unforgettable.
+        var lower = text.ToLowerInvariant();
+        if (lower.StartsWith("forget "))
+        {
+            ForgetMemory(text[7..].Trim());
+            return;
+        }
+        if (lower.StartsWith("cherish "))
+        {
+            CherishMemory(text[8..].Trim());
+            return;
+        }
 
         // habituation: track what you typically say; if it's too similar to last time,
         // the brain's response is less enthusiastic

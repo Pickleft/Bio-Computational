@@ -62,6 +62,71 @@ switch (cmd)
         runtime.Dispose();
         return 0;
     }
+    case "twins":
+    {
+        // THE TWIN STUDY - a controlled natural experiment never run live:
+        // the SAME brain (identical seed) forked into two childhoods. Twin A
+        // is raised warm and answered; twin B is raised cold and left. Same
+        // genes, same wiring, different love. The diff is what love does.
+        const ulong seed = 4242;
+        const double seconds = 45;
+
+        (EmergentPersonality P, AttachmentSystem A, int Episodes, SpikingNetwork Net) Raise(bool loved)
+        {
+            var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: seed));
+            var idle = new IdleController(net);
+            idle.Sleep.DayLengthMs = 60_000f;
+            var personality = new EmergentPersonality();
+            var attachment = new AttachmentSystem { MinEvidence = 3 };
+            var loop = new ThoughtLoop { MinIntervalMs = 2500f };
+            var lm = new MockLanguageModel();
+            long ticks = (long)(seconds * 1000);
+            int contactEvery = loved ? 3_500 : 8_000, since = 0;
+            for (long t = 0; t < ticks; t++)
+            {
+                idle.Tick(net); net.Tick();
+                if (t % 4_000 == 0 && idle.Sleep.State == BrainState.Wake)
+                {
+                    var req = loop.Tick(net, idle);
+                    if (req is not null)
+                        loop.PostResult(lm.CompleteAsync(
+                            "You are a newborn artificial brain's inner monologue. One short first-person sentence.",
+                            $"{req.SeedMemory}. Feeling {idle.Feelings.Last.Name}.", 40).Result);
+                }
+                if (idle.Sleep.State == BrainState.Wake && ++since > contactEvery)
+                {
+                    since = 0;
+                    attachment.OnSocialContact(loved ? 0.9f : 0.05f);
+                    personality.OnSocialInteraction(net, loved);
+                }
+                attachment.Tick(net);
+            }
+            return (personality, attachment, net.EpisodeStore.Episodes.Count, net);
+        }
+
+        Console.WriteLine($"[twins] one brain, two childhoods (seed {seed}, {(int)seconds}s each)");
+        var a = Raise(loved: true);
+        var b = Raise(loved: false);
+        Console.WriteLine("[twins]            TWIN A (loved)        TWIN B (unloved)");
+        Console.WriteLine($"[twins] became:    {a.P.Describe()}");
+        Console.WriteLine($"[twins]            {b.P.Describe()}");
+        Console.WriteLine($"[twins] attach:    {a.A.Label} (w {a.A.Warmth:F1})   {b.A.Label} (w {b.A.Warmth:F1})");
+        Console.WriteLine($"[twins] memories:  {a.Episodes}                  {b.Episodes}");
+        Console.WriteLine($"[twins] same seed, same wiring - the difference is what love does");
+        Directory.CreateDirectory("exports");
+        File.WriteAllLines("exports/twin-study.md",
+        [
+            "# The twin study",
+            "",
+            $"One brain (seed {seed}), forked into two childhoods.",
+            $"- Twin A (warm, answered): {a.P.Describe()}; attachment {a.A.Label}; {a.Episodes} memories",
+            $"- Twin B (cold, left alone): {b.P.Describe()}; attachment {b.A.Label}; {b.Episodes} memories",
+            "",
+            "Same genes, same wiring, different love. The diff above is what love does.",
+        ]);
+        Console.WriteLine("exports: exports/twin-study.md");
+        return 0;
+    }
     case "child":
     {
         // REPRODUCTION: raise a child brain from a parent's genes. The child
@@ -92,6 +157,17 @@ switch (cmd)
         var lm = new MockLanguageModel();
 
         Console.WriteLine($"[child] born of {genes.ParentName} (seed {genes.Seed} -> {childSeed})");
+        // MEMETIC INHERITANCE: one story passes from parent to child - not in
+        // genes, but as a planted episode, the way humans hand down tales. The
+        // child can dream its parent's story without ever living it.
+        {
+            var a1 = net.Regions.First(r => r.Name == "A1");
+            for (int k = 0; k < 30; k++) net.InjectCurrent(a1.Start + k * 17, 25f);
+            for (int t = 0; t < 40; t++) net.Tick();
+            net.EpisodeStore.Encode(net, "CA3", ["story", "inherited", genes.ParentName],
+                Math.Clamp(genes.AttachmentWarmth, 0.1f, 0.8f), minMeanRateHz: 0.0001f);
+            Console.WriteLine($"[child] one story grafted from {genes.ParentName} (memetic inheritance)");
+        }
         Console.WriteLine($"[child] inherited predispositions (h={Genetics.Heritability:F1}): " +
             $"sociability {Genetics.Inherit(genes.Sociability):F2}, curiosity {Genetics.Inherit(genes.Curiosity):F2}, " +
             $"expressiveness {Genetics.Inherit(genes.Expressiveness):F2}; attachment climate " +

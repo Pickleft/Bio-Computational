@@ -134,6 +134,13 @@ public sealed class EpisodeMemory
     }
 
     /// <summary>
+    /// Surgical resection (memory editing): remove an episode entirely. It no
+    /// longer feeds dreams, retrieval or thought - synaptic residue remains in
+    /// the network, exactly as in real forgetting.
+    /// </summary>
+    public bool Remove(Episode e) => _episodes.Remove(e);
+
+    /// <summary>
     /// Reconsolidation: move an episode's stored valence toward neutral by a
     /// fraction. Used during sleep replay - REM strips the emotional charge
     /// from memories while keeping the content (Walker and van der Helm 2009:
