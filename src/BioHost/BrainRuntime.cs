@@ -243,6 +243,7 @@ public sealed class BrainRuntime : IDisposable
     private float _lastNoveltyMs = -1e9f;
     private float _lastVocalizationMs = -1e9f;
     private float _lastLonelyCallMs = -1e9f;
+    private float _threatenedUntil = -1e9f;
     private int _lonelyCallIdx;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
@@ -958,7 +959,12 @@ public sealed class BrainRuntime : IDisposable
                 emoRate = f.Name == "tired" ? -3 : f.Name == "bored" ? -1 : 0;
             }
             Note(tag);
-            SpeakWithVoice(line, emoPitch, emoRate);
+            // babble and mimic stay INTERNAL (thought feed only): syllable
+            // chains through a TTS voice sound like gibberish - they are
+            // developmental behavior, not speech. Mood sounds speak.
+            bool isBabble = tag.StartsWith("BABBLE") || tag.StartsWith("VOCAL-MIMIC");
+            if (!isBabble)
+                SpeakWithVoice(line, emoPitch, emoRate);
 
             // THE FIRST WORD: after enough heard speech, the brain's most
             // heard word becomes its first real word - once, as a milestone
@@ -1159,7 +1165,26 @@ public sealed class BrainRuntime : IDisposable
                 RecordTranscript(Trunc(tr.Transcript, 90), emotionalTone);
                 _ = LearnNameFrom(tr.Transcript); // spoken names count too
                 _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
-                _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
+
+                // THREAT: hostile words wound the relationship for real - the
+                // bond's warmth crashes, attachment records a cold contact,
+                // stress lands, and the warm greetings stop for minutes
+                string lowT = tr.Transcript.ToLowerInvariant();
+                bool threat = ThreatWords.Any(lowT.Contains) || (emotionalTone == "loud/aggressive" && ContemptWords.Any(lowT.Contains));
+                if (threat)
+                {
+                    _threatenedUntil = _net.TimeMs + 180_000;
+                    Bonds.OnContact(_activeSpeakerId, 0f, _net.TimeMs);
+                    Attachment.OnSocialContact(0f);
+                    Personality.OnStressEvent(_net, resolved: false);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 1.0f);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.6f);
+                    Note("THREAT hostile words - the bond just took damage; I am afraid of this person");
+                }
+                else
+                {
+                    _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
+                }
 
                 // recognize the speaker (same browser session = same person)
                 ProcessVisitor(IdentifyVisitor("speaker"));
@@ -1527,6 +1552,12 @@ public sealed class BrainRuntime : IDisposable
     private static readonly HashSet<string> GhostWords =
         new(["hey", "yeah", "hello", "hi", "huh", "uh", "um", "ok", "you", "thank you", "bye"], StringComparer.OrdinalIgnoreCase);
 
+    /// Hostile words that damage the bond when spoken.
+    private static readonly string[] ThreatWords =
+        ["kill you", "murder", "i'll hurt", "not safe", "unsafe", "hate you", "die", "dead", "hurt you", "gun"];
+    private static readonly string[] ContemptWords =
+        ["stupid", "worthless", "shut up", "idiot", "ugly", "useless"];
+
     private readonly Dictionary<string, int> _knownVisitors = [];
     private string _lastVisitorId = "";
 
@@ -1576,6 +1607,23 @@ public sealed class BrainRuntime : IDisposable
         if (_knownVisitors.TryGetValue(visitorId, out int visits))
         {
             _knownVisitors[visitorId] = visits + 1;
+            // THREATENED: no warm welcome back for someone who just threatened
+            // it - the recognition is wary, the reward chemistry is withheld
+            if (_net.TimeMs < _threatenedUntil)
+            {
+                Note($"RECOGNIZED {visitorId} - but I am afraid of them (bond damaged)");
+                if (_net.TimeMs - _lastGreetMs > 45_000)
+                {
+                    _lastGreetMs = _net.TimeMs;
+                    string[] wary = ["You're back. I remember what you said.",
+                        "I don't know if I want you back.",
+                        "...You. I'm keeping my distance."];
+                    string g = wary[_lonelyCallIdx++ % wary.Length];
+                    lock (_snapGate) _chat.Add($"Brain: {g}");
+                    SpeakWithVoice(g, emoPitch: -3, emoRate: -2);
+                }
+                return;
+            }
             // recognition reward scales with bond depth: seeing someone you
             // deeply know pays more dopamine than seeing a stranger
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
@@ -1585,7 +1633,7 @@ public sealed class BrainRuntime : IDisposable
             Personality.OnSocialInteraction(_net, positive: true);
             // SPEAK the recognition, in the voice of the attachment style the
             // brain developed: calm (secure), relieved (anxious), distant (avoidant)
-            if (_net.TimeMs - _lastGreetMs > 20_000 &&
+            if (_net.TimeMs - _lastGreetMs > 60_000 &&
                 (Attachment.CallOutMultiplier > 0.5f || visits % 2 == 0))
             {
                 _lastGreetMs = _net.TimeMs;
