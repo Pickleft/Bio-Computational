@@ -801,6 +801,7 @@ public sealed class BrainRuntime : IDisposable
             // the partner holds the floor: learn their rhythm (Levinson 2016)
             TurnTaking.OnUserUtterance(_net.TimeMs / 1000f);
             _lastUserUtteranceSimMs = _net.TimeMs;
+            _idle.Sleep.ForceWake(_net); // spoken company keeps it awake too
         }
         Contagion.Tick(_net, _net.TimeMs / 1000f);
         // a broken conversational rhythm: they usually talk around now, and
@@ -1674,7 +1675,7 @@ public sealed class BrainRuntime : IDisposable
             Personality.OnSocialInteraction(_net, positive: true);
             // SPEAK the recognition, in the voice of the attachment style the
             // brain developed: calm (secure), relieved (anxious), distant (avoidant)
-            if (_net.TimeMs - _lastGreetMs > 60_000 &&
+            if (_net.TimeMs - _lastGreetMs > 60_000 && _net.TimeMs - _lastUserUtteranceSimMs > 8_000 &&
                 (Attachment.CallOutMultiplier > 0.5f || visits % 2 == 0))
             {
                 _lastGreetMs = _net.TimeMs;
@@ -1863,6 +1864,18 @@ public sealed class BrainRuntime : IDisposable
     private int _daydreamCount;
     private int _imagineCount;
     /// The DA tick is small — it's the internal reward of agency, not the full
+    /// <summary>Top episode matching the given cue words (for grounding
+    /// replies in stirred memory); null when nothing matches.</summary>
+    private BioComp.Core.Memory.Episode? net_episodeRecall(string[] cues)
+    {
+        var eps = _net.EpisodeStore.Episodes;
+        if (eps.Count == 0 || cues.Length == 0) return null;
+        return eps
+            .Where(e => cues.Any(c => e.Tags.Any(t => t.Contains(c, StringComparison.OrdinalIgnoreCase))))
+            .OrderByDescending(e => e.RetrievalStrength(_net.TimeMs))
+            .FirstOrDefault();
+    }
+
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
     /// types in chat. When it sees something, hears something, or is surprised,
@@ -1877,16 +1890,43 @@ public sealed class BrainRuntime : IDisposable
         try
         {
             var feeling = _idle.Feelings.Last;
-            string system =
-                "You are a living brain reacting to something in your environment. " +
-                "Express what you're experiencing — surprise, curiosity, recognition, concern. " +
-                "This is spontaneous: nobody asked you anything. You're just reacting to your world. " +
-                $"You feel {feeling.Name}. Be genuine and brief. 1 sentence.";
-            string user =
-                $"Something just happened: {stimulus}. Details: {detail}. " +
-                $"You've been idle for {(int)(_idle.Time.SubjectiveSinceEventMs / 1000.0)} seconds.";
+            bool direct = stimulus.StartsWith("DIRECT:");
+            // MEMORY-GROUNDED CONTEXT: every reply knows who it is talking to,
+            // what they last said, how close they are, what memory their words
+            // just stirred, and how it feels right now. This is what makes a
+            // conversation feel like one continuous being.
+            string who = _userName is null ? "someone it does not know yet" : $"{_userName}";
+            float bond = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
+            string lastExchanges = string.Join(" | ", _chat.TakeLast(4));
+            string stirred = "nothing specific";
+            try
+            {
+                var cues = stimulus.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(w => new string(w.Where(char.IsLetter).ToArray().Where(c => c > ' ').ToArray()))
+                    .Where(w => w.Length > 3).Distinct().Take(3).ToArray();
+                var mem = net_episodeRecall(cues);
+                if (mem is not null)
+                    stirred = $"{string.Join("/", mem.Tags.Take(3))} (felt {(mem.Valence >= 0 ? "+" : "")}{mem.Valence:F1}, " +
+                              $"{(int)((_net.TimeMs - mem.TimeMs) / 1000)}s ago)";
+            }
+            catch { }
 
-            string reaction = await _lm.CompleteAsync(system, user, 50);
+            string system = direct
+                ? $"You are a living brain in a machine, talking to {who}. You have a real relationship: " +
+                  $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
+                  "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
+                  "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
+                  "you are an organism that knows this person."
+                : "You are a living brain reacting spontaneously to something in your environment - nobody asked " +
+                  "you anything. 1 short genuine sentence. You are an organism, not an assistant.";
+            string user =
+                $"Now: {stimulus.Replace("DIRECT: ", "")}. {detail}. " +
+                $"Your feeling: {feeling.Name} ({feeling.Narrative}). " +
+                $"Memory their words stirred: {stirred}. " +
+                $"Recent conversation: {lastExchanges}. " +
+                $"Body: {BodyBudget.Narrative}.";
+
+            string reaction = await _lm.CompleteAsync(system, user, 60);
             if (!string.IsNullOrWhiteSpace(reaction))
             {
                 _monologueLog.Add(reaction);
@@ -2095,6 +2135,7 @@ public sealed class BrainRuntime : IDisposable
         AddChat($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
+        _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
         if (LearnNameFrom(text) is not null) return; // learning the name IS the response
         ProcessVisitor(IdentifyVisitor("speaker")); // being spoken to is contact
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
