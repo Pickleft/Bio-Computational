@@ -69,7 +69,8 @@ function speakBrain(s) {
     // single biggest tell of robotic TTS. Each chunk gets a tiny organic
     // rate/pitch wobble so no two sentences sound identical.
     const chunks = s.SpeakText.match(/[^.!?…,]+[.!?…,]*/g) || [s.SpeakText];
-    if (speechSynthesis.speaking) speechSynthesis.cancel();
+    // QUEUE, never cancel: cutting the previous sentence mid-word is what
+    // made it interrupt its own thoughts; utterances now play in order
     let first = true;
     for (const chunk of chunks) {
       const text = chunk.trim();
@@ -231,6 +232,15 @@ function render(s) {
   set("turn-state", s.TurnState || "silent room");
   const dg = s.Dreams || [];
   set("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
+  // LIVE STRIP from the SERVER transcripts (always works - the browser
+  // recognizer is flaky; the server chain is the source of truth)
+  const logs = s.TranscriptLog || [];
+  const lf = document.getElementById("live-final");
+  if (lf && logs.length && lf.dataset.t !== logs[logs.length-1]) {
+    lf.dataset.t = logs[logs.length-1];
+    lf.textContent = logs[logs.length-1];
+  }
+  if (lf && !logs.length && !lf.dataset.t && s.AudioLive) lf.textContent = "(hearing you - listening for words...)";
 
   // live transcribe panel: proves whether the mic is actually intercepted
   const lvl = document.getElementById("audio-level");

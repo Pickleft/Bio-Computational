@@ -217,7 +217,7 @@ function sendVideoFrame() {
     const ectx = eyes.getContext("2d");
     const out = ectx.createImageData(64, 64);
     for (let j = 0; j < gray.length; j++) {
-      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] = gray[j];
+      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] = Math.min(255, gray[j] * 1.6 + 18); // brightened preview
       out.data[j * 4 + 3] = 255;
     }
     ectx.putImageData(out, 0, 0);

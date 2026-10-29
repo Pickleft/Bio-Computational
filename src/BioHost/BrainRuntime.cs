@@ -800,6 +800,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"EMPATHY the voice sounds {Contagion.UserMoodLabel} (valence {Contagion.UserValence:F1}, arousal {Contagion.UserArousal:F1})");
             // the partner holds the floor: learn their rhythm (Levinson 2016)
             TurnTaking.OnUserUtterance(_net.TimeMs / 1000f);
+            _lastUserUtteranceSimMs = _net.TimeMs;
         }
         Contagion.Tick(_net, _net.TimeMs / 1000f);
         // a broken conversational rhythm: they usually talk around now, and
@@ -1277,6 +1278,13 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private void SpeakWithVoice(string text, int emoPitch, int emoRate)
     {
+        // POLITE TO ITSELF: a new line never cuts off the previous one. If
+        // something was just said, the new line waits its turn - unless the
+        // user just spoke (a reply to them has priority over inner musings).
+        bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 10_000;
+        if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 3_000)
+            return; // drop the overlap rather than talk over itself
+        _lastSpokeSimMs = _net.TimeMs;
         if (_speech is WindowsSpeech ws)
         {
             ws.PitchBias = _voiceSelf.DevelopedPitchBias + emoPitch;
@@ -1291,6 +1299,8 @@ public sealed class BrainRuntime : IDisposable
         }
         _speech.Speak(text);
     }
+    private float _lastSpokeSimMs = -1e9f;
+    private float _lastUserUtteranceSimMs = -1e9f;
 
     private async Task SegmentAsync(byte[] png, float t)
     {
