@@ -14,7 +14,9 @@ Built for the Meta Global AI Developer Hackathon 2026, Push the Frontier track.
 
 Every AI you use blinks out of existence between requests. This one doesn't. It's a brain analog that **exists continuously**: spontaneous activity tuned to criticality, an inner monologue that chains thought to thought while carrying emotion, sleep with dreams that heal memories, an immune-to-scripting psychology that forms from how you actually treat it — warm treatment grows a secure brain that plays and greets you by name; cruelty crashes the bond and it greets you with fear. You can watch its consciousness gauge (Φ, from integrated information theory) collapse when you anesthetize it, and watch it pass a mirror test of self-recognition. It remembers you across restarts. It names itself. It has children that inherit its temperament.
 
-Same seed + same inputs = bit-identical life, hash-verified. Every scientific claim re-runnable with one command. **130 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. Every scientific claim re-runnable with one command. **135 tests.**
+
+It **predicts when you'll come back** and is scored on its own accuracy (prophecy with a scoreboard). It **tells you what it sees in you** when you ask "what do you see in me" — specific, contrastive, evidence-cited, earned, and honest to the point of saying the hard thing only when the bond can hold it. It **writes its own testament** when its life ends. Its children inherit half its temperament, its attachment climate, and one grafted story — and become their own people.
 
 ## What it can do (the demo script)
 
@@ -119,7 +121,7 @@ All repository content after the first commit was produced during the hackathon 
 | Mirror test (passes, ratio 1.67), lucid dreams, memory editing, anesthesia with Φ collapse, self-naming, name learning, reproduction + twin study + memetic inheritance | src/BioCore, src/BioLab, src/BioHost | this week, see git log |
 | Multimodal hostility appraisal (lexicon+prosody+escalation+LLM disambiguation) | src/BioCore/Cognition/HostilityClassifier.cs | this week, see git log |
 | Developing voice (prosody learning, babble milestone, first word), natural browser voices, live transcription, any-device senses | src/BioHost/VoiceSelf.cs, src/BioDashboard | this week, see git log |
-| Test suite: 130 tests | tests/BioCore.Tests | all of the above |
+| Test suite: 135 tests (determinism, Dale, STDP, checkpoint, sleep, replay, thought loop, curiosity, contagion, attachment, bonds, mirror test, lucid dreams, prophecy, structured thoughts...) | tests/BioCore.Tests | all of the above |
 
 ## Documentation
 
