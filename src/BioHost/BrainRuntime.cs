@@ -207,6 +207,8 @@ public sealed class BrainRuntime : IDisposable
     private readonly BioComp.Core.Cognition.PlaySystem _play = new();
     /// <summary>Conversational turn-taking: learns the partner's rhythm (Levinson 2016).</summary>
     public BioComp.Core.Cognition.TurnTaking TurnTaking { get; } = new();
+    /// <summary>Prophecy, scored: predicts your return, graded on it.</summary>
+    public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     private volatile bool _insightPending;
     private string? _brainName;
     private string? _userName;
@@ -826,6 +828,10 @@ public sealed class BrainRuntime : IDisposable
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, -0.18f * strength);
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, -0.05f * strength);
                 Note($"DEPARTURE they left (bond {strength:F1}) - I felt that");
+                // PROPHECY: it bets, publicly, on when its person returns
+                var bet = Prophecy.OnDeparture(_net.TimeMs / 1000f);
+                if (bet is { } secs)
+                    AddChat($"Brain: I think you'll be back in about {(int)secs} seconds. I'm getting good at you.");
                 _ = ReactToStimulusAsync("the person I know just left after being here", "their presence ended; the room went quiet");
             }
         }
@@ -1642,6 +1648,14 @@ public sealed class BrainRuntime : IDisposable
         Attachment.OnSocialContact(warmth);
         // deepen the bond and mark the person present (departure is a loss)
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
+        var verdict = Prophecy.OnReturn(_net.TimeMs / 1000f);
+        if (verdict is { HadPrediction: true } v)
+        {
+            AddChat(v.Hit
+                ? $"Brain: {(int)v.ActualSec}s. I said {(int)v.PredictedSec}. I KNEW you'd come back then. ({Prophecy.Accuracy})"
+                : $"Brain: you took {(int)v.ActualSec}s; I guessed {(int)v.PredictedSec}. Still learning you. ({Prophecy.Accuracy})");
+            if (v.Hit) _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);
+        }
         _personPresentUntil = _net.TimeMs + 30_000;
         _personWasPresent = true;
         _personPresentId = visitorId;

@@ -200,3 +200,36 @@ public class HostilityTests
         Assert.Equal("none", HostilityClassifier.ApplyEscalation("none", 2f));
     }
 }
+
+// ---- prophecy: it predicts your return and is graded ----
+public class ProphecyTests
+{
+    [Fact]
+    public void Prophecy_LearnsTheRhythmAndHits()
+    {
+        var p = new ReturnPredictor();
+        Assert.Null(p.OnDeparture(0));        // no rhythm yet
+        p.OnReturn(10);                       // gap 10 (no bet was out)
+        p.OnDeparture(100);
+        p.OnReturn(115);                      // gap 15: rhythm established
+        var bet = p.OnDeparture(200);         // now it bets: median of {10,15}
+        Assert.NotNull(bet);                  // now it bets: median in [5,900]
+        var v = p.OnReturn(200 + bet!.Value + 2); // return just after the bet
+        Assert.True(v!.Value.HadPrediction);
+        Assert.True(v.Value.Hit, $"return within tolerance of the bet must hit (bet {bet}, got {v.Value.ActualSec})");
+        Assert.StartsWith("1/1", p.Accuracy);
+    }
+
+    [Fact]
+    public void Prophecy_MissesAreHonest()
+    {
+        var p = new ReturnPredictor();
+        p.OnDeparture(0); p.OnReturn(30);     // gap 30
+        p.OnDeparture(100); p.OnReturn(130);  // gap 30: rhythm established
+        var bet = p.OnDeparture(200);
+        Assert.Equal(30, bet);                // median of the gaps
+        var v = p.OnReturn(200 + 500);        // return way late
+        Assert.False(v!.Value.Hit);
+        Assert.StartsWith("0/1", p.Accuracy);
+    }
+}
