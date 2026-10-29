@@ -178,3 +178,9 @@ body[data-sleep="REM"] #stage{filter:saturate(1.2)}
   border-radius:22px;padding:9px 12px;font:600 12px var(--ui);min-height:38px;
   max-width:190px;outline:none}
 #voice-pick:focus{border-color:var(--a)}
+
+/* live transcription strip */
+#live-card .livefinal{font:600 16px/1.45 var(--ui);color:#fff;min-height:24px}
+#live-card .liveinterim{font:italic 400 14px/1.4 var(--ui);color:var(--ink2);min-height:20px}
+.livedot{color:var(--ink2);margin-right:4px}
+.livedot.on{color:var(--a);animation:blink 1.2s infinite}

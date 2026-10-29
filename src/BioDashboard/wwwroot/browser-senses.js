@@ -139,10 +139,47 @@ async function enableBrowserSenses() {
   btn.textContent = haveCam && haveMic ? "👁 senses ON" : haveMic ? "🎙 mic ON" : "📷 cam ON";
   btn.classList.add("active");
   console.log("Browser senses enabled (cam:", haveCam, "mic:", haveMic, ")");
+  startLiveTranscription();
+}
+
+// ---- LIVE TRANSCRIPTION: streaming words as you speak via the browser's own
+// speech recognition (Chrome/Edge). Instant, free, visible proof of hearing.
+let liveRec = null;
+function startLiveTranscription() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  liveRec = new SR();
+  liveRec.continuous = true;
+  liveRec.interimResults = true;
+  liveRec.lang = "en-US";
+  liveRec.onresult = (e) => {
+    const dot = document.getElementById("live-dot");
+    if (dot) dot.classList.add("on");
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript.trim();
+      if (e.results[i].isFinal) {
+        const fin = document.getElementById("live-final");
+        if (fin && t) fin.textContent = "“" + t + "”";
+        document.getElementById("live-interim").textContent = "";
+      } else interim += t + " ";
+    }
+    const int = document.getElementById("live-interim");
+    if (int) int.textContent = interim;
+  };
+  liveRec.onend = () => { if (senseActive && liveRec) { try { liveRec.start(); } catch { } } };
+  try { liveRec.start(); } catch { }
 }
 
 function disableBrowserSenses() {
   senseActive = false;
+  if (liveRec) { try { liveRec.onend = null; liveRec.stop(); } catch { } liveRec = null; }
+  const dotEl = document.getElementById("live-dot");
+  if (dotEl) dotEl.classList.remove("on");
+  const finEl = document.getElementById("live-final");
+  const intEl = document.getElementById("live-interim");
+  if (finEl) finEl.textContent = "…";
+  if (intEl) intEl.textContent = "";
   if (frameTimer) clearInterval(frameTimer);
   if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
   if (audioContext) { audioContext.close(); audioContext = null; }
