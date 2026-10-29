@@ -88,7 +88,41 @@ function speakBrain(s) {
 
 if ("speechSynthesis" in window) {
   pickedVoice = pickVoice();
-  speechSynthesis.onvoiceschanged = () => { pickedVoice = pickVoice(); };
+  const GOOD = /Natural|Neural|Online|Google|Aria|Jenny|Guy|Ana/i;
+  // VOICE PICKER: lets you choose the brain's voice directly; starred names
+  // are the human-quality ones. Choice persists in localStorage.
+  const fillPicker = () => {
+    const sel = document.getElementById("voice-pick");
+    if (!sel) return;
+    const voices = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
+    if (!voices.length) return;
+    sel.innerHTML = "";
+    voices.forEach((v) => {
+      const o = document.createElement("option");
+      o.value = v.name;
+      o.textContent = (GOOD.test(v.name) ? "★ " : "") + v.name;
+      sel.appendChild(o);
+    });
+    const saved = localStorage.getItem("brainVoice");
+    if (saved && voices.some((v) => v.name === saved)) {
+      sel.value = saved;
+      pickedVoice = voices.find((v) => v.name === saved);
+    } else if (pickedVoice) sel.value = pickedVoice.name;
+    // honest warning: if ONLY robotic voices exist, say so once
+    if (!voices.some((v) => GOOD.test(v.name))) {
+      sel.style.borderColor = "#f07080";
+      sel.title = "Only robotic voices found on this machine/browser — open this page in Microsoft Edge for the free neural (Natural) voices, or pick the least-bad one";
+    }
+  };
+  fillPicker();
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.id === "voice-pick") {
+      pickedVoice = speechSynthesis.getVoices().find((v) => v.name === e.target.value) || pickedVoice;
+      localStorage.setItem("brainVoice", e.target.value);
+      console.log("[voice] user picked", e.target.value);
+    }
+  });
+  speechSynthesis.onvoiceschanged = () => { pickedVoice = pickVoice(); fillPicker(); };
   // mobile autoplay policy: speech needs one user gesture before it can
   // start. Unlock on the first tap/click anywhere, then re-pick voices
   // (Android populates the voice list only after interaction).

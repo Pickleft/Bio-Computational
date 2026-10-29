@@ -172,3 +172,9 @@ body.log-open #drawer{right:0}
 #drawer .scroll{flex:1}
 body[data-sleep="NREM"] #stage{filter:saturate(.6) brightness(.75)}
 body[data-sleep="REM"] #stage{filter:saturate(1.2)}
+
+/* voice picker */
+#voice-pick{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+  border-radius:22px;padding:9px 12px;font:600 12px var(--ui);min-height:38px;
+  max-width:190px;outline:none}
+#voice-pick:focus{border-color:var(--a)}
