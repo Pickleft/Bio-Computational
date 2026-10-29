@@ -449,11 +449,22 @@ public sealed class BrainRuntime : IDisposable
 
         foreach (var (visitorId, visits) in identity.KnownVisitors)
         {
+            // migration: older lives recorded a new identity per transcript
+            // fragment (speaker:Yeah., speaker:Hello!, ...). They were all the
+            // same browser session - one person. Merge their visits into
+            // person-1 and drop the fragments.
+            if (visitorId.StartsWith("speaker:") || visitorId.StartsWith("visual:"))
+            {
+                _knownVisitors["person-1"] = _knownVisitors.TryGetValue("person-1", out int v1) ? v1 + visits : visits;
+                continue;
+            }
             _knownVisitors[visitorId] = visits;
             // rebuild bond depth from visit history (warmth mid-defaults; it
             // re-learns the person's warmth on the next contact)
             for (int i = 0; i < Math.Min(visits, 12); i++) Bonds.OnContact(visitorId, 0.5f, 0f);
         }
+        if (_knownVisitors.TryGetValue("person-1", out int merged) && merged > 0)
+            for (int i = 0; i < Math.Min(merged, 24); i++) Bonds.OnContact("person-1", 0.5f, 0f);
 
         Note($"IDENTITY RESTORED: {identity.PersonalityDescription} " +
              $"({identity.TotalSocial} social interactions, {identity.KnownVisitors.Count} known people, " +
