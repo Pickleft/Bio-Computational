@@ -1695,6 +1695,8 @@ public sealed class BrainRuntime : IDisposable
             {
                 if (int.TryParse(lastCoords[0], out int lx) && int.TryParse(newCoords[0], out int nx))
                     if (Math.Abs(lx - nx) <= 1) return _lastVisitorId; // same position = same person
+            }
+            return _activeSpeakerId;
         }
     }
     private void ProcessVisitor(string visitorId)
