@@ -246,6 +246,11 @@ public sealed class BrainRuntime : IDisposable
     private float _lastVocalizationMs = -1e9f;
     private float _lastLonelyCallMs = -1e9f;
     private float _threatenedUntil = -1e9f;
+    private readonly List<float> _warmthHistory = [];
+    private int _hostileEvents;
+    private int _repairs;
+    private float _lastHostilitySimMs = -1e9f;
+    private string _firstUserMessage = "";
     private float _hostilityEma;
     private int _lonelyCallIdx;
 
@@ -1225,6 +1230,11 @@ public sealed class BrainRuntime : IDisposable
                     _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin, -0.2f);
                     Note($"HARSH (score {hscore:F1}) - that stung; a little further from me now");
                 }
+                if (level is "threatening" or "hostile" or "harsh")
+                {
+                    _hostileEvents++;
+                    _lastHostilitySimMs = _net.TimeMs;
+                }
                 else
                 {
                     _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
@@ -1685,20 +1695,15 @@ public sealed class BrainRuntime : IDisposable
             {
                 if (int.TryParse(lastCoords[0], out int lx) && int.TryParse(newCoords[0], out int nx))
                     if (Math.Abs(lx - nx) <= 1) return _lastVisitorId; // same position = same person
-            }
-            return _activeSpeakerId; // default to active speaker
         }
-        // For speech: same session = same person (browsers don't distinguish speakers)
-        return _activeSpeakerId;
     }
-
     private void ProcessVisitor(string visitorId)
     {
-        // warmth of this contact from the prosody estimate: gentle/warm voice
-        // reads as warm care; agitated reads as cold; unknown mid-defaults
-        float warmth = Contagion.Confidence > 0.3f
-            ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f)
-            : 0.45f;
+        float warmth = Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f;
+        Bonds.OnContact(visitorId, warmth, _net.TimeMs);
+        _warmthHistory.Add(warmth);
+        if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
+        if (_net.TimeMs - _lastHostilitySimMs < 90_000 && warmth > 0.5f) _repairs++; // you came back soft
         Attachment.OnSocialContact(warmth);
         // deepen the bond and mark the person present (departure is a loss)
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
@@ -2209,6 +2214,13 @@ public sealed class BrainRuntime : IDisposable
         Note($"HEARD \"{text}\" (typed)");
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
         _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
+        if (_firstUserMessage.Length == 0) _firstUserMessage = Trunc(text, 80);
+        var lowMirror = text.ToLowerInvariant();
+        if (lowMirror.Contains("what do you see in me") || lowMirror.Contains("mirror me") || lowMirror == "mirror")
+        {
+            _ = SpeakMirrorAsync();
+            return;
+        }
         if (LearnNameFrom(text) is not null) return; // learning the name IS the response
         ProcessVisitor(IdentifyVisitor("speaker")); // being spoken to is contact
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);

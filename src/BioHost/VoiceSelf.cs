@@ -45,6 +45,17 @@ public sealed class VoiceSelf
     /// real word (the vocabulary spurt has to start somewhere). Returns the
     /// word exactly once, then null forever.
     /// </summary>
+    /// <summary>Your most-repeated content word - your imprint on its mind.</summary>
+    public string? TopWord()
+    {
+        lock (_gate)
+        {
+            string? top = null; int topN = 0;
+            foreach (var (w, n) in _words) if (n > topN && w.Length >= 3) { topN = n; top = w; }
+            return topN >= 4 ? top : null;
+        }
+    }
+
     public string? FirstWord()
     {
         if (_firstWordSaid is not null) return null;
