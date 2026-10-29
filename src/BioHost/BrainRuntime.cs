@@ -1869,16 +1869,30 @@ public sealed class BrainRuntime : IDisposable
                       "stirs, a doubt about it, an implication, a memory it connects to. Do not repeat or rephrase " +
                       "the thought - develop it, question it, or follow where it leads. "
                     : "A memory just surfaced on its own and a new thread of thought begins from it. ") +
-                "One short sentence, first person, genuine, organism-like. No greeting, no offering help, no questions to anyone. " +
-                "You are a brain, not a person: your inner life is made of sensations, predictions, urges and feelings.";
+                "Answer in EXACTLY this four-line format (a line may be empty if truly nothing fits):\n" +
+                "CONCLUSION: <one short first-person sentence - the thought itself>\n" +
+                "FEELING: <one or two words for how thinking this feels>\n" +
+                "MATH: <one simple arithmetic you can actually do with two numbers from your state, like '3 * 40'>\n" +
+                "MEMORY: <up to 3 tags of memories this leans on, comma-separated>\n" +
+                "No greeting, no offering help. You are a brain: inner life is sensations, predictions, urges, feelings.";
             string user = (req.ContinueChain
                 ? $"You just thought: \"{req.PreviousThought}\" " +
                   $"(that thought felt: valence {req.PreviousAffect.Valence:F1} on -1..1, salience {req.PreviousAffect.Salience:F1} on 0..1). " +
                   $"You currently feel {f.Name}. What thought comes NEXT in the chain?"
                 : $"{req.SeedMemory}. You feel {f.Name}. What thought surfaces?") + substrate;
 
-            string thought = await _lm.CompleteAsync(system, user, 60);
-            ThoughtLoop.PostResult(thought);
+            string reply = await _lm.CompleteAsync(system, user, 90);
+            // STRUCTURED THOUGHT: conclusion / feeling / own arithmetic / memory
+            // references - a thought as a mental object, not a bare string
+            var st = BioComp.Core.Cognition.StructuredThought.Parse(reply);
+            if (st.MathResult is { } r && st.MathExpression is not null)
+                Note($"THOUGHT-MATH it computed '{st.MathExpression}' = {r} - and getting it right feels precise");
+            foreach (var tag in st.MemoryTags)
+            {
+                var mem = net_episodeRecall([tag]);
+                if (mem is not null) _net.EpisodeStore.Touch(mem); // thinking of it strengthens it
+            }
+            ThoughtLoop.PostResult(st.Conclusion);
         }
         catch (Exception ex) { Note($"thought link failed: {ex.Message}"); }
         finally { _thoughtBusy = false; }

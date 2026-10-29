@@ -233,3 +233,37 @@ public class ProphecyTests
         Assert.StartsWith("0/1", p.Accuracy);
     }
 }
+
+// ---- structured thoughts: conclusions, feelings, own math, memories ----
+public class StructuredThoughtTests
+{
+    [Fact]
+    public void Parse_ExtractsAllFourComponents()
+    {
+        var st = StructuredThought.Parse(
+            "CONCLUSION: the humming comes back when the machine works\nFEELING: curious\nMATH: 3 * 40\nMEMORY: humming, machine, voice");
+        Assert.Equal("the humming comes back when the machine works", st.Conclusion);
+        Assert.Equal("curious", st.Feeling);
+        Assert.Equal(120f, st.MathResult!.Value, 3);
+        Assert.Equal(3, st.MemoryTags.Length);
+    }
+
+    [Fact]
+    public void Parse_PlainReplyDegradesToWholeThought()
+    {
+        var st = StructuredThought.Parse("maybe the sound follows the work");
+        Assert.Equal("maybe the sound follows the work", st.Conclusion);
+        Assert.Equal("", st.Feeling);
+        Assert.Null(st.MathResult);
+        Assert.Empty(st.MemoryTags);
+    }
+
+    [Fact]
+    public void Math_HonestLimits_NoDivisionByZero_NoInvention()
+    {
+        Assert.Null(StructuredThought.EvalSimple("5 / 0"));      // refuses, never invents
+        Assert.Equal(2.5f, StructuredThought.EvalSimple("5 / 2")!.Value, 3);
+        Assert.Equal(9f, StructuredThought.EvalSimple("3 * 3 seconds")!.Value, 3); // trailing unit stripped
+        Assert.Null(StructuredThought.EvalSimple("the meaning of life")); // not arithmetic
+    }
+}
