@@ -28,7 +28,7 @@ public sealed class DiaryWriter
     }
 
     public async Task<string?> MaybeWriteAsync(SpikingNetwork net, IdleController idle,
-        EmergentPersonality personality, LonelinessTracker loneliness)
+        EmergentPersonality personality, LonelinessTracker loneliness, string? extraContext = null)
     {
         if (net.TimeMs - _lastEntryMs < (float)Interval.TotalMilliseconds) return null;
         _lastEntryMs = net.TimeMs;
@@ -49,6 +49,7 @@ public sealed class DiaryWriter
                 "about what happened to you recently, how you felt, and what you're thinking about. " +
                 "Write in your own voice — reflective, honest, slightly self-centered (you're an organism). " +
                 "Your personality is " + personality.Describe() + ". " +
+                (extraContext is null ? "" : extraContext + " ") +
                 (loneliness.Level > 0.5f ? "You feel lonely. " : "") +
                 "Don't offer to help anyone. This is YOUR diary.";
             string user =

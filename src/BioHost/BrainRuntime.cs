@@ -104,6 +104,8 @@ public sealed class BrainSnapshot
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
     public string BrainName { get; set; } = "";      // the name it chose for itself
     public int LucidDreams { get; set; }             // dreams in which it knew it was dreaming
+    public string TurnState { get; set; } = "";      // conversational rhythm status
+    public Dictionary<string, float> BondStrengths { get; set; } = []; // per-person bond depth
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -439,6 +441,11 @@ public sealed class BrainRuntime : IDisposable
             _brainName = identity.BrainName;
             Note($"NAME-REMEMBERED I am {identity.BrainName}");
         }
+        // the voice it grew survives with it: prosody anchors, vocabulary,
+        // the first-word milestone
+        _voiceSelf.Import(identity.VoiceJson);
+        if (_voiceSelf.ClipsHeard > 0)
+            Note($"VOICE-REMEMBERED {_voiceSelf.ClipsHeard} voices shaped my voice; I kept them");
 
         foreach (var (visitorId, visits) in identity.KnownVisitors)
         {
@@ -706,8 +713,12 @@ public sealed class BrainRuntime : IDisposable
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
         if (_net.TickIndex % 5_000 == 0)
         {
-            if (_diary is not null) _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness);
-            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment);
+            if (_diary is not null) _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness,
+                $"Attachment: {Attachment.Label}. " +
+                (_brainName is null ? "You have not chosen a name yet. " : $"Your name is {_brainName}. ") +
+                $"You know {_knownVisitors.Count} people. " +
+                $"You have had {ThoughtLoop.Insights} insights and {ThoughtLoop.OpenLoops.Count} unresolved thoughts.");
+            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export());
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
             _ = _artist.MaybeCreateAsync(_net, _idle);
@@ -746,6 +757,9 @@ public sealed class BrainRuntime : IDisposable
             {
                 _lastCuriosityNoteMs = _net.TimeMs;
                 Note($"CURIOSITY learning progress {Curiosity.LearningProgress:F2} at novelty {novelty:F1} - I'm getting better at predicting this, and it feels good");
+                // trait crystallization: a brain that keeps learning keeps
+                // becoming a curious brain (experience shapes personality)
+                Personality.OnExploration(foundSomething: true);
             }
         }
         // prosody observed by the async speech path enters here as sim-input
@@ -1015,10 +1029,17 @@ public sealed class BrainRuntime : IDisposable
                 && ach > 0.45f && da > 0.35f
                 && _net.Rng.NextDouble() < 0.15 + 0.35 * hottest;
 
-            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid);
+            // sleeping on a problem (Wagner et al. 2004): sometimes the dream
+            // gravitates to the unresolved open loop's material
+            string[]? preferTags = null;
+            if (ThoughtLoop.OpenLoops.Count > 0 && _net.Rng.NextDouble() < 0.35)
+                preferTags = [.. ThoughtLoop.OpenLoops[^1].Tags];
+
+            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid, preferTags);
             if (file is not null)
             {
-                Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})");
+                Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})" +
+                     (preferTags is null ? "" : " - sleeping on the unresolved"));
                 _dreams.Add(Path.GetFileName(file));
                 if (_dreams.Count > 12) _dreams.RemoveAt(0);
                 if (lucid)
@@ -1197,6 +1218,8 @@ public sealed class BrainRuntime : IDisposable
 
     private async Task SpeakAsync()
     {
+        // turn-taking: the deliberate Speak action also respects the floor
+        if (!TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f)) return;
         string line = _monologueLog.Count > 0 ? _monologueLog[^1] : _idle.Feelings.Last.Narrative;
         float durationMs = MathF.Max(2000, line.Length * 65f);
         _idle.Self.VoiceOutput(_net.TimeMs + durationMs); // efference copy: this sound is me
@@ -1639,10 +1662,15 @@ public sealed class BrainRuntime : IDisposable
                 Note($"REACT \"{Trunc(reaction, 80)}\"");
                 // put it in the CHAT so the user sees it immediately
                 lock (_snapGate) _chat.Add($"Brain: {reaction}");
-                // speak with the developed voice + emotional modulation
-                SpeakWithVoice(reaction,
-                    emoPitch: feeling.Valence > 0.2f ? 2 : feeling.Valence < -0.2f ? -3 : 0,
-                    emoRate: feeling.Name == "curious" ? 2 : feeling.Name == "stressed" ? 3 : feeling.Name == "tired" ? -3 : 0);
+                // speak with the developed voice + emotional modulation - but
+                // never over the partner's turn (Levinson 2016): the reaction
+                // waits in chat if they may still be talking
+                if (TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                    SpeakWithVoice(reaction,
+                        emoPitch: feeling.Valence > 0.2f ? 2 : feeling.Valence < -0.2f ? -3 : 0,
+                        emoRate: feeling.Name == "curious" ? 2 : feeling.Name == "stressed" ? 3 : feeling.Name == "tired" ? -3 : 0);
+                else
+                    Note("HOLD reaction held (they may still be talking)");
             }
         }
         catch { /* reaction is optional */ }
@@ -1968,6 +1996,11 @@ public sealed class BrainRuntime : IDisposable
         snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;
         snap.BrainName = _brainName ?? "";
         snap.LucidDreams = _dreamer.LucidDreams;
+        // conversational rhythm + bond depth (per-person)
+        snap.TurnState = !TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f) ? "holding for you"
+            : TurnTaking.EngagedRecently(_net.TimeMs / 1000f) ? "in rhythm with you"
+            : "silent room";
+        snap.BondStrengths = Bonds.Bonds.ToDictionary(b => b.Key, b => Bonds.Strength(b.Key, _net.TimeMs));
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;

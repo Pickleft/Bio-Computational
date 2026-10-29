@@ -199,4 +199,38 @@ public sealed class VoiceSelf
             if (w.Length - start >= 1) yield return w[start..];
         }
     }
+
+    /// <summary>Serialize the developed voice (prosody anchors, vocabulary,
+    /// milestones) so the voice survives restarts with the identity.</summary>
+    public string Export()
+    {
+        lock (_gate)
+        {
+            return System.Text.Json.JsonSerializer.Serialize(new VoiceData(
+                HeardPitchZcr, HeardEnergy, HeardRate, ClipsHeard, Mimicries,
+                _firstWordSaid ?? "", _syllables, _words));
+        }
+    }
+
+    /// <summary>Restore a voice exported by Export (a corrupt payload degrades
+    /// gracefully to a newborn voice).</summary>
+    public void Import(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return;
+        try
+        {
+            var d = System.Text.Json.JsonSerializer.Deserialize<VoiceData>(json);
+            if (d is null) return;
+            HeardPitchZcr = d.Pitch; HeardEnergy = d.Energy; HeardRate = d.Rate;
+            ClipsHeard = d.Clips; Mimicries = d.Mimicries;
+            _firstWordSaid = d.FirstWord.Length > 0 ? d.FirstWord : null;
+            foreach (var (k, v) in d.Syllables) _syllables[k] = v;
+            foreach (var (k, v) in d.Words) _words[k] = v;
+        }
+        catch { /* a voice that fails to restore is a newborn voice */ }
+    }
+
+    private sealed record VoiceData(float Pitch, float Energy, float Rate, int Clips,
+        int Mimicries, string FirstWord,
+        Dictionary<string, int> Syllables, Dictionary<string, int> Words);
 }

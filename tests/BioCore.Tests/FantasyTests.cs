@@ -94,17 +94,19 @@ public class FantasyTests
         Assert.NotEmpty(a2);
     }
 
-    // ---- lucidity gate: the modulator signature must be checkable ----
+    // ---- interconnection: dreams prefer the unresolved open loop ----
 
     [Fact]
-    public void LuciditySignature_REMPlusCholinePlusDopamine()
+    public void DreamSelection_OpenLoopMaterialDrawsTheDream()
     {
-        // smoke: modulator releases raise the tones the lucidity gate reads
-        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 11));
-        net.Modulators.Release(NeuromodulatorKind.Acetylcholine, 1f);
-        net.Modulators.Release(NeuromodulatorKind.Dopamine, 1f);
-        net.Modulators.Step();
-        Assert.True(net.Modulators.Get(NeuromodulatorKind.Acetylcholine) > 0.45f);
-        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > 0.35f);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, 10f, [1], ["unrelated", "calm"], 0.9f, 0f, 0f),
+            new(2, 20f, [2], ["humming", "machine"], 0.4f, 0f, 0f),
+        };
+        // without preference: the hotter memory wins
+        Assert.Equal(1, BioComp.Meta.DreamGenerator.PickEpisode(eps, null).Id);
+        // with the open loop's tags: the unresolved material draws the dream
+        Assert.Equal(2, BioComp.Meta.DreamGenerator.PickEpisode(eps, ["humming", "machine"]).Id);
     }
 }

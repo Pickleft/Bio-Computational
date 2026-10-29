@@ -32,18 +32,37 @@ public sealed class DreamGenerator
               $"Mood: {feeling.Name} (valence {feeling.Valence:+0.0;-0.0}). " +
               "Soft bioluminescent neural texture, drifting, half-remembered, no text.";
 
+    /// <summary>
+    /// Which memory tonight: emotional heat first, but an unresolved open loop
+    /// (a thought that died still salient) draws dreams toward its own
+    /// material - sleeping on a problem (Wagner et al. 2004, sleep facilitates
+    /// insight). Matching episodes get a score boost.
+    /// </summary>
+    public static Episode PickEpisode(IReadOnlyList<Episode> episodes, string[]? preferTags)
+    {
+        float Score(Episode e)
+        {
+            float s = MathF.Abs(e.Valence);
+            if (preferTags is { Length: > 0 })
+                foreach (var t in preferTags)
+                    if (e.Tags.Contains(t)) { s += 1f; break; }
+            return s;
+        }
+        return episodes.OrderByDescending(Score).ThenByDescending(e => e.TimeMs).First();
+    }
+
     /// <summary>Generate one dream if the interval allows and memory has content.
     /// Returns (imagePath, narrative) where narrative describes what the dream is about.</summary>
     public async Task<(string? Path, string? Narrative)> MaybeDreamAsync(
-        SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null, bool lucid = false)
+        SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null, bool lucid = false,
+        string[]? preferTags = null)
     {
         if (net.TimeMs - _lastDreamMs < MinInterval.TotalMilliseconds) return (null, null);
         var episodes = net.EpisodeStore.Episodes;
         if (episodes.Count == 0) return (null, null);
 
         // emotional salience first, then recency: the brain dreams what mattered
-        var episode = episodes.OrderByDescending(e => MathF.Abs(e.Valence))
-                              .ThenByDescending(e => e.TimeMs).First();
+        var episode = PickEpisode(episodes, preferTags);
 
         string prompt = BuildPrompt(episode, idle.Feelings.Last, lucid);
         byte[] png = await _imager.GenerateAsync(prompt, "1024x1024");

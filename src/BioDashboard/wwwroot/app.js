@@ -144,6 +144,7 @@ function render(s) {
   const bondKeys = Object.keys(bonds);
   const bondEl = $("social-bonds");
   if (bondEl && bondKeys.length > 0) {
+    const strengths = s.BondStrengths || {};
     if (bondEl.childElementCount !== bondKeys.length ||
         (bondEl.firstElementChild && bondEl.firstElementChild.dataset.id !== bondKeys[0])) {
       bondEl.innerHTML = "";
@@ -152,9 +153,11 @@ function render(s) {
         div.className = "bond";
         div.dataset.id = id;
         const short = id.split(":")[0].substring(0, 12);
+        // the bar now shows BOND DEPTH (visits x warmth x recency), not raw visits
+        const strength = Math.round((strengths[id] || 0) * 100);
         div.innerHTML = `<span class="bond-name">${short}</span>` +
-          `<div class="bond-bar"><i style="width:${Math.min(100, visits * 20)}%"></i></div>` +
-          `<span class="bond-count">${visits}×</span>`;
+          `<div class="bond-bar"><i style="width:${strength}%"></i></div>` +
+          `<span class="bond-count" title="bond depth">${strength}%</span>`;
         bondEl.appendChild(div);
       }
     }
@@ -177,6 +180,7 @@ function render(s) {
     ? `${s.VoiceSyllables} syllables, ${s.VoiceClipsHeard} voices heard${s.VoiceMimicries ? `, ${s.VoiceMimicries} mimicked` : ""}`
     : "listening");
   set("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
+  set("turn-state", s.TurnState || "silent room");
   setFeed($("thought"), s.Thought);
   if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }

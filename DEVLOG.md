@@ -274,3 +274,22 @@ and were imported in the first commit - everything after that point was built du
 
 - Requirements distilled into docs/plan (architecture, parameter seed w/ citations, runbook, agent tasks).
 - Meta Model API endpoints pinned from dev.meta.ai/docs; hardware surveyed; Ollama installed on E: with `OLLAMA_MODELS=E:\OllamaModels`; Glimmer iq2_m (9.8 GB) download started.
+
+## 2026-10-29 (latest) - interconnection audit: every wire that should exist now does
+
+- The developed VOICE persists with identity: prosody anchors, babble vocabulary, heard-word
+  counts and the first-word milestone all survive restarts (restored with a VOICE-REMEMBERED
+  note). A brain that grows its voice over days keeps it across days.
+- Turn-taking now gates ALL speech, not just spontaneous calls: stimulus reactions and the
+  deliberate Speak action also hold the partner's floor (a held reaction still lands in chat,
+  with a HOLD note). It can no longer interrupt you by any pathway.
+- Trait crystallization: sustained learning progress (curiosity reward) now feeds the curiosity
+  trait through exploration events - a brain that keeps learning keeps becoming curious.
+- Dreams sometimes prefer the unresolved: when an open loop simmers, the dream gravitates to
+  its material (sleeping on a problem, Wagner et al. 2004), noted as "sleeping on the
+  unresolved".
+- The diary now knows who wrote it: name (or that none is chosen yet), attachment style,
+  people known, insights and unresolved counts all enter every entry.
+- Dashboard: bond bars show DEPTH (visits x warmth x recency) instead of raw visits; a rhythm
+  row in the psychology readout (holding for you / in rhythm with you / silent room).
+- Tests: dream-open-loop preference added; suite 123 green.
