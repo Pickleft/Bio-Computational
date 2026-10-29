@@ -352,10 +352,18 @@ function animateAvatar() {
 
   // === STATE LABEL (minimal, inside the creature) ===
   if (lastSnapshot) {
+    // the name it chose for itself sits above the state: it is somebody
+    if (lastSnapshot.BrainName) {
+      ctx.font = `700 15px ${"'Inter', sans-serif"}`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = `hsla(${hue + 40}, 60%, 82%, ${0.5 + smoothing.hist * 0.4})`;
+      ctx.fillText(lastSnapshot.BrainName, cx, cy - baseR * 0.72);
+      ctx.textAlign = "left";
+    }
     ctx.font = `600 11px ${"'Inter', sans-serif"}`;
     ctx.textAlign = "center";
     const stateText = lastSnapshot.SleepState === "NREM" ? "sleeping"
-      : lastSnapshot.SleepState === "REM" ? "dreaming"
+      : lastSnapshot.SleepState === "REM" ? (lastSnapshot.LucidDreams > 0 ? "dreaming (lucid!)" : "dreaming")
       : lastSnapshot.Feeling || "—";
     ctx.fillStyle = `hsla(${hue}, 30%, 80%, ${0.4 + smoothing.hist * 0.4})`;
     ctx.fillText(stateText, cx, cy + baseR * 0.55);

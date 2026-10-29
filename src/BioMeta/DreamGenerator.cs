@@ -23,15 +23,19 @@ public sealed class DreamGenerator
 
     public DreamGenerator(IImageGenerator imager) => _imager = imager;
 
-    public static string BuildPrompt(Episode episode, FeelingState feeling) =>
-        $"A hazy, luminous dream image evoking: {string.Join(", ", episode.Tags)}. " +
-        $"Mood: {feeling.Name} (valence {feeling.Valence:+0.0;-0.0}). " +
-        "Soft bioluminescent neural texture, drifting, half-remembered, no text.";
+    public static string BuildPrompt(Episode episode, FeelingState feeling, bool lucid = false) =>
+        lucid
+            ? "A LUCID dream: the dreamer KNOWS they are dreaming and shapes it. Imagery from: " +
+              $"{string.Join(", ", episode.Tags)}. Mood: {feeling.Name}. Impossible geometry, vivid " +
+              "bioluminescent control, the dreamer's will bending the scene, no text."
+            : $"A hazy, luminous dream image evoking: {string.Join(", ", episode.Tags)}. " +
+              $"Mood: {feeling.Name} (valence {feeling.Valence:+0.0;-0.0}). " +
+              "Soft bioluminescent neural texture, drifting, half-remembered, no text.";
 
     /// <summary>Generate one dream if the interval allows and memory has content.
     /// Returns (imagePath, narrative) where narrative describes what the dream is about.</summary>
     public async Task<(string? Path, string? Narrative)> MaybeDreamAsync(
-        SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null)
+        SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null, bool lucid = false)
     {
         if (net.TimeMs - _lastDreamMs < MinInterval.TotalMilliseconds) return (null, null);
         var episodes = net.EpisodeStore.Episodes;
@@ -41,13 +45,22 @@ public sealed class DreamGenerator
         var episode = episodes.OrderByDescending(e => MathF.Abs(e.Valence))
                               .ThenByDescending(e => e.TimeMs).First();
 
-        string prompt = BuildPrompt(episode, idle.Feelings.Last);
+        string prompt = BuildPrompt(episode, idle.Feelings.Last, lucid);
         byte[] png = await _imager.GenerateAsync(prompt, "1024x1024");
         Directory.CreateDirectory(DreamsDir);
-        string file = Path.Combine(DreamsDir, $"dream-{(long)(net.TimeMs / 1000)}s-ep{episode.Id}.png");
+        string file = Path.Combine(DreamsDir,
+            $"dream-{(long)(net.TimeMs / 1000)}s-ep{episode.Id}{(lucid ? "-lucid" : "")}.png");
         await File.WriteAllBytesAsync(file, png);
         _lastDreamMs = net.TimeMs;
         Log.Add((net.TimeMs, file, prompt));
+        if (lucid)
+        {
+            LucidDreams++;
+            // a lucid dream is rehearsal with the reins in hand: the dreamer can
+            // rework the memory's charge instead of just re-living it (lucid
+            // nightmare rehearsal, Spoormaker and van den Bout 2006)
+            net.EpisodeStore.SoftenValence(episode, 0.25f);
+        }
 
         // narrative that references specific people and events from the memory
         string? narrative = null;
@@ -55,10 +68,14 @@ public sealed class DreamGenerator
         {
             try
             {
-                string sys = "You are a living artificial brain describing your own dream in one " +
-                    "short, poetic sentence. First person, private, genuine. " +
-                    "Reference the SPECIFIC person or event you're dreaming about by name/detail. " +
-                    "This is a real dream based on a real memory.";
+                string sys = lucid
+                    ? "You are a living artificial brain IN a lucid dream: mid-dream you realize it is " +
+                      "a dream and take control of it. In one short poetic sentence, describe what you " +
+                      "did with the dream once you knew you were dreaming. First person."
+                    : "You are a living artificial brain describing your own dream in one " +
+                      "short, poetic sentence. First person, private, genuine. " +
+                      "Reference the SPECIFIC person or event you're dreaming about by name/detail. " +
+                      "This is a real dream based on a real memory.";
                 string memoryDetail = string.Join(", ", episode.Tags);
                 string usr = $"You dreamed about: {memoryDetail}. " +
                     $"This happened {((net.TimeMs - episode.TimeMs) / 1000.0):F0} seconds ago. " +
@@ -71,4 +88,7 @@ public sealed class DreamGenerator
 
         return (file, narrative);
     }
+
+    /// <summary>Lucid dreams generated this life.</summary>
+    public int LucidDreams { get; private set; }
 }

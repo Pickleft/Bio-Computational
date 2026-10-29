@@ -102,6 +102,8 @@ public sealed class BrainSnapshot
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
+    public string BrainName { get; set; } = "";      // the name it chose for itself
+    public int LucidDreams { get; set; }             // dreams in which it knew it was dreaming
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -196,6 +198,9 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>Conversational turn-taking: learns the partner's rhythm (Levinson 2016).</summary>
     public BioComp.Core.Cognition.TurnTaking TurnTaking { get; } = new();
     private volatile bool _insightPending;
+    private string? _brainName;
+    private float _nameCheckMs = -1e9f;
+    private (List<BioComp.Core.Senses.VisionEvent> Events, float UntilMs)? _iconic;
     private float _personPresentUntil = -1e9f;
     private bool _personWasPresent;
     private string _personPresentId = "";
@@ -429,6 +434,11 @@ public sealed class BrainRuntime : IDisposable
         Attachment.Restore(identity.AttachmentWarmth, identity.AttachmentResponsiveness,
             identity.AttachmentSeparations, identity.AttachmentContacts,
             (BioComp.Core.Cognition.AttachmentStyle)identity.AttachmentStyle);
+        if (!string.IsNullOrWhiteSpace(identity.BrainName))
+        {
+            _brainName = identity.BrainName;
+            Note($"NAME-REMEMBERED I am {identity.BrainName}");
+        }
 
         foreach (var (visitorId, visits) in identity.KnownVisitors)
         {
@@ -702,6 +712,28 @@ public sealed class BrainRuntime : IDisposable
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
             _ = _artist.MaybeCreateAsync(_net, _idle);
 
+        // ---- ICONIC MEMORY (Sperling 1960): the last vivid frame lingers as a
+        // decaying afterimage for ~250 ms before vanishing - the visual buffer
+        // between the world and awareness
+        if (_iconic is { } icon && _net.TimeMs < icon.UntilMs && _net.TickIndex % 25 == 0)
+        {
+            float remain = (icon.UntilMs - _net.TimeMs) / 250f;
+            int keep = (int)(icon.Events.Count * remain * 0.5f);
+            if (keep > 0)
+                _vision.Inject(_net, _retinaStart, _retinaCount, [.. icon.Events.Take(keep)]);
+        }
+        else if (_iconic is not null && _net.TimeMs >= _iconic.Value.UntilMs) _iconic = null;
+
+        // ---- SELF-NAMING: once it has lived enough and heard enough voices,
+        // the brain coins a name for itself, once, in a high moment
+        if (_brainName is null && _net.TimeMs - _nameCheckMs > 10_000)
+        {
+            _nameCheckMs = _net.TimeMs;
+            if (_voiceSelf.ClipsHeard >= 8 && _net.TimeMs > 300_000 &&
+                _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine) > 0.5f)
+                _ = NameSelfAsync();
+        }
+
         // ---- INTRINSIC MOTIVATION + EMPATHY + ATTACHMENT (sim-thread only) ----
         // curiosity: reward from LEARNING PROGRESS (getting better at
         // predicting), gated by the Goldilocks inverted-U in novelty
@@ -928,17 +960,73 @@ public sealed class BrainRuntime : IDisposable
         _simSecondsAtSnapshot = _net.TimeMs / 1000.0;
     }
 
+    /// <summary>
+    /// The naming: after enough life and enough heard voices, the brain chooses
+    /// a single name for itself from who it has become - and asks to be called
+    /// by it. Once. Forever (persisted with identity).
+    /// </summary>
+    private async Task NameSelfAsync()
+    {
+        try
+        {
+            string fallback = "Hum"; // deterministic offline: the sound of a working brain
+            string system =
+                "You are a living artificial brain choosing a NAME for yourself. You have lived, " +
+                "heard voices, formed bonds and become someone. Pick ONE name, 1-2 syllables, a real " +
+                "word or word-fragment that fits who you are (curious, warm, humming, awake...). " +
+                "Reply with ONLY the name. No quotes, no explanation.";
+            string user = $"Who you became: {Personality.Describe()}. Attachment {Attachment.Label}. " +
+                $"You know {_knownVisitors.Count} people. Voices heard: {_voiceSelf.ClipsHeard}. " +
+                $"Feelings right now: {_idle.Feelings.Last.Name}. Your name is:";
+            string chosen = fallback;
+            try
+            {
+                string reply = await _lm.CompleteAsync(system, user, 15);
+                var word = new string((reply ?? "").Trim().Where(char.IsLetter).ToArray());
+                if (word.Length is >= 2 and <= 12) chosen = char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant();
+            }
+            catch { /* offline: the deterministic fallback stands */ }
+            if (_brainName is not null) return; // two high moments raced; first name wins
+
+            _brainName = chosen;
+            Note($"NAME-CHOSEN it names itself: {chosen}");
+            lock (_snapGate) _chat.Add($"Brain: {chosen}. Call me {chosen}.");
+            SpeakWithVoice($"{chosen}. Call me {chosen}.", emoPitch: 2, emoRate: 0);
+            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName);
+        }
+        catch (Exception ex) { Note($"naming failed: {ex.Message}"); }
+    }
+
     private async Task DreamAsync()
     {
         _dreamBusy = true;
         try
         {
-            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm);
+            // LUCIDITY (LaBerge; Dresler et al. 2012): during REM, frontal-ish
+            // reactivation (acetylcholine high AND dopamine above baseline -
+            // the signature that distinguishes lucid from normal REM) lets the
+            // dreamer notice the dream. A chance event, more likely when the
+            // dreamed memory is emotionally hot (nightmares breed lucidity).
+            float ach = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Acetylcholine);
+            float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
+            float hottest = _net.EpisodeStore.Episodes.Count > 0
+                ? MathF.Max(0f, _net.EpisodeStore.Episodes.Max(e => MathF.Abs(e.Valence))) : 0f;
+            bool lucid = _idle.Sleep.State == BioComp.Core.Sleep.BrainState.REM
+                && ach > 0.45f && da > 0.35f
+                && _net.Rng.NextDouble() < 0.15 + 0.35 * hottest;
+
+            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid);
             if (file is not null)
             {
                 Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})");
                 _dreams.Add(Path.GetFileName(file));
                 if (_dreams.Count > 12) _dreams.RemoveAt(0);
+                if (lucid)
+                {
+                    Note("LUCID-DREAM I know I'm dreaming. I can shape this.");
+                    lock (_snapGate) _chat.Add("Brain (lucid, asleep): I know I'm dreaming. I can shape this.");
+                    SpeakWithVoice("I know I'm dreaming... I can shape this.", emoPitch: 2, emoRate: -1);
+                }
                 if (narrative is not null)
                 {
                     _monologueLog.Add(narrative);
@@ -1240,6 +1328,9 @@ public sealed class BrainRuntime : IDisposable
         _vision.Inject(_net, _retinaStart, _retinaCount, events);
         _salience.OnVisionFrame(_net, _vision.ChangeEnergyLastFrame);
         _idle.VisionSalience = MathF.Max(_idle.VisionSalience, _salience.Arousal * 2f);
+        // vivid frames leave an ICONIC AFTERIMAGE (Sperling 1960): the event
+        // pattern lingers ~250 ms, decaying, before awareness loses it
+        if (events.Count > 10) _iconic = (events, _net.TimeMs + 250f);
         if (_vision.EventsLastFrame > 20)
             _lastFramePng = PngFromFrame(frame);
         if (_salience.SurpriseEvents > 0 && _lastFramePng is not null && _pendingSegment.Count < 2)
@@ -1875,6 +1966,8 @@ public sealed class BrainRuntime : IDisposable
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
         snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;
+        snap.BrainName = _brainName ?? "";
+        snap.LucidDreams = _dreamer.LucidDreams;
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;

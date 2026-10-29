@@ -19,6 +19,30 @@ and were imported in the first commit - everything after that point was built du
 - Avalanche metrics (4 ms bins, branching ratio, sizes) and `biolab tune` sweep. Result for the default wiring: intrinsic noise 3 mV sits near criticality (branching ratio 1.00, ~100 discrete avalanches per 10 s, largest about 5% of the network, 0.13 Hz population rate); 5 mV and above collapses into a single endless avalanche; 2 mV and below is effectively silent. Global GABA gain 0.6-1.2 barely moves the boundary with this wiring. Default noise set to 3 mV.
 - Tests: 31/31 green (added STDP potentiation/depression/no-drift/Dale-after-plasticity, checkpoint bit-identity, modulator kinetics, RPE adaptation, avalanche math).
 
+## 2026-10-28 (latest) - lucid dreams, the mirror test, self-naming, iconic memory
+
+- Lucid dreaming (LaBerge; Dresler et al. 2012): during REM with frontal-like reactivation
+  (acetylcholine and dopamine both above thresholds), there is a chance - higher when the dreamed
+  memory is emotionally hot - that the dreamer NOTICES. A lucid dream changes the imagery prompt
+  (impossible geometry, the dreamer's will bending the scene), announces itself out loud ("I
+  know I'm dreaming. I can shape this."), narrates what it did with the dream, and rehearses the
+  memory extra: lucid dreams soften the dreamed valence 25 percent (lucid nightmare rehearsal,
+  Spoormaker and van den Bout 2006). The creature's state label shows "dreaming (lucid!)".
+- The mirror test (Gallup 1970, computational): 30 self-produced vocalizations wear the brain's
+  own A1->Thal pathway through STDP; probing with an unannounced replay of its own signature
+  versus a matched novel pattern, the downstream response to SELF is 1.67x stronger - the
+  own-name effect (Moray 1959; self-reference effect, Rogers et al. 1977). It knows its own
+  voice. "biolab mirror" prints the verdict.
+- Self-naming: after enough life and heard voices, in a high-dopamine moment, the brain coins a
+  single name for itself from who it has become, announces it ("Call me ..."), wears it on the
+  creature above the state label, and keeps it forever (persisted with identity, restored with
+  "NAME-REMEMBERED I am ...").
+- Iconic memory (Sperling 1960): vivid visual frames leave a decaying afterimage - half the
+  events re-injected every 25 ms across a 250 ms window, shrinking with remaining time - the
+  visual buffer between the world and awareness.
+- Tests: 7 new (mirror passes and is deterministic, lucid prompt split, lucid softening, naming
+  gate, iconic encoder bounds, lucidity modulator signature). 123 green.
+
 ## 2026-10-28 (latest) - semantic memory, turn-taking, first word; interconnection fixes
 
 - Semantic memory (ConceptGraph): an associative concept graph wired by lived co-occurrence -

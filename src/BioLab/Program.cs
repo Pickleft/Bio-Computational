@@ -22,6 +22,20 @@ switch (cmd)
         Console.WriteLine("exports: exports/masking.csv, exports/masking.svg");
         return 0;
     }
+    case "mirror":
+    {
+        // Gallup 1970, computational form: does the brain recognize its own
+        // output? Train it on its own vocal signature, then probe self vs novel
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 42));
+        var idle = new IdleController(net);
+        for (int i = 0; i < 500; i++) { idle.Tick(net); net.Tick(); }
+        var r = MirrorTest.Run(net, idle);
+        Console.WriteLine($"[mirror] self response {r.SelfResponse:F2} spikes/neuron, novel {r.NovelResponse:F2}, ratio {r.Ratio:F2}");
+        Console.WriteLine(r.Passed
+            ? "[mirror] PASSED - its worn self-pathway fires stronger than any stranger pattern: it knows its own voice"
+            : "[mirror] not yet - self and novel responses indistinguishable (more training needed)");
+        return 0;
+    }
     case "blink":
     {
         var (lags, accuracy) = AwarenessParadigms.AttentionalBlink(outDir: "exports");

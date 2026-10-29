@@ -152,3 +152,21 @@ pattern break = silence > max(20 s, 3 x median gap) while engaged, latched until
 ## First word (vocabulary onset)
 After 40+ heard content words with a top word of 5+ occurrences, the top word is spoken once as
 the brain's first real word, with a dopamine+oxytocin celebration.
+
+## Lucid dreaming (LaBerge 1980; Dresler et al. 2012; Spoormaker & van den Bout 2006)
+Lucidity gate: REM + ACh > 0.45 + DA > 0.35, probability 0.15 + 0.35 x |hottest episode valence|.
+Lucid dream: control-shaped imagery prompt, spoken "I know I'm dreaming", extra 0.25 valence
+softening of the dreamed memory (lucid rehearsal).
+
+## Mirror test (Gallup 1970; own-name effect Moray 1959; self-reference Rogers et al. 1977)
+30 self-produced vocalization reps wear the A1->Thal pathway (STDP); probe measures downstream
+response to unannounced own-pattern vs matched novel. PASS = self/novel ratio > 1.1. Measured
+1.67 at seed 42. biolab mirror.
+
+## Iconic memory (Sperling 1960)
+Vivid frames (>10 events) leave a decaying afterimage: half the events re-injected every 25 ms
+for 250 ms, shrinking with remaining time.
+
+## Self-naming
+After 8+ heard voices, 5+ sim-minutes of life, in a high-dopamine moment: the interpreter coins
+one 1-2 syllable name (offline fallback "Hum"); announced, spoken, persisted with identity.
