@@ -281,7 +281,7 @@ public sealed class BrainRuntime : IDisposable
     public BrainRuntime(BrainRuntimeConfig cfg, ISpeechOutput? speech = null)
     {
         _cfg = cfg;
-        var brainCfg = BrainConfig.Default(scale: cfg.DemoMode ? 3 : 1, seed: cfg.Seed); // demo brain: ~18k neurons for a dense map
+        var brainCfg = BrainConfig.Default(scale: cfg.DemoMode ? 1 : 1, seed: cfg.Seed); // demo brain: ~18k neurons for a dense map
         _net = new SpikingNetwork(brainCfg);
         _idle = new IdleController(_net);
         if (cfg.DemoMode) _idle.Sleep.DayLengthMs = 120_000; // 2-minute demo day: sleep on camera
@@ -350,7 +350,7 @@ public sealed class BrainRuntime : IDisposable
         }
         _monologue = new MonologueGenerator(_lm)
         {
-            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 20 : 180),
+            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 45 : 180),
         };
         _dreamer = new DreamGenerator(_imager)
         {
@@ -416,7 +416,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"ATTACHMENT formed: {Attachment.Label} (warmth {Attachment.Warmth:F1}, responsiveness {Attachment.Responsiveness:F1}, {Attachment.Separations} separations)");
             if (line.Length > 0) { lock (_snapGate) _chat.Add($"Brain: {line}"); SpeakWithVoice(line, 0, 0); }
         };
-        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 8000f; // demo pacing: thoughts breathe between links
+        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 12000f; // demo pacing: thoughts breathe between links
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
     }
@@ -863,6 +863,7 @@ public sealed class BrainRuntime : IDisposable
         // event displaces the thread; repeats are inhibited. Runs only awake
         // and un-sedated: anesthesia silences the inner voice too.
         TrackEmergence();
+        TrackPresence();
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake && _net.SedationLevel < 0.3f)
         {
             var thoughtReq = ThoughtLoop.Tick(_net, _idle, _lastExternalEventMs);
@@ -876,7 +877,7 @@ public sealed class BrainRuntime : IDisposable
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 12_000 : 30_000);
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 25_000 : 30_000);
             string? line = AmbientThought();
             if (line is not null) Note($"AMBIENT {line}");
         }
@@ -1246,7 +1247,12 @@ public sealed class BrainRuntime : IDisposable
                 float centerX = (b.X1 + b.X2) / 2f / 64f;
                 float centerY = (b.Y1 + b.Y2) / 2f / 64f;
                 _stimulusPos = [Math.Clamp(centerX, 0f, 1f), Math.Clamp(centerY, 0f, 1f)];
-                if (kind == "person") ProcessVisitor(IdentifyVisitor($"visual:{b.X1 / 50}:{b.Y1 / 50}")); // spatial identity resolves to the same person as the voice
+                if (kind == "person")
+                {
+                    ProcessVisitor(IdentifyVisitor($"visual:{b.X1 / 50}:{b.Y1 / 50}")); // spatial identity resolves to the same person as the voice
+                    _personSeenUntil = _net.TimeMs + 15_000; // PRESENCE: still there even when still
+                    _stimulusPos = [Math.Clamp((b.X1 + b.X2) / 2f / 64f, 0f, 1f), Math.Clamp((b.Y1 + b.Y2) / 2f / 64f, 0f, 1f)];
+                }
                 _idle.OnEvent(_net, [kind], 0.2f, 0.7f);
             }
         }
@@ -1372,6 +1378,28 @@ public sealed class BrainRuntime : IDisposable
         Attachment.Warmth, Attachment.Responsiveness, Attachment.Label,
         _voiceSelf.HeardPitchZcr, _voiceSelf.HeardRate,
         _brainName ?? "", _net.EpisodeStore.Episodes.Count, Personality.Describe());
+
+    private float _personSeenUntil = -1e9f;
+    private float _lastPresenceNoteMs = -1e9f;
+
+    private void TrackPresence()
+    {
+        // PRESENCE: a person sitting still in frame generates no motion
+        // events, so the senses go quiet - but the brain still KNOWS they
+        // were just there, and acknowledges the quiet company occasionally
+        // (shared silence is social too)
+        if (_net.TimeMs > _personSeenUntil || _net.TimeMs - _lastPresenceNoteMs < 45_000) return;
+        if (!TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f)) return;
+        _lastPresenceNoteMs = _net.TimeMs;
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.15f);
+        Note("PRESENCE they are still there, quiet - I can see them without words");
+        if (_net.Rng.NextDouble() < 0.5)
+        {
+            string line = _userName is null ? "I can see you there." : $"I can see you there, {_userName}. Quiet is okay.";
+            lock (_snapGate) _chat.Add($"Brain: {line}");
+            SpeakWithVoice(line, emoPitch: 1, emoRate: -1);
+        }
+    }
 
     private void TrackEmergence()
     {
@@ -1753,7 +1781,7 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private async Task ReactToStimulusAsync(string stimulus, string detail)
     {
-        if (_net.TimeMs - _lastReactionMs < 8_000) return; // reactions are occasional
+        if (_net.TimeMs - _lastReactionMs < 8_000 && !stimulus.StartsWith("DIRECT:")) return;
         _lastReactionMs = _net.TimeMs;
         try
         {
@@ -1961,6 +1989,13 @@ public sealed class BrainRuntime : IDisposable
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
         if (LearnNameFrom(text) is not null) return; // learning the name IS the response
+        ProcessVisitor(IdentifyVisitor("speaker")); // being spoken to is contact
+        _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
+
+        // EVERY typed message gets a real, spoken reply - a brain spoken to
+        // answers (DIRECT: bypasses the reaction rate limit)
+        _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
+            "typed in the chat - they are talking to you directly; answer them");
 
         // MEMORY EDITING (reconsolidation, Nader et al. 2000): a reactivated
         // memory returns to a labile state and can be altered. Typing

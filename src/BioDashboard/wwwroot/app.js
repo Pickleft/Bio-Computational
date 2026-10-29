@@ -46,9 +46,12 @@ window.brainBrowserSpeaking = false;
 function pickVoice() {
   const voices = speechSynthesis.getVoices();
   if (!voices.length) return null;
+  // STRICT: only genuinely natural voices. The robotic Microsoft SAPI voices
+  // (David/Zira) are deliberately excluded - a network voice or the browser
+  // default beats them. Log tells you which one you got.
   const prefer = [
     /Natural.*English/i, /Neural.*English/i, /Online.*English/i,
-    /Google (US|UK) English/i, /Microsoft .*English/i, /English \(United States\)/i,
+    /Google (US|UK) English/i, /Aria|Jenny|Guy|Ana/i,
   ];
   for (const re of prefer) {
     const v = voices.find((x) => re.test(x.name));
