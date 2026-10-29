@@ -1,9 +1,31 @@
 @echo off
-rem Bio-Computational dashboard launcher.
-rem Detached from any terminal: logs land in data\dashboard-out.log / dashboard-err.log
-rem Open http://localhost:8080 (or https://localhost:8443). Phone: https://<your-pc-ip>:8443
+rem ============================================================
+rem  START THE BRAIN (dashboard + senses + voice, live Meta API)
+rem  - runs the built exe directly: no launch-settings surprises,
+rem    correct ports guaranteed
+rem  - a minimized "brain" console window is its life support:
+rem    open it to see the log, close it to stop the brain
+rem ============================================================
 cd /d "%~dp0"
-if not exist data mkdir data
-set ASPNETCORE_URLS=http://0.0.0.0:8080;https://0.0.0.0:8443
-start "brain" /min cmd /c "dotnet run --project src\BioDashboard -c Release -- --live-meta --voice > data\dashboard-out.log 2> data\dashboard-err.log"
-echo brain starting - dashboard: http://localhost:8080
+
+set EXE=src\BioDashboard\bin\Release\net9.0\BioComp.Dashboard.exe
+
+if not exist "%EXE%" (
+  echo first run: building...
+  dotnet build BioComputational.sln -c Release --nologo -v q
+  if errorlevel 1 ( echo BUILD FAILED - run: dotnet build BioComputational.sln & pause & exit /b 1 )
+)
+if not exist src\BioDashboard\data mkdir src\BioDashboard\data
+
+taskkill /f /im BioComp.Dashboard.exe >nul 2>&1
+
+start "brain" /min /d "%~dp0src\BioDashboard" "%~dp0%EXE%" "--urls=http://0.0.0.0:8080;https://0.0.0.0:8443" --demo --live-meta --voice
+
+echo.
+echo   brain starting...
+echo   this PC :  http://localhost:8080
+echo   phone   :  https://YOUR-PC-IP:8443  (accept the certificate warning)
+echo   to stop :  close the minimized "brain" window
+echo.
+timeout /t 4 /nobreak >nul 2>&1 || ping -n 5 127.0.0.1 >nul 2>&1
+start http://localhost:8080
