@@ -24,6 +24,8 @@
   <div class="tools">
     <button id="sense-toggle" onclick="enableBrowserSenses()" title="Give the brain this device's camera and microphone">👁 senses</button>
     <button id="voice-test" onclick="testVoice()" title="Hear the brain speak">🔊 voice</button>
+    <button id="sedate" onclick="fetch('/api/sedate',{method:'POST'})" title="Induce anesthesia: watch consciousness (Φ) chemically fade, then return">💧 sedate</button>
+    <a id="genes" href="/api/genes" download="genes.json" title="Download this brain's heritable genes (for biolab child)">🧬 genes</a>
     <button id="music-toggle" onclick="toggleBrainMusic()" title="Hear the neural state as music">♪ listen</button>
     <a id="export-brain" href="/api/export-brain" download title="Download the brain's full state">⬇ export</a>
     <button id="log-toggle" title="Raw event log (L)">log</button>

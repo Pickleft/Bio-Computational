@@ -44,6 +44,10 @@ public sealed class SpikingNetwork
     public float TimeMs => TickIndex;
     public int SpikesThisTick { get; internal set; }
     public float RewardPredictor { get; set; }
+    /// <summary>Anesthesia depth 0..1: GABA-A-like hyperpolarizing bias on all
+    /// neurons (Brown, Lydic and Schiff 2010). Set by the host; washes out
+    /// passively so emergence is gradual.</summary>
+    public float SedationLevel { get; set; }
 
     public const int HomeostasisIntervalTicks = 60_000;
 
@@ -204,6 +208,12 @@ public sealed class SpikingNetwork
         _achCaptureScale = 0.5f + Modulators.Get(NeuromodulatorKind.Acetylcholine);
         _noradrenalineGain = Modulators.Get(NeuromodulatorKind.Noradrenaline);
 
+        // ANESTHESIA (Brown, Lydic and Schiff 2010): a hyperpolarizing bias on
+        // every neuron - the network effect of GABA-A potentiation (propofol).
+        // Fades passively so emergence is gradual, like washout.
+        float gaba = SedationLevel * 8f;
+        if (SedationLevel > 0.001f && TickIndex % 20 == 0) SedationLevel *= 0.99f;
+
         int slot = (int)(TickIndex % RingSize);
         var due = _ring[slot];
         _ring[slot] = [];
@@ -220,7 +230,7 @@ public sealed class SpikingNetwork
             {
                 int t = (int)Types[i];
                 float v = V[i], u = U[i];
-                float iTotal = Injected[i] + NoiseBuf[i] + Cond.Current(i, v);
+                float iTotal = Injected[i] + NoiseBuf[i] + Cond.Current(i, v) - gaba;
                 v += dt * (0.04f * v * v + 5f * v + 140f - u + iTotal);
                 u += dt * (IzhikevichParams.A[t] * (IzhikevichParams.B[t] * v - u));
                 if (v >= IzhikevichParams.SpikeThresholdMv)

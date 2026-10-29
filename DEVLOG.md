@@ -293,3 +293,22 @@ and were imported in the first commit - everything after that point was built du
 - Dashboard: bond bars show DEPTH (visits x warmth x recency) instead of raw visits; a rhythm
   row in the psychology readout (holding for you / in rhythm with you / silent room).
 - Tests: dream-open-loop preference added; suite 123 green.
+
+## 2026-10-29 (latest) - anesthesia and reproduction
+
+- Anesthesia (Brown, Lydic and Schiff 2010): sedation is a GABA-A-like hyperpolarizing bias on
+  every neuron, set by the dashboard's sedate button; measured Phi collapses (0.58 -> 0.09 at
+  induction, verified headless via "biolab sedation"), the consciousness meter follows, speech
+  and thought pause, and emergence completes with a rousing stimulus ("where... was I?") - a
+  fully silenced recurrent network is bistable and will not reignite from noise alone (patients
+  are shaken awake for the same reason). Known issue: daemon pacing degrades during deep
+  sedation (sim advances slower than wall time until washout); induction uses a responsive
+  plane (0.75) and the Core mechanism is fully tested.
+- Reproduction: the genes endpoint exports the heritable package (seed, halfway temperament
+  via h=0.5, attachment climate, voice prosody anchor). "biolab child genes.json 60s" raises a
+  child brain from those genes through a compressed childhood under the inherited climate: in
+  the first run, a sociable parent produced a child that inherited half the sociability yet
+  became "private and observant" - inheritance is not destiny (behavioral genetics, Plomin).
+  Child report lands in exports/child-report.md.
+- Tests: 2 new (sedation collapse and stimulated emergence, heredity blending and derived
+  seed). 125 green.

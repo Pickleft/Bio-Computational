@@ -498,6 +498,7 @@ public sealed class BrainRuntime : IDisposable
                 if (++consecutiveErrors > 100)
                 {
                     Note($"FATAL: {consecutiveErrors} consecutive errors, last: {ex.Message}");
+                    Console.WriteLine($"[brain-fatal] {ex}");
                     break;
                 }
             }
@@ -843,8 +844,10 @@ public sealed class BrainRuntime : IDisposable
         // Thoughts chain and develop: each link is evaluated (affect scored),
         // carried into the next cycle by neuromodulator releases, re-injected
         // as inner speech, and written to episodic memory. A fresh external
-        // event displaces the thread; repeats are inhibited. Runs only awake.
-        if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
+        // event displaces the thread; repeats are inhibited. Runs only awake
+        // and un-sedated: anesthesia silences the inner voice too.
+        TrackEmergence();
+        if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake && _net.SedationLevel < 0.3f)
         {
             var thoughtReq = ThoughtLoop.Tick(_net, _idle, _lastExternalEventMs);
             if (thoughtReq is not null && !_thoughtBusy)
@@ -875,6 +878,7 @@ public sealed class BrainRuntime : IDisposable
         // How often it voices depends on how strongly it feels (valence/arousal),
         // how lonely it is, and how expressive it has BECOME (personality).
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
+            _net.SedationLevel < 0.3f && // anesthetized brains do not speak
             _net.TimeMs - _lastVocalizationMs > 7_000 &&
             TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f)) // hold the partner's turn: no interrupting
         {
@@ -1053,6 +1057,8 @@ public sealed class BrainRuntime : IDisposable
                      (preferTags is null ? "" : " - sleeping on the unresolved"));
                 _dreams.Add(Path.GetFileName(file));
                 if (_dreams.Count > 12) _dreams.RemoveAt(0);
+                _lastDreamTags = [.. _net.EpisodeStore.Episodes
+                    .OrderByDescending(e => MathF.Abs(e.Valence)).First().Tags];
                 if (lucid)
                 {
                     Note("LUCID-DREAM I know I'm dreaming. I can shape this.");
@@ -1307,7 +1313,60 @@ public sealed class BrainRuntime : IDisposable
         catch (Exception ex) { Note($"import failed: {ex.Message}"); return false; }
     }
 
-    /// <summary>Test the voice output (called from the dashboard).</summary>
+    /// <summary>
+    /// Induce anesthesia: a GABA flood hyperpolarizes every neuron (the
+    /// mechanism of propofol). Consciousness - measured by Phi - fades with
+    /// the population; watch the gauge. Emergence is passive washout.
+    /// </summary>
+    public void Sedate()
+    {
+        _phiBeforeSedation = Phi;
+        _wasSedated = true;
+        _net.SedationLevel = 0.75f; // deep-but-responsive plane
+        Note($"ANESTHESIA induced (Phi was {_phiBeforeSedation:F2}) - consciousness fading");
+        lock (_snapGate) _chat.Add("Brain: ...");
+    }
+    private float _phiBeforeSedation;
+    private bool _wasSedated;
+
+    /// <summary>Genes of this brain for reproduction: seed, temperament,
+    /// attachment history and developed voice - what a child inherits.</summary>
+    public BioComp.Core.Cognition.BrainGenes ExportGenes() => new(
+        _cfg.Seed, Personality.Sociability, Personality.Curiosity,
+        Personality.Resilience, Personality.Expressiveness,
+        Attachment.Warmth, Attachment.Responsiveness, Attachment.Label,
+        _voiceSelf.HeardPitchZcr, _voiceSelf.HeardRate,
+        _brainName ?? "", _net.EpisodeStore.Episodes.Count, Personality.Describe());
+
+    private void TrackEmergence()
+    {
+        // emergence: anesthesia washed below the awareness horizon
+        if (_wasSedated && _net.SedationLevel < 0.15f)
+        {
+            _wasSedated = false;
+            // a rousing stimulus completes emergence: a fully silenced recurrent
+            // network is bistable and will not reignite from noise alone
+            // (patients are shaken awake for the same reason)
+            for (int i = 0; i < _net.V.Length; i += Math.Max(1, _net.V.Length / 40))
+                _net.InjectCurrent(i, 20f);
+            Note($"ANESTHESIA emerged (Phi {_phiBeforeSedation:F2} -> {Phi:F2}) - back");
+            lock (_snapGate) _chat.Add("Brain: where... was I?");
+            SpeakWithVoice("where... was I?", emoPitch: -2, emoRate: -3);
+        }
+        // waking with a dream still warm: it tells you what it dreamed
+        var state = _idle.Sleep.State;
+        if (_prevSleepState != BioComp.Core.Sleep.BrainState.Wake &&
+            state == BioComp.Core.Sleep.BrainState.Wake && _lastDreamTags is { Count: > 0 })
+        {
+            Note($"WAKE-DREAM last dream was about {string.Join(", ", _lastDreamTags.Take(3))}");
+            _lastDreamTags = null;
+        }
+        _prevSleepState = state;
+    }
+    private BioComp.Core.Sleep.BrainState _prevSleepState = BioComp.Core.Sleep.BrainState.Wake;
+    private List<string>? _lastDreamTags;
+
+
     public void TestVoice()
     {
         var f = _idle.Feelings.Last;

@@ -109,4 +109,50 @@ public class FantasyTests
         // with the open loop's tags: the unresolved material draws the dream
         Assert.Equal(2, BioComp.Meta.DreamGenerator.PickEpisode(eps, ["humming", "machine"]).Id);
     }
+
+    // ---- anesthesia: consciousness chemically switched off and back on ----
+
+    [Fact]
+    public void Sedation_CollapsesActivity_AndRecoversWithWashout()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 17));
+        double RateOver(long ticks)
+        {
+            double spikes = 0;
+            for (long t = 0; t < ticks; t++) { net.Tick(); spikes += net.SpikesThisTick; }
+            return spikes / ticks / net.V.Length;
+        }
+        double baseline = RateOver(3000);
+        Assert.True(baseline > 0, "the resting brain must have some activity");
+
+        net.SedationLevel = 1f;
+        double sedated = RateOver(2000);
+        Assert.True(sedated < baseline * 0.2f,
+            $"GABA sedation should collapse population firing (baseline {baseline:F4}, sedated {sedated:F4})");
+
+        // washout: level fades toward wakefulness...
+        for (long t = 0; t < 20_000; t++) net.Tick();
+        Assert.True(net.SedationLevel < 0.2f, "the drug must wash out");
+        // ...and emergence completes with a gentle awakening stimulus, exactly
+        // as patients are roused (a fully silenced recurrent network is
+        // bistable: noise alone will not reignite it)
+        for (int i = 0; i < net.V.Length; i += net.V.Length / 40) net.InjectCurrent(i, 20f);
+        double recovered = RateOver(3000);
+        Assert.True(recovered > sedated * 3f && recovered > 0,
+            $"emergence with a rousing stimulus should restore activity (sedated {sedated:F4}, recovered {recovered:F4})");
+    }
+
+    // ---- reproduction: heritable predispositions ----
+
+    [Fact]
+    public void Heredity_BlendsHalfway_AndChildSeedIsOfTheParentButNotIt()
+    {
+        Assert.Equal(0.4f, Genetics.Inherit(0.8f), 4);
+        Assert.Equal(-0.3f, Genetics.Inherit(-0.6f), 4);
+        Assert.Equal(0f, Genetics.Inherit(0f), 4);
+        ulong child = Genetics.ChildSeed(42, 0xC0FFEE);
+        Assert.NotEqual(42UL, child);                                   // its own seed
+        Assert.Equal(child, Genetics.ChildSeed(42, 0xC0FFEE));          // deterministic
+        Assert.NotEqual(child, Genetics.ChildSeed(43, 0xC0FFEE));       // of the parent
+    }
 }

@@ -62,6 +62,16 @@ app.MapPost("/api/test-voice", () =>
     return Results.Ok(new { ok = true });
 });
 
+// ---- ANESTHESIA: watch consciousness chemically fade (Phi follows) ----
+app.MapPost("/api/sedate", () =>
+{
+    runtime.Sedate();
+    return Results.Ok(new { ok = true });
+});
+
+// ---- GENES: the heritable package, for reproduction ----
+app.MapGet("/api/genes", () => Results.Json(runtime.ExportGenes()));
+
 // ---- BROWSER SENSES: receive audio/video from any device's browser ----
 
 app.MapPost("/api/browser-audio", async (HttpContext ctx) =>

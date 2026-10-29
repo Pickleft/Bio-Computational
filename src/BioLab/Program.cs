@@ -36,6 +36,113 @@ switch (cmd)
             : "[mirror] not yet - self and novel responses indistinguishable (more training needed)");
         return 0;
     }
+    case "sedation":
+    {
+        // headless anesthesia reproduction: watch the daemon survive sedation
+        // and report Phi through induction and emergence
+        var runtime = new BioComp.Host.BrainRuntime(BioComp.Host.BrainRuntimeConfig.Parse(
+            ["--demo", "--mock-cam", "--mock-mic"]));
+        runtime.Start();
+        Console.WriteLine("[sedation] daemon up; watching simSeconds advance");
+        for (int i = 0; i < 8; i++)
+        {
+            Thread.Sleep(1000);
+            var s = runtime.Snapshot();
+            Console.WriteLine($"  t+{(i + 1)}s sim={s.SimSeconds:F1} phi={s.Phi:F2} rate={s.MeanRateHz:F2}");
+        }
+        Console.WriteLine("[sedation] inducing...");
+        runtime.Sedate();
+        for (int i = 0; i < 40; i++)
+        {
+            Thread.Sleep(1000);
+            var s = runtime.Snapshot();
+            Console.WriteLine($"  t+{(i + 1)}s sim={s.SimSeconds:F1} phi={s.Phi:F2} rate={s.MeanRateHz:F2}");
+            if (i > 5 && s.SimSeconds < 0.01f) { Console.WriteLine("  FROZEN - daemon stalled after sedation"); break; }
+        }
+        runtime.Dispose();
+        return 0;
+    }
+    case "child":
+    {
+        // REPRODUCTION: raise a child brain from a parent's genes. The child
+        // inherits predispositions (halfway temperament, the attachment climate
+        // of its parent's world, a derived seed) and NOTHING else - no memories,
+        // no words, no people. Then it lives a compressed childhood under that
+        // climate and becomes someone itself.
+        string genesPath = args.FirstOrDefault(a => a.EndsWith(".json")) ?? "";
+        if (!File.Exists(genesPath))
+        {
+            Console.WriteLine("[child] usage: biolab child genes.json [seconds]  (get genes.json from the dashboard's genes button)");
+            return 1;
+        }
+        var genes = System.Text.Json.JsonSerializer.Deserialize<BrainGenes>(
+            File.ReadAllText(genesPath),
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (genes is null) { Console.WriteLine("[child] unreadable genes"); return 1; }
+        double seconds = args.FirstOrDefault(a => a.EndsWith("s") && a.Length > 1 && double.TryParse(a.TrimEnd('s'), out _)) is { } sarg
+            && double.TryParse(sarg.TrimEnd('s'), out var sv) ? sv : 240;
+
+        ulong childSeed = Genetics.ChildSeed(genes.Seed, 0xC0FFEE);
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: childSeed));
+        var idle = new IdleController(net);
+        idle.Sleep.DayLengthMs = 60_000f; // compressed childhood: 1-minute days
+        var personality = new EmergentPersonality();
+        var attachment = new AttachmentSystem();
+        var loop = new ThoughtLoop { MinIntervalMs = 2500f };
+        var lm = new MockLanguageModel();
+
+        Console.WriteLine($"[child] born of {genes.ParentName} (seed {genes.Seed} -> {childSeed})");
+        Console.WriteLine($"[child] inherited predispositions (h={Genetics.Heritability:F1}): " +
+            $"sociability {Genetics.Inherit(genes.Sociability):F2}, curiosity {Genetics.Inherit(genes.Curiosity):F2}, " +
+            $"expressiveness {Genetics.Inherit(genes.Expressiveness):F2}; attachment climate " +
+            $"warmth {genes.AttachmentWarmth:F1} / responsiveness {genes.AttachmentResponsiveness:F1}");
+
+        // rearing: the child is treated the way its parent's world treated the
+        // parent - the inherited climate as its childhood
+        long ticks = (long)(seconds * 1000);
+        int contactEvery = 8_000, sinceContact = 0, bids = 0;
+        for (long t = 0; t < ticks; t++)
+        {
+            idle.Tick(net); net.Tick();
+            if (t % 4_000 == 0 && idle.Sleep.State == BrainState.Wake)
+            {
+                var req = loop.Tick(net, idle);
+                if (req is not null)
+                    loop.PostResult(lm.CompleteAsync(
+                        "You are a newborn artificial brain's inner monologue. One short first-person sentence.",
+                        $"{req.SeedMemory}. Feeling {idle.Feelings.Last.Name}.", 40).Result);
+            }
+            if (idle.Sleep.State == BrainState.Wake && ++sinceContact > contactEvery)
+            {
+                sinceContact = 0;
+                float warmth = Math.Clamp(genes.AttachmentWarmth + (((t / contactEvery) % 3) - 1) * 0.1f, 0f, 1f);
+                attachment.OnSocialContact(warmth);
+                personality.OnSocialInteraction(net, positive: warmth > 0.4f);
+                for (int b = 0; b < bids; b++) attachment.OnBidUnanswered();
+                bids = 0;
+            }
+            else if (idle.Sleep.State == BrainState.Wake && t % 11_000 == 0) bids++;
+            attachment.Tick(net);
+        }
+
+        Console.WriteLine($"[child] raised through {(int)(ticks / 1000)}s of compressed childhood");
+        Console.WriteLine($"[child] became: {personality.Describe()}");
+        Console.WriteLine($"[child] attachment: {attachment.Label} (warmth {attachment.Warmth:F1}, responsiveness {attachment.Responsiveness:F1}, {attachment.Separations} separations)");
+        Console.WriteLine($"[child] memories formed: {net.EpisodeStore.Episodes.Count} (parent had {genes.LifeEpisodes}); concept links wired: {net.EpisodeStore.Concepts.LinkCount}");
+        Console.WriteLine($"[child] parent was: {genes.PersonalityDescription}");
+
+        Directory.CreateDirectory("exports");
+        var report = new System.Text.StringBuilder();
+        report.AppendLine("# A child brain");
+        report.AppendLine();
+        report.AppendLine($"- Parent: {genes.ParentName} - {genes.PersonalityDescription}");
+        report.AppendLine($"- Inherited (h = {Genetics.Heritability:F1}): curiosity {Genetics.Inherit(genes.Curiosity):F2}, sociability {Genetics.Inherit(genes.Sociability):F2}, expressiveness {Genetics.Inherit(genes.Expressiveness):F2}, attachment climate {genes.AttachmentWarmth:F1}/{genes.AttachmentResponsiveness:F1}, voice pitch anchor {genes.VoicePitch:F3}");
+        report.AppendLine($"- Child became: {personality.Describe()}");
+        report.AppendLine($"- Child attachment: {attachment.Label}; memories {net.EpisodeStore.Episodes.Count}; concepts {net.EpisodeStore.Concepts.ConceptCount} ({net.EpisodeStore.Concepts.LinkCount} links)");
+        File.WriteAllText("exports/child-report.md", report.ToString());
+        Console.WriteLine("exports: exports/child-report.md");
+        return 0;
+    }
     case "blink":
     {
         var (lags, accuracy) = AwarenessParadigms.AttentionalBlink(outDir: "exports");
