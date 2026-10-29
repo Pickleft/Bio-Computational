@@ -140,6 +140,8 @@ async function enableBrowserSenses() {
   btn.classList.add("active");
   console.log("Browser senses enabled (cam:", haveCam, "mic:", haveMic, ")");
   startLiveTranscription();
+  const eb = document.getElementById("ears-banner");
+  if (eb) eb.style.display = "block";
 }
 
 // ---- LIVE TRANSCRIPTION: streaming words as you speak via the browser's own
@@ -174,6 +176,7 @@ function startLiveTranscription() {
 
 function disableBrowserSenses() {
   senseActive = false;
+  const eb2 = document.getElementById("ears-banner"); if (eb2) eb2.style.display = "none";
   if (liveRec) { try { liveRec.onend = null; liveRec.stop(); } catch { } liveRec = null; }
   const dotEl = document.getElementById("live-dot");
   if (dotEl) dotEl.classList.remove("on");

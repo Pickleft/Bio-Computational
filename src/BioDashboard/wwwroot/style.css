@@ -184,3 +184,6 @@ body[data-sleep="REM"] #stage{filter:saturate(1.2)}
 #live-card .liveinterim{font:italic 400 14px/1.4 var(--ui);color:var(--ink2);min-height:20px}
 .livedot{color:var(--ink2);margin-right:4px}
 .livedot.on{color:var(--a);animation:blink 1.2s infinite}
+
+#ears-banner{position:sticky;top:0;z-index:55;text-align:center;font:700 13px var(--ui);
+  color:#04241c;background:var(--a);padding:8px;letter-spacing:.03em}

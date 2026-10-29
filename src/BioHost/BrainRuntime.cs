@@ -963,7 +963,10 @@ public sealed class BrainRuntime : IDisposable
             // babble and mimic stay INTERNAL (thought feed only): syllable
             // chains through a TTS voice sound like gibberish - they are
             // developmental behavior, not speech. Mood sounds speak.
-            bool isBabble = tag.StartsWith("BABBLE") || tag.StartsWith("VOCAL-MIMIC");
+            // babble/mimic become AUDIBLE only after real vocabulary: a brain that
+            // heard enough speech earned its voice; a newborn mouths silently
+            bool learnedToBabble = _voiceSelf.ClipsHeard >= 6 && _voiceSelf.SyllablesLearned >= 12;
+            bool isBabble = (tag.StartsWith("BABBLE") || tag.StartsWith("VOCAL-MIMIC")) && !learnedToBabble;
             if (!isBabble)
                 SpeakWithVoice(line, emoPitch, emoRate);
 
