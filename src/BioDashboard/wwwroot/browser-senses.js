@@ -112,7 +112,7 @@ async function enableBrowserSenses() {
       let energy = 0;
       for (let i = 0; i < out.length; i++) energy += out[i] * out[i];
       const rms = Math.sqrt(energy / out.length);
-      if (rms < 0.006) return; // anti-hallucination: near-silence invents words
+      if (rms < 0.004) return; // anti-hallucination: near-silence invents words
 
       // Convert float32 [-1,1] to int16
       const pcm = new Int16Array(out.length);
@@ -147,11 +147,12 @@ async function enableBrowserSenses() {
 let liveRec = null;
 function startLiveTranscription() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return;
+  const fin = document.getElementById("live-final"); if (!SR) { if (fin) fin.textContent = "(this browser has no built-in live transcription - check the Senses tab for server-side transcripts)"; return; }
   liveRec = new SR();
   liveRec.continuous = true;
   liveRec.interimResults = true;
   liveRec.lang = "en-US";
+  liveRec.onerror = (e) => { const f2 = document.getElementById("live-final"); if (f2 && e.error !== "no-speech") f2.textContent = "(live transcription error: " + e.error + (e.error === "not-allowed" ? " - allow the microphone" : e.error === "network" ? " - recognition service unreachable; accept the https certificate on this phone, reload, retry" : "") + ")"; };
   liveRec.onresult = (e) => {
     const dot = document.getElementById("live-dot");
     if (dot) dot.classList.add("on");

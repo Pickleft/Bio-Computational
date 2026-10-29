@@ -374,7 +374,7 @@ public sealed class BrainRuntime : IDisposable
             _monologueLog.Add(link.Text);
             if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
             // a highly salient thought is sometimes thought OUT LOUD
-            if (link.Affect.Salience > 0.65f && link.Depth > 1)
+            if (link.Affect.Salience > 0.65f && link.Depth > 1 && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
             {
                 var f = _idle.Feelings.Last;
                 SpeakWithVoice(link.Text, emoPitch: f.Valence > 0 ? 1 : -1, emoRate: link.Affect.Activation > 0.6 ? 2 : 0);
@@ -1139,7 +1139,7 @@ public sealed class BrainRuntime : IDisposable
             // ANTI-HALLUCINATION: transcription models invent filler words
             // ("hey", "yeah", "hello") from near-silent room noise. Do not
             // even transcribe clips without real speech energy...
-            if (rms < 0.015)
+            if (rms < 0.010) // phone audio arrives quieter after browser processing
             {
                 Note($"AUDIO near-silence filtered (rms {rms:F3}) - not worth listening to ghosts");
                 return;
@@ -1757,8 +1757,10 @@ public sealed class BrainRuntime : IDisposable
                 _monologueLog.Add(thought);
                 if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
                 Note($"DAYDREAM \"{Trunc(thought, 80)}\"");
-                // thinking out loud: daydreams sometimes get spoken (more when lonely)
-                if (Loneliness.Level > 0.3f || ++_daydreamCount % 3 == 0)
+                // thinking out loud: daydreams sometimes get spoken (more when
+                // lonely) - never over the partner's turn
+                if ((Loneliness.Level > 0.3f || ++_daydreamCount % 3 == 0) &&
+                    TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                 {
                     SpeakWithVoice(thought,
                         emoPitch: feeling.Valence > 0 ? 1 : -1,

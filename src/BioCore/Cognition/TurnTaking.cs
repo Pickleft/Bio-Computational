@@ -45,8 +45,13 @@ public sealed class TurnTaking
         _breakLatched = false;
     }
 
-    /// <summary>False while the partner may still be holding the floor.</summary>
-    public bool ShouldSpeakNow(float nowSec) => nowSec - _lastUtteranceSec > HoldSec;
+    /// <summary>False while the partner may still be holding the floor. In an
+    /// engaged conversation the hold is much longer: while you and it are
+    /// talking, it WAITS properly instead of barging into every pause.</summary>
+    public float HoldSecEngaged { get; set; } = 7f;   // CALIBRATE
+
+    public bool ShouldSpeakNow(float nowSec) =>
+        nowSec - _lastUtteranceSec > (EngagedRecently(nowSec) ? HoldSecEngaged : HoldSec);
 
     /// <summary>
     /// True once per break: the partner was engaged in a rhythm and has now
