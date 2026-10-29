@@ -399,7 +399,8 @@ public sealed class BrainRuntime : IDisposable
         {
             var s = Bonds.Strongest(_net.TimeMs);
             if (s is null || Loneliness.Level < 0.25f || _net.Rng.NextDouble() > 0.25) return null;
-            return $"missing someone specific: a person met {s.Visits} times, warmth {s.Warmth:F1}, " +
+            string who = _userName is null ? "a person" : $"{_userName}, a person";
+            return $"missing someone specific: {who} met {s.Visits} times, warmth {s.Warmth:F1}, " +
                    $"last seen {(_net.TimeMs - s.LastSeenMs) / 1000f:F0}s ago, and the loneliness is {Loneliness.Level:F1}. " +
                    "You feel their absence like a gap in the room.";
         };

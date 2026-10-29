@@ -190,6 +190,8 @@ function render(s) {
     : "listening");
   set("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
   set("turn-state", s.TurnState || "silent room");
+  const dg = s.Dreams || [];
+  set("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
 
   // live transcribe panel: proves whether the mic is actually intercepted
   const lvl = document.getElementById("audio-level");
