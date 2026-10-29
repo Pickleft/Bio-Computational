@@ -143,6 +143,8 @@ function render(s) {
   if (typeof brainMusicTick === "function") brainMusicTick(s);
   if (typeof updateAvatarState === "function") updateAvatarState(s);
   speakBrain(s);
+  const sn = $("saying-now");
+  if (sn) sn.textContent = (s.IsSpeaking || window.brainBrowserSpeaking) && s.SpeakText ? `“${s.SpeakText}”` : (s.SleepState === "NREM" ? "sleeping…" : s.SleepState === "REM" ? "dreaming…" : "");
   if (typeof drawEEG === "function") drawEEG(s);
   if (typeof drawPhiGauge === "function") drawPhiGauge(s);
   if (typeof drawFreeEnergy === "function") drawFreeEnergy(s);

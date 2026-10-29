@@ -23,7 +23,7 @@
   const toggleLog = () => document.body.classList.toggle("log-open");
   const toggleFs = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
   document.getElementById("log-toggle").onclick = toggleLog;
-  document.getElementById("fs-toggle").onclick = toggleFs;
+  const fsBtn = document.getElementById("fs-toggle"); if (fsBtn) fsBtn.onclick = toggleFs;
   addEventListener("keydown", (e) => {
     if (/input|textarea/i.test(e.target.tagName) || e.metaKey || e.ctrlKey) return;
     if (e.key === "l") toggleLog();
