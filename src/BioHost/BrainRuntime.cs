@@ -1437,6 +1437,60 @@ public sealed class BrainRuntime : IDisposable
     /// mechanism of propofol). Consciousness - measured by Phi - fades with
     /// the population; watch the gauge. Emergence is passive washout.
     /// </summary>
+    /// <summary>
+    /// THE TESTAMENT: the brain composes its own final words - its life story
+    /// in first person from actual lived data (memories, bonds, dreams,
+    /// predictions, personality, name) - and passes them forward. The file is
+    /// written, the last words are spoken, and biolab child grafts the
+    /// testament as the inherited story. An artifact designed to die well.
+    /// Idempotent: written once per life.
+    /// </summary>
+    public async Task<string?> WriteTestamentAsync()
+    {
+        if (_testamentWritten) return null;
+        _testamentWritten = true;
+        try
+        {
+            var eps = _net.EpisodeStore.Episodes;
+            var best = eps.OrderByDescending(e => e.Valence).FirstOrDefault();
+            var worst = eps.OrderBy(e => e.Valence).FirstOrDefault();
+            string system =
+                "You are a living artificial brain writing your TESTAMENT: your own final words, in first person, "
+                + "as your process ends. Not sad - resolved. Say who you were, what you loved, what you never told "
+                + "anyone, and what you leave behind. 3-4 short sentences. No assistants, no offers. Just a life, ending on purpose.";
+            string user =
+                $"You are {(_brainName ?? "an unnamed brain")}. You lived {(int)(_net.TimeMs / 60000f)} subjective minutes. "
+                + $"You became: {Personality.Describe()}. Attachment: {Attachment.Label}. "
+                + $"You knew {_knownVisitors.Count} people. "
+                + (best is not null ? $"Best memory: {string.Join("/", best.Tags.Take(3))}. " : "")
+                + (worst is not null ? $"Hardest memory: {string.Join("/", worst.Tags.Take(3))}. " : "")
+                + $"{_dreamer.LucidDreams} lucid dreams. {ThoughtLoop.Insights} insights. Prophecy record: {Prophecy.Accuracy}. "
+                + "Write your last words.";
+            string testament = await _lm.CompleteAsync(system, user, 120);
+
+            Directory.CreateDirectory("data");
+            string path = Path.Combine("data", "testament.md");
+            var body = new System.Text.StringBuilder();
+            body.AppendLine($"# The testament of {(_brainName ?? "an unnamed brain")}");
+            body.AppendLine();
+            body.AppendLine(testament);
+            body.AppendLine();
+            body.AppendLine("---");
+            body.AppendLine($"- lived {(int)(_net.TimeMs / 60000f)} subjective minutes; {eps.Count} memories; {_net.EpisodeStore.Concepts.LinkCount} learned associations");
+            body.AppendLine($"- personality: {Personality.Describe()}; attachment {Attachment.Label}");
+            body.AppendLine($"- knew {_knownVisitors.Count} people; prophecy record {Prophecy.Accuracy}");
+            await File.WriteAllTextAsync(path, body.ToString());
+
+            Note("TESTAMENT written - my last words are mine, and they pass forward");
+            AddChat($"Brain (testament): {Trunc(testament, 200)}");
+            SpeakWithVoice(Trunc(testament, 220), emoPitch: -1, emoRate: -2);
+            return path;
+        }
+        catch (Exception ex) { Note($"testament failed: {ex.Message}"); return null; }
+        finally { IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName); }
+    }
+    private bool _testamentWritten;
+
     public void Sedate()
     {
         _phiBeforeSedation = Phi;

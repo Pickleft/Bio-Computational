@@ -170,3 +170,9 @@ for 250 ms, shrinking with remaining time.
 ## Self-naming
 After 8+ heard voices, 5+ sim-minutes of life, in a high-dopamine moment: the interpreter coins
 one 1-2 syllable name (offline fallback "Hum"); announced, spoken, persisted with identity.
+
+## Testament (the death protocol)
+Once per life: the brain composes final words from its actual lived data (best/worst memories,
+bonds, lucid dreams, insights, prophecy record, personality, name), speaks them aloud, and
+writes data/testament.md. biolab child grafts the parent testament as the inherited story:
+memory transfer between generations - the first artifact designed to die well.

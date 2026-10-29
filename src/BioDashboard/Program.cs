@@ -63,6 +63,7 @@ app.MapPost("/api/test-voice", () =>
 });
 
 // ---- ANESTHESIA: watch consciousness chemically fade (Phi follows) ----
+app.MapGet("/api/testament", async () => Results.Text(await runtime.WriteTestamentAsync() ?? "already written", "text/plain"));
 app.MapPost("/api/sedate", () =>
 {
     runtime.Sedate();
