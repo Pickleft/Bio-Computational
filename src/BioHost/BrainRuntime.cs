@@ -1723,6 +1723,7 @@ public sealed class BrainRuntime : IDisposable
     {
         // If it's a visual detection, use spatial proximity to see if it's the active speaker
         if (tag.StartsWith("visual:"))
+        {
             // Same spatial zone = same person
             if (!_lastVisitorId.StartsWith("visual:")) return _activeSpeakerId;
             var lastCoords = _lastVisitorId.Split(':')[1..];
@@ -1734,6 +1735,10 @@ public sealed class BrainRuntime : IDisposable
             }
             return _activeSpeakerId;
         }
+        // For speech: same session = same person
+        return _activeSpeakerId;
+    }
+
     private void ProcessVisitor(string visitorId)
     {
         float warmth = Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f;
