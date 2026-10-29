@@ -61,17 +61,25 @@ function speakBrain(s) {
   if (!("speechSynthesis" in window)) return;
   if (s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
     spokenSeq = s.SpeakSeq;
-    const u = new SpeechSynthesisUtterance(s.SpeakText);
-    if (pickedVoice) u.voice = pickedVoice;
-    u.rate = s.SpeakRate || 1;
-    u.pitch = s.SpeakPitch || 1;
-    u.onstart = () => { window.brainBrowserSpeaking = true; };
-    u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
-    // one thought at a time: the brain interrupts itself - but only cancel
-    // when something is actually speaking (cancel+speak back-to-back can
-    // silently drop the utterance in some browsers)
+    // HUMAN PROSODY: split into sentence/clause chunks and speak them as a
+    // sequence with natural micro-pauses - one long run-on utterance is the
+    // single biggest tell of robotic TTS. Each chunk gets a tiny organic
+    // rate/pitch wobble so no two sentences sound identical.
+    const chunks = s.SpeakText.match(/[^.!?…,]+[.!?…,]*/g) || [s.SpeakText];
     if (speechSynthesis.speaking) speechSynthesis.cancel();
-    speechSynthesis.speak(u);
+    let first = true;
+    for (const chunk of chunks) {
+      const text = chunk.trim();
+      if (!text) continue;
+      const u = new SpeechSynthesisUtterance(text);
+      if (pickedVoice) u.voice = pickedVoice;
+      const wobble = ((spokenSeq + text.length) % 5 - 2) * 0.015; // organic drift
+      u.rate = Math.max(0.6, Math.min(1.4, (s.SpeakRate || 1) + wobble));
+      u.pitch = Math.max(0.5, Math.min(1.7, (s.SpeakPitch || 1) + wobble * 0.8));
+      if (first) { u.onstart = () => { window.brainBrowserSpeaking = true; }; first = false; }
+      u.onend = u.onerror = () => { if (!speechSynthesis.pending) window.brainBrowserSpeaking = false; };
+      speechSynthesis.speak(u);
+    }
   }
 }
 
@@ -170,6 +178,7 @@ function render(s) {
 
   // psychology readout (Social tab): who the brain is becoming
   const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  set("knows-name", s.UserName || "a stranger");
   set("attach-style", s.Attachment || "forming");
   set("empathy-mood", (s.EmpathyConfidence || 0) > 0.3 ? `${s.UserMood} voice` : "no voice yet");
   set("curiosity-prog", `progress ${(s.CuriosityProgress || 0).toFixed(2)}, reward ${(s.CuriosityReward || 0).toFixed(2)}`);

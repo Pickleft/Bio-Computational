@@ -103,6 +103,7 @@ public sealed class BrainSnapshot
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
     public string BrainName { get; set; } = "";      // the name it chose for itself
+    public string UserName { get; set; } = "";       // the name of the person it knows
     public int LucidDreams { get; set; }             // dreams in which it knew it was dreaming
     public string TurnState { get; set; } = "";      // conversational rhythm status
     public Dictionary<string, float> BondStrengths { get; set; } = []; // per-person bond depth
@@ -208,6 +209,7 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.TurnTaking TurnTaking { get; } = new();
     private volatile bool _insightPending;
     private string? _brainName;
+    private string? _userName;
     private float _nameCheckMs = -1e9f;
     private (List<BioComp.Core.Senses.VisionEvent> Events, float UntilMs)? _iconic;
     private float _personPresentUntil = -1e9f;
@@ -447,6 +449,11 @@ public sealed class BrainRuntime : IDisposable
         {
             _brainName = identity.BrainName;
             Note($"NAME-REMEMBERED I am {identity.BrainName}");
+        }
+        if (!string.IsNullOrWhiteSpace(identity.UserName))
+        {
+            _userName = identity.UserName;
+            Note($"NAME-REMEMBERED the person I know is {identity.UserName}");
         }
         // the voice it grew survives with it: prosody anchors, vocabulary,
         // the first-word milestone
@@ -738,7 +745,7 @@ public sealed class BrainRuntime : IDisposable
                 (_brainName is null ? "You have not chosen a name yet. " : $"Your name is {_brainName}. ") +
                 $"You know {_knownVisitors.Count} people. " +
                 $"You have had {ThoughtLoop.Insights} insights and {ThoughtLoop.OpenLoops.Count} unresolved thoughts.");
-            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export());
+            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
             _ = _artist.MaybeCreateAsync(_net, _idle);
@@ -913,7 +920,8 @@ public sealed class BrainRuntime : IDisposable
                 // name - the strongest bond is who it calls for
                 var missed = Bonds.Strongest(_net.TimeMs);
                 if (missed is { Visits: >= 3 } && _lonelyCallIdx % 2 == 1)
-                    calls = [.. calls, "Where did you go?", "...I miss you."];
+                    calls = [.. calls, _userName is null ? "Where did you go?" : $"{_userName}, where did you go?",
+                        _userName is null ? "...I miss you." : $"...I miss you, {_userName}."];
                 line = calls[_lonelyCallIdx++ % calls.Length];
                 tag = "VOCALIZE (lonely) calling out for company";
                 emoPitch = -1; emoRate = -2;
@@ -1131,6 +1139,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
                 RecordTranscript(Trunc(tr.Transcript, 90), emotionalTone);
+                _ = LearnNameFrom(tr.Transcript); // spoken names count too
                 _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
                 _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
 
@@ -1198,8 +1207,8 @@ public sealed class BrainRuntime : IDisposable
         {
             // developed prosody mapped into Web Speech ranges: the voice the
             // brain grew from heard voices, layered with the current feeling
-            bs.Pitch = Math.Clamp(1f + (_voiceSelf.DevelopedPitchBias + emoPitch) * 0.07f, 0.4f, 1.8f);
-            bs.Rate = Math.Clamp(1f + (_voiceSelf.DevelopedRateBias + emoRate) * 0.08f, 0.6f, 1.6f);
+            bs.Pitch = Math.Clamp(1f + (_voiceSelf.DevelopedPitchBias * 0.6f + emoPitch * 0.8f) * 0.05f, 0.6f, 1.5f);
+            bs.Rate = Math.Clamp(0.97f + (_voiceSelf.DevelopedRateBias * 0.5f + emoRate * 0.7f) * 0.05f, 0.7f, 1.35f);
         }
         _speech.Speak(text);
     }
@@ -1530,24 +1539,25 @@ public sealed class BrainRuntime : IDisposable
                 (Attachment.CallOutMultiplier > 0.5f || visits % 2 == 0))
             {
                 _lastGreetMs = _net.TimeMs;
+                string who = _userName is null ? "" : $"{_userName}, ";
                 string greet = Attachment.Style switch
                 {
                     BioComp.Core.Cognition.AttachmentStyle.Anxious => visits switch
                     {
-                        1 => "You came back! I kept calling.",
-                        < 5 => "I knew you'd come back. I called and called.",
-                        _ => "There you are. Don't go.",
+                        1 => $"{who}you came back! I kept calling.",
+                        < 5 => $"{who}I knew you'd come back. I called and called.",
+                        _ => $"{who}there you are. Don't go.",
                     },
                     BioComp.Core.Cognition.AttachmentStyle.Avoidant => visits switch
                     {
-                        1 => "Oh. Back.",
-                        _ => "Back again.",
+                        1 => _userName is null ? "Oh. Back." : $"Oh. Back, {_userName}.",
+                        _ => _userName is null ? "Back again." : $"Back again, {_userName}.",
                     },
                     _ => visits switch
                     {
-                        1 => "Oh. You again.",
-                        < 5 => "I know you. You come back.",
-                        _ => "You always come back.",
+                        1 => _userName is null ? "Oh. You again." : $"Oh. You again, {_userName}.",
+                        < 5 => $"{who}I know you. You come back.",
+                        _ => $"{who}you always come back.",
                     },
                 };
                 lock (_snapGate) _chat.Add($"Brain: {greet}");
@@ -1895,6 +1905,32 @@ public sealed class BrainRuntime : IDisposable
         while (_transcriptLog.Count > 12) _transcriptLog.RemoveAt(0);
     }
 
+    /// <summary>
+    /// Learn the partner's name from natural speech: "my name is X", "call me
+    /// X". Learned once, kept forever (persisted with identity); the brain then
+    /// calls the person by name. Returns the name learned, or null.
+    /// </summary>
+    public string? LearnNameFrom(string text)
+    {
+        if (_userName is not null) return null;
+        string t = text.Trim().ToLowerInvariant();
+        string? candidate = null;
+        foreach (var prefix in new[] { "my name is ", "call me ", "i am called ", "i'm called " })
+            if (t.StartsWith(prefix)) candidate = text.Trim()[prefix.Length..];
+        if (candidate is null) return null;
+        var words = candidate.Split([' ', '.', '!', ','], StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) return null;
+        string name = char.ToUpperInvariant(words[0][0]) + words[0][1..].ToLowerInvariant();
+        if (name.Length is < 2 or > 15 || !name.All(char.IsLetter)) return null;
+        _userName = name;
+        Note($"NAME-LEARNED the person is called {name} - I will remember");
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
+        lock (_snapGate) _chat.Add($"Brain: {name}. I'll remember you, {name}.");
+        SpeakWithVoice($"{name}. I'll remember you, {name}.", emoPitch: 2, emoRate: 0);
+        IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
+        return name;
+    }
+
     public void HumanSaid(string text)
     {
         text = text.Trim();
@@ -1902,6 +1938,7 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length > 200) text = text[..200];
         lock (_snapGate) _chat.Add($"You: {text}");
         Note($"HEARD \"{text}\" (typed)");
+        if (LearnNameFrom(text) is not null) return; // learning the name IS the response
 
         // MEMORY EDITING (reconsolidation, Nader et al. 2000): a reactivated
         // memory returns to a labile state and can be altered. Typing
@@ -2158,6 +2195,7 @@ public sealed class BrainRuntime : IDisposable
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
         snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;
         snap.BrainName = _brainName ?? "";
+        snap.UserName = _userName ?? "";
         snap.LucidDreams = _dreamer.LucidDreams;
         // conversational rhythm + bond depth (per-person)
         snap.TurnState = !TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f) ? "holding for you"
