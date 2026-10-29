@@ -19,7 +19,7 @@ if not exist src\BioDashboard\data mkdir src\BioDashboard\data
 
 taskkill /f /im BioComp.Dashboard.exe >nul 2>&1
 
-start "brain" /min /d "%~dp0src\BioDashboard" "%~dp0%EXE%" "--urls=http://0.0.0.0:8080;https://0.0.0.0:8443" --demo --live-meta --voice
+start "brain" /min /d "%~dp0src\BioDashboard" "%~dp0%EXE%" "--urls=http://0.0.0.0:8080;https://0.0.0.0:8443" --live-meta --voice
 
 echo.
 echo   brain starting...

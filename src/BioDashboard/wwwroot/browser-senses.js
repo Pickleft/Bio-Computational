@@ -112,7 +112,7 @@ async function enableBrowserSenses() {
       let energy = 0;
       for (let i = 0; i < out.length; i++) energy += out[i] * out[i];
       const rms = Math.sqrt(energy / out.length);
-      if (rms < 0.0025) return;
+      if (rms < 0.006) return; // anti-hallucination: near-silence invents words
 
       // Convert float32 [-1,1] to int16
       const pcm = new Int16Array(out.length);

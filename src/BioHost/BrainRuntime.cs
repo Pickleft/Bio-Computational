@@ -350,7 +350,7 @@ public sealed class BrainRuntime : IDisposable
         }
         _monologue = new MonologueGenerator(_lm)
         {
-            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 8 : 120),
+            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 20 : 180),
         };
         _dreamer = new DreamGenerator(_imager)
         {
@@ -416,7 +416,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"ATTACHMENT formed: {Attachment.Label} (warmth {Attachment.Warmth:F1}, responsiveness {Attachment.Responsiveness:F1}, {Attachment.Separations} separations)");
             if (line.Length > 0) { lock (_snapGate) _chat.Add($"Brain: {line}"); SpeakWithVoice(line, 0, 0); }
         };
-        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 4000f; // demo pacing
+        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 8000f; // demo pacing: thoughts breathe between links
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
     }
@@ -876,7 +876,7 @@ public sealed class BrainRuntime : IDisposable
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 5_000 : 12_000);
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 12_000 : 30_000);
             string? line = AmbientThought();
             if (line is not null) Note($"AMBIENT {line}");
         }
@@ -1135,7 +1135,23 @@ public sealed class BrainRuntime : IDisposable
                 : rms < 0.015 ? "very quiet/whispered"
                 : "normal conversational";
 
+            // ANTI-HALLUCINATION: transcription models invent filler words
+            // ("hey", "yeah", "hello") from near-silent room noise. Do not
+            // even transcribe clips without real speech energy...
+            if (rms < 0.015)
+            {
+                Note($"AUDIO near-silence filtered (rms {rms:F3}) - not worth listening to ghosts");
+                return;
+            }
             var tr = await _transcriber.TranscribeAsync(clip);
+            // ...and reject a lone filler word unless the voice was clearly real
+            string trimmed = tr.Transcript?.Trim().TrimEnd('.', '!', '?', ',', ' ') ?? "";
+            bool loneFiller = GhostWords.Contains(trimmed.ToLowerInvariant());
+            if (loneFiller && rms < 0.03)
+            {
+                Note($"GHOST-FILTERED \"{trimmed}\" from quiet noise (rms {rms:F3}) - nobody said that");
+                return;
+            }
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
@@ -1478,6 +1494,11 @@ public sealed class BrainRuntime : IDisposable
     /// Returning visitors get a warmer greeting (higher OXT) and faster processing
     /// (the brain recognizes them). Strangers get a stronger surprise response.
     /// </summary>
+    /// Filler words transcription models invent from silence - rejected
+    /// unless the clip carries clearly real speech energy.
+    private static readonly HashSet<string> GhostWords =
+        new(["hey", "yeah", "hello", "hi", "huh", "uh", "um", "ok", "you", "thank you", "bye"], StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<string, int> _knownVisitors = [];
     private string _lastVisitorId = "";
 
@@ -1680,7 +1701,7 @@ public sealed class BrainRuntime : IDisposable
     private async Task DaydreamAsync()
     {
         if (_net.EpisodeStore.Episodes.Count == 0) return;
-        if (_net.TimeMs - _lastDaydreamMs < 15_000) return; // at most every 15s
+        if (_net.TimeMs - _lastDaydreamMs < 35_000) return; // daydreams are occasional, not constant
         _lastDaydreamMs = _net.TimeMs;
         try
         {
@@ -1732,7 +1753,7 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private async Task ReactToStimulusAsync(string stimulus, string detail)
     {
-        if (_net.TimeMs - _lastReactionMs < 4_000) return; // at most every 4s
+        if (_net.TimeMs - _lastReactionMs < 8_000) return; // reactions are occasional
         _lastReactionMs = _net.TimeMs;
         try
         {
