@@ -106,6 +106,13 @@ public sealed class BrainSnapshot
     public int LucidDreams { get; set; }             // dreams in which it knew it was dreaming
     public string TurnState { get; set; } = "";      // conversational rhythm status
     public Dictionary<string, float> BondStrengths { get; set; } = []; // per-person bond depth
+    public bool AudioLive { get; set; }              // audio blocks arriving (last 2s)
+    public float AudioRms { get; set; }              // live level 0..1
+    public bool AudioVad { get; set; }               // voice detected right now
+    public string AudioSource { get; set; } = "none";// browser or local mic
+    public bool AudioClipBuilding { get; set; }      // mid-utterance capture
+    public long AudioBlocks { get; set; }
+    public List<string> TranscriptLog { get; set; } = []; // live transcribe feed
     public int VoiceClipsHeard { get; set; }   // voices that shaped its own voice
     public int VoiceSyllables { get; set; }    // babble vocabulary it learned from heard speech
     public int VoiceMimicries { get; set; }    // non-verbal sounds it reproduced in its own way
@@ -617,6 +624,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 _cochlea.Process(block);
                 _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
+                RecordAudioTelemetry(_cochlea.EnergyRms, _cochlea.VoiceLikely, "local mic");
                 if (_cochlea.VoiceLikely) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
                 else if (_cochlea.OnsetThisBlock) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 0.7f);
 
@@ -1122,6 +1130,7 @@ public sealed class BrainRuntime : IDisposable
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
+                RecordTranscript(Trunc(tr.Transcript, 90), emotionalTone);
                 _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
                 _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
 
@@ -1386,6 +1395,7 @@ public sealed class BrainRuntime : IDisposable
         var block = new BioComp.Core.Abstractions.AudioBlock(pcm, 16_000);
         _cochlea.Process(block);
         _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
+        RecordAudioTelemetry(_cochlea.EnergyRms, _cochlea.VoiceLikely, "browser");
         if (_cochlea.VoiceLikely) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
         else if (_cochlea.OnsetThisBlock) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 0.7f);
         _audioBuffer.AddRange(pcm);
@@ -1867,6 +1877,24 @@ public sealed class BrainRuntime : IDisposable
         return 1;
     }
 
+    // ---- LIVE AUDIO TELEMETRY: proves end-to-end mic interception ----
+    // (browser or local mic -> server -> VAD -> clip assembly -> transcript)
+    private float _teleRms; private bool _teleVad; private string _teleSource = "none";
+    private long _teleBlocks; private DateTime _teleLastWall = DateTime.MinValue;
+    private readonly List<string> _transcriptLog = [];
+    private void RecordAudioTelemetry(float rms, bool vad, string source)
+    {
+        _teleRms = rms; _teleVad = vad; _teleSource = source; _teleBlocks++;
+        _teleLastWall = DateTime.UtcNow;
+    }
+
+    /// <summary>Feed a finished transcript into the live transcribe panel.</summary>
+    private void RecordTranscript(string text, string tone)
+    {
+        _transcriptLog.Add($"[{_net.TimeMs / 1000:F0}s] ({tone}) {text}");
+        while (_transcriptLog.Count > 12) _transcriptLog.RemoveAt(0);
+    }
+
     public void HumanSaid(string text)
     {
         text = text.Trim();
@@ -2136,6 +2164,15 @@ public sealed class BrainRuntime : IDisposable
             : TurnTaking.EngagedRecently(_net.TimeMs / 1000f) ? "in rhythm with you"
             : "silent room";
         snap.BondStrengths = Bonds.Bonds.ToDictionary(b => b.Key, b => Bonds.Strength(b.Key, _net.TimeMs));
+
+        // live transcribe telemetry: is the mic actually being intercepted?
+        snap.AudioLive = (DateTime.UtcNow - _teleLastWall).TotalSeconds < 2;
+        snap.AudioRms = _teleRms;
+        snap.AudioVad = _teleVad;
+        snap.AudioSource = _teleSource;
+        snap.AudioClipBuilding = _wasVoice;
+        snap.AudioBlocks = _teleBlocks;
+        snap.TranscriptLog = [.. _transcriptLog];
         // voice development: how the brain's own voice is growing from heard voices
         snap.VoiceClipsHeard = _voiceSelf.ClipsHeard;
         snap.VoiceSyllables = _voiceSelf.SyllablesLearned;

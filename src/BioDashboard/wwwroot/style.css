@@ -142,3 +142,7 @@ body.demo{font-size:16px} body.demo .list.thoughts li{font-size:18px}
 #eyes-wrap.live{opacity:1}
 #eyes{width:128px;height:128px;border:1px solid var(--line);border-radius:8px;image-rendering:pixelated;background:#000}
 #eyes-wrap figcaption{font:500 10px var(--mono);color:var(--ink2);text-align:center;margin-top:3px;letter-spacing:.06em}
+
+/* live transcribe */
+.level-wrap{height:10px;background:#0b0f14;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:8px 0}
+.level-bar{height:100%;width:0%;background:linear-gradient(90deg,#3ddbb8,#f0b45c,#f07080);transition:width .08s linear}

@@ -181,6 +181,29 @@ function render(s) {
     : "listening");
   set("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
   set("turn-state", s.TurnState || "silent room");
+
+  // live transcribe panel: proves whether the mic is actually intercepted
+  const lvl = document.getElementById("audio-level");
+  if (lvl) lvl.style.width = Math.min(100, (s.AudioRms || 0) * 300).toFixed(0) + "%";
+  set("audio-source", "source: " + (s.AudioSource || "none"));
+  set("audio-live", s.AudioLive ? "AUDIO ARRIVING" : "no audio arriving");
+  const liveEl = $("audio-live");
+  if (liveEl) liveEl.style.color = s.AudioLive ? "var(--pos, #6ee7a0)" : "var(--neg, #f07080)";
+  set("audio-vad", s.AudioVad ? "VOICE DETECTED" : "—");
+  set("audio-clip", s.AudioClipBuilding ? "capturing speech..." : "idle");
+  set("audio-blocks", String(s.AudioBlocks || 0));
+  const tl = $("transcripts");
+  if (tl) {
+    const lines = s.TranscriptLog || [];
+    if (tl.childElementCount !== lines.length || (lines.length && tl.lastChild && tl.lastChild.textContent !== lines[lines.length - 1])) {
+      tl.innerHTML = "";
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const li = document.createElement("li");
+        li.textContent = lines[i];
+        tl.appendChild(li);
+      }
+    }
+  }
   setFeed($("thought"), s.Thought);
   if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }

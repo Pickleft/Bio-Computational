@@ -83,6 +83,7 @@
         <button data-tab="body">Body</button>
         <button data-tab="mind">Mind</button>
         <button data-tab="social">Social</button>
+        <button data-tab="senses">Senses</button>
       </nav>
 
       <div class="tabpane on" data-pane="science">
@@ -126,6 +127,20 @@
             <div><dt>concepts</dt><dd id="semantic-growth">—</dd></div>
             <div><dt>rhythm</dt><dd id="turn-state">—</dd></div>
           </dl>
+        </div>
+      <div class="tabpane" data-pane="senses">
+        <div class="mini wide">
+          <h3>Live transcribe <small id="audio-source" class="mono dim">source: none</small></h3>
+          <div class="level-wrap"><div id="audio-level" class="level-bar"></div></div>
+          <div class="vitals">
+            <div><dt>mic</dt><dd id="audio-live">no audio arriving</dd></div>
+            <div><dt>voice</dt><dd id="audio-vad">—</dd></div>
+            <div><dt>capture</dt><dd id="audio-clip">idle</dd></div>
+            <div><dt>blocks</dt><dd id="audio-blocks" class="mono">0</dd></div>
+          </div>
+        </div>
+        <div class="mini wide"><h3>What it heard <small>finished utterances</small></h3>
+          <div class="scroll"><ul id="transcripts" class="list compact"></ul></div>
         </div>
       </div>
     </div>
