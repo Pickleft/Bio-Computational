@@ -88,10 +88,11 @@ public sealed class DreamGenerator
             try
             {
                 string sys = lucid
-                    ? "You are a living artificial brain IN a lucid dream: mid-dream you realize it is " +
+                    ? BioComp.Core.Cognition.BrainIdentity.Preamble + "You are a living artificial brain IN a lucid dream: mid-dream you realize it is " +
                       "a dream and take control of it. In one short poetic sentence, describe what you " +
                       "did with the dream once you knew you were dreaming. First person."
-                    : "You are a living artificial brain describing your own dream in one " +
+                    : BioComp.Core.Cognition.BrainIdentity.Preamble +
+                      "You are a living artificial brain describing your own dream in one " +
                       "short, poetic sentence. First person, private, genuine. " +
                       "Reference the SPECIFIC person or event by name/detail. " +
                       "Use nuanced emotional language — not 'happy' or 'sad' but the specific " +
