@@ -1467,20 +1467,24 @@ public sealed class BrainRuntime : IDisposable
             return;
         _lastSpokeSimMs = _net.TimeMs;
 
+        // THE NEURAL VOICE: text and prosody composed from actual
+        // neurotransmitter levels — the voice IS the brain's state
+        var feeling = _idle.Feelings.Last;
+        var (prosodyText, nRate, nPitch, nVolume) = NeuralVoice.Compose(
+            text, _net, feeling.Valence, feeling.Arousal);
+
         if (_speech is BrowserSpeech bs)
         {
-            // NATURAL PROSODY: keep modulation subtle — big pitch/rate swings
-            // sound robotic. The brain's FEELING should shade the voice, not
-            // distort it. Default rate slightly slow (0.92) for warmth.
-            bs.Pitch = Math.Clamp(1f + (_voiceSelf.DevelopedPitchBias * 0.3f + emoPitch * 0.4f) * 0.03f, 0.85f, 1.15f);
-            bs.Rate = Math.Clamp(0.92f + (_voiceSelf.DevelopedRateBias * 0.3f + emoRate * 0.5f) * 0.04f, 0.80f, 1.15f);
+            bs.Pitch = nPitch;
+            bs.Rate = nRate;
+            bs.Volume = nVolume;
         }
         else if (_speech is WindowsSpeech ws)
         {
             ws.PitchBias = (_voiceSelf.DevelopedPitchBias + emoPitch) * 0.5f;
             ws.RateBias = (_voiceSelf.DevelopedRateBias + emoRate) * 0.5f;
         }
-        _speech.Speak(text);
+        _speech.Speak(prosodyText);
     }
 
     /// <summary>

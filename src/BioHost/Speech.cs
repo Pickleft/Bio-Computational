@@ -77,6 +77,7 @@ public sealed class BrowserSpeech : ISpeechOutput
     public int Seq { get; private set; }
     public string CurrentText { get; private set; } = "";
     public float Rate { get; set; } = 1f;    // Web Speech rate, ~0.6..1.6
+    public float Volume { get; set; } = 1f;  // Web Speech volume 0..1
     public float Pitch { get; set; } = 1f;   // Web Speech pitch, ~0.4..1.8
 
     public bool IsSpeaking { get { lock (_gate) return DateTime.UtcNow < _until; } }

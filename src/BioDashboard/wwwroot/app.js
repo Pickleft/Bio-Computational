@@ -73,6 +73,7 @@ function speakBrain(s) {
     // Natural defaults: slightly slow, neutral pitch. Server provides the
     // emotional modulation — the browser just renders it faithfully.
     u.rate = s.SpeakRate || 0.92;
+    u.volume = 1.0;
     u.pitch = s.SpeakPitch || 1.0;
     u.volume = 1.0;
     u.onstart = () => { window.brainBrowserSpeaking = true; };
