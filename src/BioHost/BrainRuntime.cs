@@ -1028,7 +1028,9 @@ public sealed class BrainRuntime : IDisposable
         // how lonely it is, and how expressive it has BECOME (personality).
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
             _net.SedationLevel < 0.3f && // anesthetized brains do not speak
-            _net.TimeMs - _lastVocalizationMs > 7_000 &&
+            !_replyPending && // never vocalize spontaneously while composing a reply
+            _net.TimeMs - _lastVocalizationMs > 15_000 && // doubled: more breathing room
+            _net.TimeMs - _lastUserUtteranceSimMs > 25_000 && // user recently spoke: listen, don't mutter
             TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f)) // hold the partner's turn: no interrupting
         {
             var f = _idle.Feelings.Last;
@@ -1461,15 +1463,23 @@ public sealed class BrainRuntime : IDisposable
     /// modulation of the moment. This is why it sounds different after a week
     /// of living with you than on day one.
     /// </summary>
+    /// <summary>True while a reply to the user is being composed — ALL
+    /// spontaneous speech is suppressed so the user hears the reply, not
+    /// random "Mm... tired!" vocalizations.</summary>
+    private volatile bool _replyPending;
+
     private void SpeakWithVoice(string text, int emoPitch, int emoRate)
     {
-        // SANITIZE: strip any structured format markers that leaked in — the
-        // brain should never say "CONCLUSION:" or "FEELING:" out loud
+        // SANITIZE: strip any structured format markers that leaked in
         text = SanitizeSpeech(text);
         if (text.Length == 0) return;
 
-        // POLITE: don't speak over itself or over the user
+        // If a reply is being composed for the user, ONLY that reply speaks.
+        // No spontaneous vocalizations, no mood sounds, no thought-aloud.
         bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 20_000;
+        if (_replyPending && !replyingToUser) return; // wait for the reply
+
+        // POLITE: don't speak over itself or over the user
         if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 8_000)
             return;
         _lastSpokeSimMs = _net.TimeMs;
@@ -1551,6 +1561,8 @@ public sealed class BrainRuntime : IDisposable
 
     private async Task MonologueOnIgnition()
     {
+        // Don't monologue while in a conversation — the user gets the floor
+        if (_replyPending || _net.TimeMs - _lastUserUtteranceSimMs < 20_000) return;
         try
         {
             string? text = await _monologue.MaybeGenerateAsync(_net, _idle);
@@ -2190,6 +2202,7 @@ public sealed class BrainRuntime : IDisposable
     private async Task DaydreamAsync()
     {
         if (_net.EpisodeStore.Episodes.Count == 0) return;
+        if (_replyPending || _net.TimeMs - _lastUserUtteranceSimMs < 20_000) return; // don't daydream mid-conversation
         if (_net.TimeMs - _lastDaydreamMs < 35_000) return; // daydreams are occasional, not constant
         _lastDaydreamMs = _net.TimeMs;
         try
@@ -2537,9 +2550,17 @@ public sealed class BrainRuntime : IDisposable
         Loneliness.OnSocialContact(_net, quality: 0.6f);
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
 
-        // ONE response only: the DIRECT reply
+        // ONE response only: the DIRECT reply. While it's being composed,
+        // ALL spontaneous speech is suppressed so the user hears the reply.
+        _replyPending = true;
         _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
-            "typed in the chat - they are talking to you directly; answer them");
+            "typed in the chat - they are talking to you directly; answer them")
+            .ContinueWith(_ =>
+            {
+                // keep suppressed for 15 extra seconds after the reply so
+                // no monologue, daydream, or muttering steps on it
+                Task.Delay(15000).ContinueWith(__ => _replyPending = false);
+            });
 
         // MEMORY EDITING (reconsolidation, Nader et al. 2000): a reactivated
         // memory returns to a labile state and can be altered. Typing

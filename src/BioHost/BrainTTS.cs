@@ -50,8 +50,10 @@ public sealed class BrainTTS : IDisposable
         if (string.IsNullOrWhiteSpace(text)) return [];
         try
         {
-            // Map our 0..1 parameters to System.Speech ranges
-            _synth.Rate = (int)Math.Clamp((rate - 0.5f) * 20, -8, 8);
+            // Map our 0..1 rate to a NARROW System.Speech range (-2..2).
+            // The old mapping (rate-0.5)*20 was sending rate=0.92 to 8/10 —
+            // chipmunk speed. Normal speech should be around 0.
+            _synth.Rate = (int)Math.Clamp((rate - 0.9f) * 10, -2, 2);
             _synth.Volume = (int)Math.Clamp(volume * 100, 20, 100);
 
             using var ms = new MemoryStream();
