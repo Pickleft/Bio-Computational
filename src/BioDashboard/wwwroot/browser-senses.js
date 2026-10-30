@@ -188,10 +188,20 @@ function startTranscription() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
+  const dot = document.getElementById("live-dot");
+
+  // STATUS: make it IMPOSSIBLE to not know what's happening
+  const setStatus = (msg, color) => {
+    if (fin) { fin.textContent = msg; fin.style.color = color || "#8fa3ba"; }
+    console.log("[transcription]", msg);
+  };
+
   if (!SR) {
-    if (fin) fin.textContent = "(no built-in transcription in this browser - server transcription still works)";
+    setStatus("(this browser has no speech recognition - use Chrome or Edge)", "#f07080");
     return;
   }
+  setStatus("connecting speech recognition...", "#f0b45c");
+
   rec = new SR();
   rec.continuous = true;
   rec.interimResults = true;
@@ -201,11 +211,11 @@ function startTranscription() {
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript.trim();
       if (e.results[i].isFinal) {
-        if (fin && t) { fin.textContent = "\u201C" + t + "\u201D"; fin.style.color = "#6ee7a0"; }
+        // FINAL: show in green, send to brain
+        if (fin && t) { fin.textContent = "\u201C" + t + "\u201D"; fin.style.color = "#6ee7a0"; fin.style.fontSize = "17px"; }
         if (int) int.textContent = "";
-        // SEND TO BRAIN: final recognized speech goes directly to the chat
-        // API - this IS the conversation engine. The brain hears your words
-        // through the same path as typed messages.
+        if (dot) { dot.classList.add("on"); dot.style.color = "#6ee7a0"; }
+        // SEND TO BRAIN
         if (t && t.length > 1) {
           fetch("/api/say", {
             method: "POST",
@@ -215,30 +225,38 @@ function startTranscription() {
         }
       } else interim += t + " ";
     }
-    if (int) { int.textContent = interim; int.style.color = "#93a7bd"; }
+    // INTERIM: show live words as you speak (gray, italic, smaller)
+    if (int && interim) { int.textContent = interim; int.style.color = "#3ddbb8"; int.style.fontSize = "15px"; }
+  };
+  rec.onstart = () => {
+    setStatus("LISTENING - speak now", "#3ddbb8");
+    if (dot) { dot.classList.add("on"); dot.style.color = "#3ddbb8"; }
   };
   rec.onerror = (e) => {
     const err = e.error;
     console.error("[senses] SpeechRecognition error:", err);
     if (fin && err !== "no-speech") {
       const hints = {
-        "network": "VOICE INPUT OFFLINE.",
-        "not-allowed": "MIC BLOCKED.",
-        "audio-capture": "NO MIC FOUND.",
-        "service-not-allowed": "VOICE SERVICE BLOCKED.",
+        "network": "\u26A0 VOICE OFFLINE - open in Chrome on PC, or check Samsung mic permissions (Settings > Apps > Chrome > Permissions > Microphone > Allow)",
+        "not-allowed": "\u26A0 MIC BLOCKED - click the lock icon in the address bar, allow microphone, reload",
+        "audio-capture": "\u26A0 NO MIC FOUND - check microphone connection",
+        "service-not-allowed": "\u26A0 VOICE SERVICE BLOCKED - try Chrome on PC",
       };
-      fin.textContent = hints[err] || "(voice input error: " + err + ")";
-      fin.style.color = "#f07080";
+      setStatus(hints[err] || "(voice error: " + err + ")", "#f07080");
+      if (dot) { dot.style.color = "#f07080"; dot.classList.remove("on"); }
     }
   };
-  rec.onstart = () => {
-    const dot = document.getElementById("live-dot");
-    if (dot) { dot.classList.add("on"); }
-    if (fin && senseActive) { fin.textContent = "listening..."; fin.style.color = "#6ee7a0"; }
-    console.log("[senses] SpeechRecognition started");
+  rec.onend = () => {
+    console.log("[senses] SpeechRecognition ended, restarting...");
+    if (senseActive && rec) { try { rec.start(); } catch {} }
   };
-  rec.onend = () => { if (senseActive && rec) { try { rec.start(); } catch {} } };
-  try { rec.start(); } catch {}
+  try {
+    rec.start();
+    console.log("[senses] SpeechRecognition start() called");
+  } catch (e) {
+    console.error("[senses] SpeechRecognition start failed:", e);
+    setStatus("(failed to start voice recognition: " + e.message + ")", "#f07080");
+  }
 }
 
 // === CAMERA FRAME ===

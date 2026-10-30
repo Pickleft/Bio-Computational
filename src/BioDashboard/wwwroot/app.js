@@ -84,38 +84,19 @@ function pickVoice() {
 }
 
 function speakBrain(s) {
+  if (!("speechSynthesis" in window)) return;
   if (s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
     spokenSeq = s.SpeakSeq;
     const text = s.SpeakText.trim();
     if (!text) return;
-
-    // THE BRAIN'S VOICE: a real-time formant synthesizer driven by the
-    // brain's actual neural state — oscillators + filters shaped by
-    // dopamine, serotonin, noradrenaline, oxytocin. No TTS.
-    if (window.brainVoice) {
-      window.brainVoice.speak(
-        text,
-        s.Modulators,
-        s.Valence, s.Arousal,
-        s.VoicePitch || 0
-      );
-      window.brainBrowserSpeaking = true;
-      setTimeout(() => { window.brainBrowserSpeaking = false; },
-        Math.max(1000, text.length * 80));
-      return;
-    }
-
-    // FALLBACK: browser speechSynthesis (if brain-voice.js fails to load)
-    if ("speechSynthesis" in window) {
-      const u = new SpeechSynthesisUtterance(text);
-      if (pickedVoice) u.voice = pickedVoice;
-      u.rate = s.SpeakRate || 0.92;
-      u.pitch = s.SpeakPitch || 1.0;
-      u.volume = 1.0;
-      u.onstart = () => { window.brainBrowserSpeaking = true; };
-      u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
-      speechSynthesis.speak(u);
-    }
+    const u = new SpeechSynthesisUtterance(text);
+    if (pickedVoice) u.voice = pickedVoice;
+    u.rate = s.SpeakRate || 0.92;
+    u.pitch = s.SpeakPitch || 1.0;
+    u.volume = 1.0;
+    u.onstart = () => { window.brainBrowserSpeaking = true; };
+    u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
+    speechSynthesis.speak(u);
   }
 }
 

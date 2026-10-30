@@ -638,3 +638,8 @@ body.log-open #drawer { right: 0; }
   .logo, #rec.on, .livedot.on, .conn-pill { animation: none; }
   #drawer { transition: none; }
 }
+
+/* live transcription — make it BIG and obvious */
+#live-card .livefinal{font:600 17px/1.4 var(--ui);color:#fff;min-height:24px;padding:4px 0}
+#live-card .liveinterim{font:italic 400 14px/1.3 var(--ui);color:var(--a);min-height:20px}
+#live-card .livedot{font-size:14px}
