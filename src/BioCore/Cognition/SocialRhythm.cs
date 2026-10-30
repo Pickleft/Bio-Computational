@@ -76,6 +76,7 @@ public sealed class SocialRhythm
         if (Confidence < 0.3f) return; // not enough rhythm data yet
         int hour = (int)((net.TimeMs / 3_600_000f) % 24f);
         float expectation = _hourlyInteraction[hour] / MathF.Max(0.001f, _hourlyInteraction[PeakHour]);
+        CurrentSocialExpectation = expectation; // live: reflects the CURRENT hour, not the last-contact hour
 
         if (expectation > 0.6f)
         {

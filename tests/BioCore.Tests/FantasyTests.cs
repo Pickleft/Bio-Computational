@@ -584,3 +584,157 @@ public class NeedsTests
         Assert.True(needs.MostPressing is null || needs.MostPressing.Urgency >= 0f);
     }
 }
+
+// ---- deja vu: familiarity without recollection (Yonelinas 2002) ----
+public class DejaVuTests
+{
+    private static SpikingNetwork NetAt(int ticks)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 11));
+        for (int i = 0; i < ticks; i++) net.Tick();
+        return net;
+    }
+
+    [Fact]
+    public void DejaVu_FiresForOldNeverRecalledSimilarTrace()
+    {
+        var net = NetAt(100);
+        // an episode 10 minutes old, never recalled (AccessCount 0)
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "i like the rain"], 0.3f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        bool struck = dv.Check(net, eps, ["voice", "i like the rain today"]);
+        Assert.True(struck, "near-repeat of an old never-recalled trace must fire");
+        Assert.Equal(1, dv.Count);
+        Assert.NotNull(dv.LastDescription);
+    }
+
+    [Fact]
+    public void DejaVu_DoesNotFireForRecollection()
+    {
+        var net = NetAt(100);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "i like the rain"], 0.3f, 0f, 0f, AccessCount: 4),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.False(dv.Check(net, eps, ["voice", "i like the rain today"]),
+            "an often-recalled trace is RECOLLECTION, not deja vu");
+        Assert.Equal(0, dv.Count);
+    }
+
+    [Fact]
+    public void DejaVu_DoesNotFireForFreshOrDissimilar()
+    {
+        var net = NetAt(100);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 10_000f, [1], ["voice", "i like the rain"], 0.3f, 0f, 0f),   // too fresh
+            new(2, net.TimeMs - 600_000f, [2], ["sound", "machinery"], -0.2f, 0f, 0f),       // too different
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.False(dv.Check(net, eps, ["voice", "i like the rain today"]));
+    }
+
+    [Fact]
+    public void DejaVu_CooldownKeepsItStrange()
+    {
+        var net = NetAt(100);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "hello again"], 0.3f, 0f, 0f),
+            new(2, net.TimeMs - 700_000f, [2], ["voice", "hello again friend"], 0.3f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f, CooldownMs = 300_000f };
+        Assert.True(dv.Check(net, eps, ["voice", "hello again now"]));
+        Assert.False(dv.Check(net, eps, ["voice", "hello again now"]),
+            "a second familiarity within the cooldown stays silent - it is rare, not constant");
+    }
+}
+
+// ---- longing: missing one specific person (Panksepp 1998) ----
+public class LongingTests
+{
+    // shared harness: 3 warm visits (gaps 200ms) then absence; small timescale,
+    // MinAbsenceMs lowered - thresholds keep their production RATIOS
+    private static (SpikingNetwork net, SocialBondSystem bonds, Longing l) Visits(int seed, float untilMs)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        var bonds = new SocialBondSystem();
+        var l = new Longing { MinAbsenceMs = 50f };
+        foreach (int t in new[] { 200, 400, 600 })
+        {
+            while (net.TimeMs < t) net.Tick();
+            bonds.OnContact("speaker-1", 0.8f, t);
+            l.OnContact("Sam", t);
+        }
+        while (net.TimeMs < untilMs) net.Tick();
+        return (net, bonds, l);
+    }
+
+    [Fact]
+    public void Longing_GrowsPastThePersonsPattern()
+    {
+        // gaps {200,200}: threshold 2.5x200 = 500ms; absence at 1200 = 600ms
+        var (net, bonds, l) = Visits(13, 1_200);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.Missing, $"absence {net.TimeMs - 600}ms must cross the 500ms pattern threshold");
+        Assert.Equal("Sam", l.Whom);
+        Assert.True(l.Intensity >= 0.4f);
+    }
+
+    [Fact]
+    public void Longing_WithinPatternDoesNotMiss()
+    {
+        // absence 150ms < 500ms: within their usual rhythm - no missing
+        var (net, bonds, l) = Visits(29, 750);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.False(l.Missing);
+    }
+
+    [Fact]
+    public void Longing_AvoidantFeelsButDoesNotSay()
+    {
+        var (net, bonds, l) = Visits(17, 1_200);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.Missing);
+        Assert.False(l.Expresses(AttachmentStyle.Avoidant), "avoidant: felt fully, said never");
+        Assert.True(l.Expresses(AttachmentStyle.Anxious));
+    }
+
+    [Fact]
+    public void Longing_ReunionSurgeAndReset()
+    {
+        var (net, bonds, l) = Visits(19, 1_200);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.Missing);
+        // the wait accumulates while the missing lasts
+        while (net.TimeMs < 1_400) net.Tick();
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.LongestWaitMs > 0f);
+        float oxyBefore = net.Modulators.Get(NeuromodulatorKind.Oxytocin);
+        float felt = l.OnReunion(net);
+        Assert.True(felt > 0f, "the surge must be proportional to the missing");
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Oxytocin) > oxyBefore,
+            "reunion releases oxytocin");
+        Assert.False(l.Missing, "contact dissolves the missing");
+        Assert.Equal(1, l.Reunions);
+    }
+
+    [Fact]
+    public void Longing_WeakBondNeverMisses()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 23));
+        var bonds = new SocialBondSystem();
+        var l = new Longing { MinAbsenceMs = 50f };
+        while (net.TimeMs < 200) net.Tick();
+        bonds.OnContact("stranger", 0.3f, net.TimeMs);  // one visit: no bond
+        l.OnContact("stranger", net.TimeMs);
+        while (net.TimeMs < 1_000) net.Tick();
+        l.Tick(net, bonds, new SocialRhythm(), null, AttachmentStyle.Secure);
+        Assert.False(l.Missing, "a stranger's absence is not a loss");
+    }
+}

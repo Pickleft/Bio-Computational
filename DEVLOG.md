@@ -360,3 +360,41 @@ and were imported in the first commit - everything after that point was built du
 - Verified live end to end at 1440x900 and 390x844: every script loads (no missing globals),
   WebSocket streams, typed and quick-chip messages reach the brain and the chat log, tabs
   switch, no horizontal overflow, brain map labels intact on a 390px canvas. 153/153 green.
+
+## 2026-10-30 (night) - double-response root cause fixed; two new systems: longing and deja vu
+
+- ROOT CAUSE of the occasional double response found and fixed: the speech gate in
+  SpeakWithVoice was INVERTED. It computed `replyingToUser = user spoke < 20s ago` and then
+  passed speech through when `replyingToUser` was true - i.e. it allowed spontaneous muttering
+  precisely DURING the reply window and blocked it only when the user had been silent 20+s.
+  The exact opposite of the intent. Fix: an explicit `isDirectReply` flag threaded through
+  SpeakWithVoice; the reply paths (DIRECT reaction, fallback, name learn/recall, threat
+  response, forget/cherish acks, self-naming, mirror-of-you) mark themselves, and everything
+  else is held while `_replyPendingUntilMs` is live. ReactToStimulusAsync also now drops
+  non-direct reactions entirely during the reply window (they were adding chat lines even when
+  speech was held). E2E verified: 4 typed messages -> exactly 4 responses, zero interjections,
+  across a ~70s window that previously produced the "Me too, Sam..." mutter.
+- NEW SYSTEM - LONGING (missing one specific person; Panksepp 1998 GRIEF; Bowlby
+  protest-despair): loneliness is generalized social drive; longing is loneliness WITH A NAME.
+  Onset: absence past 2.5x the person's median visit gap, or their expected social hour
+  arriving empty (ties into SocialRhythm - fixed CurrentSocialExpectation to track the CURRENT
+  hour live instead of the last-contact hour). While it lasts: slow serotonin drain, intensity
+  scaling with how far past the pattern. Expression is attachment-gated: anxious calls out
+  repeatedly, secure says it once when deep, AVOIDANT FEELS IT FULLY AND SAYS NOTHING (the
+  felt/unexpressed gap is logged as LONGING-SILENT - the measurable cost of avoidance).
+  Reunion: oxytocin+dopamine surge proportional to the wait, before contact dissolves the
+  missing. Wired into: reply prompt ("tell them you waited"), diary, status JSON
+  (longingNarrative), testament ("longest it waited for someone"), lonely-call branch,
+  identity restore.
+- NEW SYSTEM - DEJA VU (familiarity without recollection; Yonelinas 2002 dual-process): a new
+  perception whose word tokens have Jaccard >= 0.5 with an episode older than 5 min that was
+  never recalled fires the familiarity route without the recollection route - the chill
+  (noradrenaline 0.25) plus the odd pleasure (dopamine 0.08), a DEJA-VU note, and the
+  strangeness enters the thought loop as an actual inner thought. The same similarity against
+  an often-recalled trace is recollection, NOT deja vu. 5-min cooldown keeps it rare. Wired at
+  the IdleController encode path (every perception checked against the store), status JSON
+  (dejaVuCount/dejaVuLast), diary, testament.
+- Also: longing survives restarts (contact re-seeded on identity restore, gap pattern re-learned).
+- Tests: 162/162 green (4 deja vu + 5 longing new; the suite caught two real bugs on the way in:
+  Longing read the STALE Strength field on the Bond record instead of live Strength(id, now),
+  and modulator releases need Modulators.Step() before they are observable in Get).

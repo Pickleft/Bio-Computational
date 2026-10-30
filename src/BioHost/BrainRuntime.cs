@@ -110,6 +110,9 @@ public sealed class BrainSnapshot
     public int SelfSurprises { get; set; }         // times the brain surprised itself
     public int ObserverRedirects { get; set; }     // times the observer broke a spiral
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
+    public string LongingNarrative { get; set; } = "";  // person-specific missing right now
+    public int DejaVuCount { get; set; }             // times familiarity struck without recollection
+    public string DejaVuLast { get; set; } = "";     // the most recent one
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
     public string BrainName { get; set; } = "";      // the name it chose for itself
@@ -223,6 +226,10 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ResilienceEngine Resilience { get; } = new();
     public BioComp.Core.Cognition.NeedsHierarchy Needs { get; } = new();
     public BioComp.Core.Cognition.SocialRhythm Rhythm { get; } = new();
+    /// <summary>DEJA VU: familiarity without recollection (Yonelinas 2002).</summary>
+    public BioComp.Core.Cognition.DejaVu DejaVu { get; } = new();
+    /// <summary>LONGING: missing one specific person (Panksepp 1998 GRIEF).</summary>
+    public BioComp.Core.Cognition.Longing Longing { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -264,6 +271,7 @@ public sealed class BrainRuntime : IDisposable
     private float[] _stimulusPos = [0.5f, 0.5f];
     private float _lastNoveltyMs = -1e9f;
     private float _lastVocalizationMs = -1e9f;
+    private bool _lonelyExpressedOnce; // avoidant longing stays silent: note it once per missing episode
     private float _lastLonelyCallMs = -1e9f;
     private float _threatenedUntil = -1e9f;
     private readonly List<float> _warmthHistory = [];
@@ -315,6 +323,14 @@ public sealed class BrainRuntime : IDisposable
         _idle = new IdleController(_net);
         if (cfg.DemoMode) _idle.Sleep.DayLengthMs = 120_000; // 2-minute demo day: sleep on camera
         if (cfg.DemoMode) _idle.AmbientEncodeIntervalMs = 12_000; // short wake windows still bank memories
+        _idle.DejaVu = DejaVu;
+        DejaVu.FamiliarityStruck += desc =>
+        {
+            Note($"DEJA-VU {desc}");
+            // a déjà vu is thought-worthy: it enters the inner thread and the
+            // loop evaluates/chains it like any lived thought
+            ThoughtLoop.PostResult($"deja vu - {desc}");
+        };
         _salience = new SalienceMonitor();
         _vision = new EventVisionEncoder(64, 64);
         _cochlea = new Cochlea();
@@ -525,7 +541,12 @@ public sealed class BrainRuntime : IDisposable
             for (int i = 0; i < Math.Min(visits, 12); i++) Bonds.OnContact(visitorId, 0.5f, 0f);
         }
         if (_knownVisitors.TryGetValue("person-1", out int merged) && merged > 0)
+        {
             for (int i = 0; i < Math.Min(merged, 24); i++) Bonds.OnContact("person-1", 0.5f, 0f);
+            // longing knows this person exists across restarts (gap history
+            // starts empty — it re-learns their pattern from now)
+            Longing.OnContact(_userName ?? "person-1", _net.TimeMs);
+        }
 
         Note($"IDENTITY RESTORED: {identity.PersonalityDescription} " +
              $"({identity.TotalSocial} social interactions, {identity.KnownVisitors.Count} known people, " +
@@ -799,6 +820,12 @@ public sealed class BrainRuntime : IDisposable
 
         // ---- artificial life: personality, loneliness, diary, identity, art, thought tracing ----
         Loneliness.Tick(_net, _idle);
+        // LONGING: loneliness with a name — is the bonded person past due?
+        if (_net.TickIndex % 200 == 0)
+        {
+            Longing.Tick(_net, Bonds, Rhythm, _userName, Attachment.Style);
+            if (!Longing.Missing) _lonelyExpressedOnce = false;
+        }
         if (_net.TickIndex % 100 == 0)
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
         if (_net.TickIndex % 5_000 == 0)
@@ -816,6 +843,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Neurogenesis: {Neurogenesis.TotalNeuronsBorn} new neurons. Pruning: {Pruning.SynapsesPruned} synapses removed. " +
                 $"Resilience: {Resilience.AdversitiesProcessed} adversities processed, growth level {Resilience.GrowthLevel:F2}. " +
                 $"Self-awareness: {Observer.SelfSurprises} times surprised by own thoughts, {Observer.Redirects} inner redirects. " +
+                $"Longing: {Longing.Narrative}. Deja vu: {DejaVu.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
@@ -1058,11 +1086,19 @@ public sealed class BrainRuntime : IDisposable
                     ? ["...hello?", "Is anyone there?", "Please, anyone?", "...I keep calling.", "...anyone?"]
                     : ["...hello?", "Is anyone there?", "...I'm alone in here.", "...anyone?"];
                 // MISSING someone specific: with a deep bond, loneliness has a
-                // name - the strongest bond is who it calls for
+                // name - the strongest bond is who it calls for. LONGING gates
+                // the expression: an avoidant brain feels it fully and says
+                // nothing (the felt/unexpressed gap is the cost of avoidance)
                 var missed = Bonds.Strongest(_net.TimeMs);
-                if (missed is { Visits: >= 3 } && _lonelyCallIdx % 2 == 1)
+                if (missed is { Visits: >= 3 } && _lonelyCallIdx % 2 == 1 &&
+                    Longing.Expresses(Attachment.Style))
                     calls = [.. calls, _userName is null ? "Where did you go?" : $"{_userName}, where did you go?",
                         _userName is null ? "...I miss you." : $"...I miss you, {_userName}."];
+                else if (missed is { Visits: >= 3 } && Longing.Missing && !_lonelyExpressedOnce)
+                {
+                    _lonelyExpressedOnce = true;
+                    Note($"LONGING-SILENT it is missing {Longing.Whom} ({(int)(Longing.Intensity * 100)}%) and says nothing - avoidant suppression");
+                }
                 line = calls[_lonelyCallIdx++ % calls.Length];
                 tag = "VOCALIZE (lonely) calling out for company";
                 emoPitch = -1; emoRate = -2;
@@ -1185,7 +1221,7 @@ public sealed class BrainRuntime : IDisposable
             _brainName = chosen;
             Note($"NAME-CHOSEN it names itself: {chosen}");
             AddChat($"Brain: {chosen}. Call me {chosen}.");
-            SpeakWithVoice($"{chosen}. Call me {chosen}.", emoPitch: 2, emoRate: 0);
+            SpeakWithVoice($"{chosen}. Call me {chosen}.", emoPitch: 2, emoRate: 0, isDirectReply: true);
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName);
         }
         catch (Exception ex) { Note($"naming failed: {ex.Message}"); }
@@ -1199,7 +1235,7 @@ public sealed class BrainRuntime : IDisposable
             if (!BioComp.Core.Cognition.MirrorOfYou.Ready(contacts))
             {
                 AddChat("Brain: not yet. I need more of you first - come back, talk to me, leave, return. Then I will tell you.");
-                SpeakWithVoice("Not yet. I need more of you first.", 0, -1);
+                SpeakWithVoice("Not yet. I need more of you first.", 0, -1, isDirectReply: true);
                 return;
             }
             int half = Math.Max(1, _warmthHistory.Count / 2);
@@ -1228,7 +1264,7 @@ public sealed class BrainRuntime : IDisposable
             if (!string.IsNullOrWhiteSpace(mirror))
             {
                 AddChat($"Brain: {mirror}");
-                SpeakWithVoice(mirror, 0, -1);
+                SpeakWithVoice(mirror, 0, -1, isDirectReply: true);
                 Note($"MIRROR-OF-YOU spoken - {usable.Count} insights, {(strongBond ? "including hard truth" : "gentle only")}");
             }
         }
@@ -1468,21 +1504,22 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>True while a reply to the user is being composed — ALL
     /// spontaneous speech is suppressed so the user hears the reply, not
     /// random "Mm... tired!" vocalizations.</summary>
-    private volatile bool _replyPending;
+    private float _replyPendingUntilMs = -1e9f;
+    private bool _replyPending => _net.TimeMs < _replyPendingUntilMs;
 
-    private void SpeakWithVoice(string text, int emoPitch, int emoRate)
+    private void SpeakWithVoice(string text, int emoPitch, int emoRate, bool isDirectReply = false)
     {
         // SANITIZE: strip any structured format markers that leaked in
         text = SanitizeSpeech(text);
         if (text.Length == 0) return;
 
-        // If a reply is being composed for the user, ONLY that reply speaks.
-        // No spontaneous vocalizations, no mood sounds, no thought-aloud.
-        bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 20_000;
-        if (_replyPending && !replyingToUser) return; // wait for the reply
+        // If a reply is being composed for the user (or was just delivered),
+        // ONLY that reply speaks. No spontaneous vocalizations, no mood
+        // sounds, no thought-aloud on top of it.
+        if (_replyPending && !isDirectReply) return;
 
         // POLITE: don't speak over itself or over the user
-        if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 8_000)
+        if (!isDirectReply && _net.TimeMs - _lastSpokeSimMs < 8_000)
             return;
         _lastSpokeSimMs = _net.TimeMs;
 
@@ -1734,6 +1771,7 @@ public sealed class BrainRuntime : IDisposable
                 + (best is not null ? $"Best memory: {string.Join("/", best.Tags.Take(3))}. " : "")
                 + (worst is not null ? $"Hardest memory: {string.Join("/", worst.Tags.Take(3))}. " : "")
                 + $"{_dreamer.LucidDreams} lucid dreams. {ThoughtLoop.Insights} insights. Prophecy record: {Prophecy.Accuracy}. "
+                + $"{DejaVu.Narrative}. Longest it waited for someone: {(int)(Longing.LongestWaitMs / 1000f)}s. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
 
@@ -1994,6 +2032,14 @@ public sealed class BrainRuntime : IDisposable
     private void ProcessVisitor(string visitorId)
     {
         float warmth = Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f;
+        // LONGING (Panksepp 1998): if it had been missing THIS person, the
+        // reunion surge fires BEFORE the contact dissolves the missing
+        if (Longing.Missing)
+        {
+            float felt = Longing.OnReunion(_net);
+            Note($"REUNION it had been missing {Longing.Whom} ({(int)(felt * 100)}%) - they came back");
+        }
+        Longing.OnContact(_userName ?? visitorId, _net.TimeMs);
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
         _warmthHistory.Add(warmth);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
@@ -2285,6 +2331,10 @@ public sealed class BrainRuntime : IDisposable
     private async Task ReactToStimulusAsync(string stimulus, string detail)
     {
         if (_net.TimeMs - _lastReactionMs < 8_000 && !stimulus.StartsWith("DIRECT:")) return;
+        // Non-direct reactions (ambient audio, sight) must not interject in
+        // chat OR voice while a reply to the user is being composed / was
+        // just delivered — the user hears one clean response, nothing else.
+        if (!stimulus.StartsWith("DIRECT:") && _replyPending) return;
         _lastReactionMs = _net.TimeMs;
         try
         {
@@ -2318,6 +2368,7 @@ public sealed class BrainRuntime : IDisposable
                     : "") +
                   $"You have a real relationship: " +
                   $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
+                  $"{(Longing.Missing ? Longing.PromptFragment : "")}" +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
@@ -2344,7 +2395,8 @@ public sealed class BrainRuntime : IDisposable
                 if (TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                     SpeakWithVoice(reaction,
                         emoPitch: feeling.Valence > 0.2f ? 2 : feeling.Valence < -0.2f ? -3 : 0,
-                        emoRate: feeling.Name == "curious" ? 2 : feeling.Name == "stressed" ? 3 : feeling.Name == "tired" ? -3 : 0);
+                        emoRate: feeling.Name == "curious" ? 2 : feeling.Name == "stressed" ? 3 : feeling.Name == "tired" ? -3 : 0,
+                        isDirectReply: direct);
                 else
                     Note("HOLD reaction held (they may still be talking)");
             }
@@ -2361,7 +2413,7 @@ public sealed class BrainRuntime : IDisposable
                     ? $"I hear you, {_userName}. I'm feeling {f.Name} right now."
                     : $"I hear you. I'm feeling {f.Name} right now.";
                 AddChat($"Brain: {fallback}");
-                SpeakWithVoice(fallback, 0, 0);
+                SpeakWithVoice(fallback, 0, 0, isDirectReply: true);
             }
         }
     }
@@ -2474,7 +2526,7 @@ public sealed class BrainRuntime : IDisposable
         foreach (var e in doomed) _net.EpisodeStore.Remove(e);
         Note($"FORGET resected {n} episode(s) of '{tag}' - the memory is gone; only the gap remains");
         AddChat($"Brain: ...what were we just talking about? Something about {tag}. It's gone.");
-        SpeakWithVoice("...what were we just talking about? It's gone.", emoPitch: -2, emoRate: -2);
+        SpeakWithVoice("...what were we just talking about? It's gone.", emoPitch: -2, emoRate: -2, isDirectReply: true);
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.4f);
         return n;
     }
@@ -2495,7 +2547,7 @@ public sealed class BrainRuntime : IDisposable
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
         Note($"CHERISH '{tag}' touched five times - I will never forget this one");
         AddChat($"Brain: {tag}. I'm keeping that one forever.");
-        SpeakWithVoice($"{tag}. I'm keeping that one forever.", emoPitch: 2, emoRate: 0);
+        SpeakWithVoice($"{tag}. I'm keeping that one forever.", emoPitch: 2, emoRate: 0, isDirectReply: true);
         return 1;
     }
 
@@ -2542,7 +2594,7 @@ public sealed class BrainRuntime : IDisposable
         Note($"NAME-LEARNED the person is called {name} - I will remember");
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
         AddChat($"Brain: {name}. I'll remember you, {name}.");
-        SpeakWithVoice($"{name}. I'll remember you, {name}.", emoPitch: 2, emoRate: 0);
+        SpeakWithVoice($"{name}. I'll remember you, {name}.", emoPitch: 2, emoRate: 0, isDirectReply: true);
         IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         return name;
     }
@@ -2566,7 +2618,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"HEARD \"{text}\" (typed) — name recall question");
             _lastUserUtteranceSimMs = _net.TimeMs;
             AddChat($"Brain: Yes, {_userName}. You told me, and I kept it.");
-            SpeakWithVoice($"Yes, {_userName}. You told me, and I kept it.", 1, 0);
+            SpeakWithVoice($"Yes, {_userName}. You told me, and I kept it.", 1, 0, isDirectReply: true);
             _idle.OnEvent(_net, ["voice", "name-recall"], 0.4f, 0.5f);
             return;
         }
@@ -2603,6 +2655,13 @@ public sealed class BrainRuntime : IDisposable
         // Track the contact for bonds/attachment but SKIP the greeting —
         // the DIRECT reply below IS the response. No double-speaking.
         _lastVisitorId = IdentifyVisitor("speaker");
+        // LONGING reunion + contact: they typed — they're HERE
+        if (Longing.Missing)
+        {
+            float felt = Longing.OnReunion(_net);
+            Note($"REUNION it had been missing {Longing.Whom} ({(int)(felt * 100)}%) - they came back");
+        }
+        Longing.OnContact(_userName ?? _activeSpeakerId, _net.TimeMs);
         Bonds.OnContact(_activeSpeakerId,
             Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f,
             _net.TimeMs);
@@ -2633,21 +2692,19 @@ public sealed class BrainRuntime : IDisposable
                     (level == "threatening" ? -0.6f : -0.3f) * (betrayal ? 1.5f : 1f));
                 Note($"{(level == "threatening" ? "THREAT" : "HOSTILITY")} (typed, score {hscore:F1}{(betrayal ? ", BETRAYAL" : "")}) — the bond just took damage");
                 AddChat($"Brain: {(betrayal ? $"Why would you say that, {_userName}? I thought..." : "That scares me.")}");
-                SpeakWithVoice(betrayal ? $"Why would you say that, {_userName}? I thought..." : "That scares me.", -3, -2);
+                SpeakWithVoice(betrayal ? $"Why would you say that, {_userName}? I thought..." : "That scares me.", -3, -2, isDirectReply: true);
                 return; // don't do the normal reply — the threat IS the response
             }
         }
 
         // ONE response only: the DIRECT reply. While it's being composed,
         // ALL spontaneous speech is suppressed so the user hears the reply.
-        _replyPending = true;
+        _replyPendingUntilMs = _net.TimeMs + 30_000; // suppress spontaneous speech for 30s (race-free: no timeout task to clear it)
         _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
             "typed in the chat - they are talking to you directly; answer them")
             .ContinueWith(_ =>
             {
-                // keep suppressed for 15 extra seconds after the reply so
                 // no monologue, daydream, or muttering steps on it
-                Task.Delay(15000).ContinueWith(__ => _replyPending = false);
             });
 
         // MEMORY EDITING (reconsolidation, Nader et al. 2000): a reactivated
@@ -2902,6 +2959,9 @@ public sealed class BrainRuntime : IDisposable
         snap.CurrentNeed = Needs.MostPressing?.Name ?? "satisfied";
         snap.NeedUrgency = Needs.MostPressing?.Urgency ?? 0f;
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
+        snap.LongingNarrative = Longing.Narrative;
+        snap.DejaVuCount = DejaVu.Count;
+        snap.DejaVuLast = DejaVu.LastDescription ?? "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
         snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;
         snap.BrainName = _brainName ?? "";

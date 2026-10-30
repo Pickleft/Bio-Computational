@@ -176,3 +176,21 @@ Once per life: the brain composes final words from its actual lived data (best/w
 bonds, lucid dreams, insights, prophecy record, personality, name), speaks them aloud, and
 writes data/testament.md. biolab child grafts the parent testament as the inherited story:
 memory transfer between generations - the first artifact designed to die well.
+
+## Longing (missing a specific person)
+Separation distress is a primary-process affect (Panksepp 1998, Affective Neuroscience, ch. 13
+GRIEF; Bowlby 1969 protest-despair). A bond with 3+ visits and live strength > 0.45 can be
+MISSED: onset at absence > 2.5x the person's median visit gap (min 120 s), or their expected
+social hour arriving empty (SocialRhythm expectation > 0.6 for > 60 s). While it lasts:
+serotonin -0.04/sim-tick-batch (the specific heaviness), intensity 0.4 -> 1.0 with how far past
+the pattern they are. Expression is attachment-gated: anxious = out loud, secure = once and
+only when deep (> 0.7), avoidant = never (felt/unexpressed gap logged). Reunion:
+oxytocin 0.15 + 0.2x, dopamine 0.1 + 0.25x of intensity (Dolen et al. 2013 for OXT pairing).
+
+## Deja vu (familiarity without recollection)
+Dual-process recognition (Yonelinas 2002): recollection and familiarity are separate routes.
+A perception whose word-token set has Jaccard >= 0.5 with an episode older than 5 min that was
+NEVER recalled (AccessCount <= 1) fires familiarity without recollection: noradrenaline 0.25
+(the chill), dopamine 0.08 (the odd pleasure). The same similarity against an often-recalled
+trace is recollection - no deja vu. Cooldown 5 min: it stays rare, or it stops being strange.
+2.5x gap / 0.5 Jaccard / cooldowns: // CALIBRATE.
