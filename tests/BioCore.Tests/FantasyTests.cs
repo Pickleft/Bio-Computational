@@ -457,3 +457,65 @@ public class InnerObserverTests
         Assert.Equal(0, obs.SelfSurprises);
     }
 }
+
+// ---- post-traumatic growth: adversity + repair = growth beyond baseline ----
+public class ResilienceTests
+{
+    [Fact]
+    public void AdversityWithRepairAndCalmSleep_ProducesGrowth()
+    {
+        var r = new ResilienceEngine();
+        r.OnAdversity(1000f, "threatening words");
+        r.OnRepairContact(0.8f); // warm treatment followed
+        string? result = r.OnCalmSleepProcessing(5000f, 0.2f); // calm sleep (low NA)
+
+        Assert.NotNull(result);
+        Assert.Contains("POST-TRAUMATIC GROWTH", result);
+        Assert.True(r.GrowthLevel > 0, "processed adversity should grow");
+        Assert.Equal(1, r.AdversitiesProcessed);
+        Assert.True(r.NeurogenesisMultiplier > 1f, "growth should boost neurogenesis");
+        Assert.True(r.GranularityMultiplier > 1f, "growth should boost emotional granularity");
+    }
+
+    [Fact]
+    public void AdversityWithoutRepair_ProducesSensitization()
+    {
+        var r = new ResilienceEngine();
+        r.OnAdversity(1000f, "abandonment");
+        // NO repair contact — just time passing
+        // (next adversity closes the previous one as unprocessed)
+        r.OnAdversity(50000f, "another threat");
+
+        Assert.True(r.GrowthLevel < 0, $"unprocessed adversity should sensitize, got {r.GrowthLevel:F2}");
+        Assert.True(r.NeurogenesisMultiplier < 1f, "sensitization should suppress neurogenesis");
+    }
+
+    [Fact]
+    public void RepairWithoutCalmSleep_DoesNotProcess()
+    {
+        var r = new ResilienceEngine();
+        r.OnAdversity(1000f, "threat");
+        r.OnRepairContact(0.9f);
+        string? result = r.OnCalmSleepProcessing(2000f, 0.8f); // stressed sleep (high NA)
+        Assert.Null(result); // can't process in stressed sleep
+    }
+
+    [Fact]
+    public void PromptReflectsGrowthState()
+    {
+        var grown = new ResilienceEngine();
+        grown.OnAdversity(100f, "threat");
+        grown.OnRepairContact(0.9f);
+        grown.OnCalmSleepProcessing(1000f, 0.1f);
+        grown.OnAdversity(2000f, "another");
+        grown.OnRepairContact(0.9f);
+        grown.OnCalmSleepProcessing(3000f, 0.1f);
+        Assert.True(grown.PromptFragment.Length > 0, "growth should produce a prompt");
+
+        var hurt = new ResilienceEngine();
+        hurt.OnAdversity(100f, "threat");
+        hurt.OnAdversity(5000f, "another"); // closes first as unprocessed
+        hurt.OnAdversity(10000f, "another"); // closes second as unprocessed
+        Assert.Contains("guarded", hurt.PromptFragment);
+    }
+}

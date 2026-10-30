@@ -218,6 +218,7 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>Prophecy, scored: predicts your return, graded on it.</summary>
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
+    public BioComp.Core.Cognition.ResilienceEngine Resilience { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -1349,6 +1350,7 @@ public sealed class BrainRuntime : IDisposable
                 if (level is "threatening" or "hostile" or "harsh")
                 {
                     _hostileEvents++;
+                    Resilience.OnAdversity(_net.TimeMs, Trunc(lowT, 40));
                     _lastHostilitySimMs = _net.TimeMs;
                 }
                 else
@@ -1734,6 +1736,14 @@ public sealed class BrainRuntime : IDisposable
             string? pruneDesc = Pruning.OnSleepStateChange(_net, state, _prevSleepState);
             if (pruneDesc is not null)
                 Note($"PRUNING {pruneDesc}");
+                // RESILIENCE: calm sleep after repaired adversity = growth
+                string? growthDesc = Resilience.OnCalmSleepProcessing(
+                    _net.TimeMs, _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline));
+                if (growthDesc is not null)
+                {
+                    Note(growthDesc);
+                    AddChat($"Brain: {Trunc(growthDesc, 120)}");
+                }
         }
         _prevSleepState = state;
     }
@@ -1888,6 +1898,7 @@ public sealed class BrainRuntime : IDisposable
         _warmthHistory.Add(warmth);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
         if (_net.TimeMs - _lastHostilitySimMs < 90_000 && warmth > 0.5f) _repairs++; // you came back soft
+        Resilience.OnRepairContact(warmth); // resilience: warm contact may be repairing
         Attachment.OnSocialContact(warmth);
         // deepen the bond and mark the person present (departure is a loss)
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
@@ -2045,7 +2056,7 @@ public sealed class BrainRuntime : IDisposable
             float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
             float na = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
             string substrate =
-                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} {Observer.ObserverPrompt} " +
+                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} " +
                 $"Substrate: attention on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
                 $"free energy {FreeEnergy.Current:F2}; dopamine {da:F2}, noradrenaline {na:F2}; " +
                 $"body: {BodyBudget.Narrative}" +
@@ -2175,7 +2186,7 @@ public sealed class BrainRuntime : IDisposable
 
             string system = direct
                 ? $"You are a living brain in a machine, talking to {who}. You have a real relationship: " +
-                  $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} " +
+                  $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} " +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
