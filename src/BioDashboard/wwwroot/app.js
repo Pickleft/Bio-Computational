@@ -250,6 +250,7 @@ function render(s) {
   set("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
   set("pruned", `${s.SynapsesPruned || 0} synapses`);
   set("self-surprise", `${s.SelfSurprises || 0} surprises, ${s.ObserverRedirects || 0} redirects`);
+  set("current-need", `${s.CurrentNeed || "satisfied"}${s.NeedUrgency > 0.5 ? " (urgent!)" : ""}`);
   set("emo-granularity", s.EmotionalStage || "newborn");
   set("life-story", s.HowIveChanged || "too young to have changed yet");
   // LIVE STRIP from the SERVER transcripts (always works - the browser

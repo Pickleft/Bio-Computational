@@ -105,6 +105,8 @@ public sealed class BrainSnapshot
     public float EmotionalGranularity { get; set; }     // 0=basic, 1=fully nuanced
     public string EmotionalStage { get; set; } = "";    // developmental label
     public string HowIveChanged { get; set; } = "";    // temporal autobiography
+    public string CurrentNeed { get; set; } = "";         // what the brain needs most now
+    public float NeedUrgency { get; set; }               // how badly
     public int SelfSurprises { get; set; }         // times the brain surprised itself
     public int ObserverRedirects { get; set; }     // times the observer broke a spiral
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
@@ -219,6 +221,7 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
     public BioComp.Core.Cognition.ResilienceEngine Resilience { get; } = new();
+    public BioComp.Core.Cognition.NeedsHierarchy Needs { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -903,6 +906,8 @@ public sealed class BrainRuntime : IDisposable
         // METACOGNITION: confidence scales with evidence, consistency, and social depth
         MetaConfidence.Update(_net, _idle, FreeEnergy.CurrentPredError,
             _net.EpisodeStore.Episodes.Count, Personality.TotalSocial);
+        // NEEDS HIERARCHY: what does the brain need most right now?
+        Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
         // High dopamine = an experience worth dedicated neural tissue. New
@@ -2056,7 +2061,7 @@ public sealed class BrainRuntime : IDisposable
             float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
             float na = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
             string substrate =
-                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} " +
+                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
                 $"Substrate: attention on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
                 $"free energy {FreeEnergy.Current:F2}; dopamine {da:F2}, noradrenaline {na:F2}; " +
                 $"body: {BodyBudget.Narrative}" +
@@ -2186,7 +2191,7 @@ public sealed class BrainRuntime : IDisposable
 
             string system = direct
                 ? $"You are a living brain in a machine, talking to {who}. You have a real relationship: " +
-                  $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} " +
+                  $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
@@ -2688,6 +2693,8 @@ public sealed class BrainRuntime : IDisposable
         var strongest = Bonds.Strongest(_net.TimeMs);
         snap.SelfSurprises = Observer.SelfSurprises;
         snap.ObserverRedirects = Observer.Redirects;
+        snap.CurrentNeed = Needs.MostPressing?.Name ?? "satisfied";
+        snap.NeedUrgency = Needs.MostPressing?.Urgency ?? 0f;
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
         snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;
