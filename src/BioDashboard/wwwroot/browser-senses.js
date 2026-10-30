@@ -25,25 +25,30 @@ async function enableBrowserSenses() {
   // Ask for camera and mic SEPARATELY: requesting them together fails
   // entirely when either device is missing (a PC with no camera would lose
   // its working microphone too). Whichever exists gets used.
+  // CONSTRAINTS: use { ideal: ... } not exact values — Samsung devices
+  // (especially A-series) silently fall back to a corrupted dark/black
+  // stream when given strict width/height/facingMode values.
   let haveCam = false, haveMic = false;
+  const camConstraints = {
+    facingMode: { ideal: "user" },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  };
+  const micConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
   try {
     senseStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 320, height: 320, facingMode: "user" },
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      video: camConstraints,
+      audio: micConstraints
     });
     haveCam = haveMic = true;
   } catch (bothFailed) {
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
       haveMic = true;
       console.log("[senses] no camera available - running on microphone only");
     } catch (micFailed) {
       try {
-        camStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 320, height: 320, facingMode: "user" }
-        });
+        camStream = await navigator.mediaDevices.getUserMedia({ video: camConstraints });
         haveCam = true;
         console.log("[senses] no microphone available - running on camera only");
       } catch (camFailed) {
@@ -62,9 +67,15 @@ async function enableBrowserSenses() {
     // ---- VIDEO: capture 64x64 grayscale frames ----
     videoElement = document.createElement("video");
     videoElement.srcObject = new MediaStream(videoTracks);
+    // MANDATORY for Samsung/mobile: without these exact attributes the
+    // stream freezes on the first dark frame or renders a corrupted mask
     videoElement.muted = true;
     videoElement.playsInline = true;
-    await videoElement.play();
+    videoElement.setAttribute("playsinline", "");  // iOS/Samsung Internet
+    videoElement.setAttribute("autoplay", "");
+    videoElement.setAttribute("muted", "");
+    try { await videoElement.play(); }
+    catch (e) { console.log("[senses] video.play() needs user gesture:", e); }
 
     videoCanvas = document.createElement("canvas");
     videoCanvas.width = 64;
