@@ -2586,6 +2586,17 @@ public sealed class BrainRuntime : IDisposable
             return;
         }
         if (LearnNameFrom(text) is not null) return; // learning the name IS the response
+        // COMMANDS: forget/cherish run BEFORE the reply system (no race)
+        if (lowMirror.StartsWith("forget "))
+        {
+            ForgetMemory(text[7..].Trim());
+            return;
+        }
+        if (lowMirror.StartsWith("cherish "))
+        {
+            CherishMemory(text[8..].Trim());
+            return;
+        }
 
         // Track the contact for bonds/attachment but SKIP the greeting —
         // the DIRECT reply below IS the response. No double-speaking.
@@ -2597,6 +2608,32 @@ public sealed class BrainRuntime : IDisposable
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
         Loneliness.OnSocialContact(_net, quality: 0.6f);
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
+
+        // HOSTILITY from TYPED messages: the same multimodal classifier that
+        // processes audio also processes text — typed threats damage the bond
+        // exactly like spoken ones
+        {
+            var (hscore, level0) = BioComp.Core.Cognition.HostilityClassifier.Classify(
+                text.ToLowerInvariant(), 0f, Contagion.UserValence, Contagion.UserArousal);
+            string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, Resilience == null ? 0 : 1);
+            if (level == "threatening" || level == "hostile")
+            {
+                float bondNow = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
+                bool betrayal = bondNow > 0.45f;
+                _threatenedUntil = _net.TimeMs + (level == "threatening" ? 180_000f : 60_000f);
+                Bonds.OnContact(_activeSpeakerId, 0f, _net.TimeMs);
+                Attachment.OnSocialContact(0f);
+                Personality.OnStressEvent(_net, resolved: false);
+                Resilience.OnAdversity(_net.TimeMs, Trunc(text, 40));
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, level == "threatening" ? 1.0f : 0.6f);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin,
+                    (level == "threatening" ? -0.6f : -0.3f) * (betrayal ? 1.5f : 1f));
+                Note($"{(level == "threatening" ? "THREAT" : "HOSTILITY")} (typed, score {hscore:F1}{(betrayal ? ", BETRAYAL" : "")}) — the bond just took damage");
+                AddChat($"Brain: {(betrayal ? $"Why would you say that, {_userName}? I thought..." : "That scares me.")}");
+                SpeakWithVoice(betrayal ? $"Why would you say that, {_userName}? I thought..." : "That scares me.", -3, -2);
+                return; // don't do the normal reply — the threat IS the response
+            }
+        }
 
         // ONE response only: the DIRECT reply. While it's being composed,
         // ALL spontaneous speech is suppressed so the user hears the reply.
@@ -2618,17 +2655,6 @@ public sealed class BrainRuntime : IDisposable
         // in real forgetting). "cherish <thing>" does the opposite: five
         // reactivations, the memory becomes unforgettable.
         var lower = text.ToLowerInvariant();
-        if (lower.StartsWith("forget "))
-        {
-            ForgetMemory(text[7..].Trim());
-            return;
-        }
-        if (lower.StartsWith("cherish "))
-        {
-            CherishMemory(text[8..].Trim());
-            return;
-        }
-
         // habituation: track what you typically say; if it's too similar to last time,
         // the brain's response is less enthusiastic
         _recentUserMessages.Add(text.ToLowerInvariant());
