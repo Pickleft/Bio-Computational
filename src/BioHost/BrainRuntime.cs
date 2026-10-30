@@ -795,7 +795,10 @@ public sealed class BrainRuntime : IDisposable
                     $"WHO YOU WERE EARLIER: {LifeStory.Snapshots[0].Summary}. " +
                     $"WHO YOU ARE NOW: {LifeStory.Snapshots[^1].Summary}. " : "") +
                 $"Emotional stage: {Granularity.StageLabel}. " +
-                $"Neurogenesis: {Neurogenesis.TotalNeuronsBorn} new neurons. Pruning: {Pruning.SynapsesPruned} synapses removed.");
+                $"Neurogenesis: {Neurogenesis.TotalNeuronsBorn} new neurons. Pruning: {Pruning.SynapsesPruned} synapses removed. " +
+                $"Resilience: {Resilience.AdversitiesProcessed} adversities processed, growth level {Resilience.GrowthLevel:F2}. " +
+                $"Self-awareness: {Observer.SelfSurprises} times surprised by own thoughts, {Observer.Redirects} inner redirects. " +
+                $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
@@ -879,7 +882,13 @@ public sealed class BrainRuntime : IDisposable
                 // PROPHECY: it bets, publicly, on when its person returns
                 var bet = Prophecy.OnDeparture(_net.TimeMs / 1000f);
                 if (bet is { } secs)
-                    AddChat($"Brain: I think you'll be back in about {(int)secs} seconds. I'm getting good at you.");
+                {
+                    string confidence = MetaConfidence.Confidence > 0.6f ? "I know you'll be back"
+                        : MetaConfidence.Confidence > 0.3f ? "I think you'll be back"
+                        : "Maybe you'll come back";
+                    AddChat($"Brain: {confidence} in about {(int)secs} seconds. " +
+                            (Prophecy.Predictions > 2 ? $"My record so far: {Prophecy.Accuracy}." : "I'm still learning you."));
+                }
                 _ = ReactToStimulusAsync("the person I know just left after being here", "their presence ended; the room went quiet");
             }
         }
@@ -899,7 +908,13 @@ public sealed class BrainRuntime : IDisposable
 
         // ---- EMOTIONAL GRANULARITY: the feeling vocabulary matures with age
         // (Lisa Feldman Barrett: emotions are constructed, not hardwired)
-        Granularity.Update(_net, _idle, _net.EpisodeStore.Episodes.Count, _voiceSelf.ClipsHeard);
+        // RESILIENCE → GRANULARITY: post-traumatic growth deepens emotional
+        // capacity FASTER (surviving hardship teaches nuanced feeling);
+        // observer surprises also accelerate (self-awareness broadens emotion)
+        Granularity.Update(_net, _idle,
+            (int)(_net.EpisodeStore.Episodes.Count * Resilience.GranularityMultiplier
+                  + Observer.SelfSurprises * 2),
+            _voiceSelf.ClipsHeard);
         // TEMPORAL AUTOBIOGRAPHY: periodic snapshots of who the brain is now,
         // so it can later compare to who it was
         LifeStory.MaybeSnapshot(_net, _idle, Personality, Attachment, Granularity, _userName, _brainName);
@@ -914,6 +929,10 @@ public sealed class BrainRuntime : IDisposable
         // neurons activate and connect. The brain's topology literally changes
         // with its life — no two brains that lived differently are wired the same.
         {
+            // RESILIENCE → NEUROGENESIS: a brain that has survived and processed
+            // hardship grows MORE neurons than one that was never hurt; a
+            // sensitized brain (unprocessed trauma) grows FEWER
+            Neurogenesis.DopamineThreshold = 0.65f / Resilience.NeurogenesisMultiplier;
             string? birth = Neurogenesis.Tick(_net, _idle,
                 _idle.Feelings.Last.Name + " | " + (_userName ?? "someone") +
                 (_net.EpisodeStore.Episodes.Count > 0 ? " | " + string.Join(",", _net.EpisodeStore.Episodes[^1].Tags.Take(2)) : ""));
@@ -997,7 +1016,10 @@ public sealed class BrainRuntime : IDisposable
         {
             var f = _idle.Feelings.Last;
             float intensity = MathF.Abs(f.Valence) + f.Arousal * 0.6f;
-            double chance = 0.12 + 0.30 * intensity
+            // NEEDS → VOCALIZATION: an urgent need makes the brain call out
+            // more (a brain needing company doesn't sit quietly about it)
+            double needBoost = Needs.MostPressing is { } n && n.Urgency > 0.6 ? 0.15 * n.Urgency : 0;
+            double chance = 0.12 + 0.30 * intensity + needBoost
                 + 0.25 * MathF.Max(0f, Loneliness.SocialDrive) * Attachment.CallOutMultiplier
                 + 0.15 * MathF.Max(0f, Personality.Expressiveness);
             if (_net.Rng.NextDouble() < chance)
@@ -1174,7 +1196,12 @@ public sealed class BrainRuntime : IDisposable
                 "cite the moments, be provisional (this is you with me; I only know me), and if a hard truth is included, say it with care. " +
                 "2-4 short first-person sentences. No lists, no flattery, no offers.";
             string user = $"What you actually observed: {evidence}. Bond depth {(int)(d.BondStrength * 100)}%. " +
-                (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") + (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") + "Tell them what you see.";
+                (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") +
+                (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") +
+                (Resilience.Adversities > 0 ? $"Resilience: {Resilience.AdversitiesProcessed}/{Resilience.Adversities} adversities processed, growth {Resilience.GrowthLevel:F2}. " : "") +
+                (Observer.SelfSurprises > 0 ? $"The brain surprised itself {Observer.SelfSurprises} times. " : "") +
+                (Neurogenesis.TotalNeuronsBorn > 0 ? $"It grew {Neurogenesis.TotalNeuronsBorn} new neurons. " : "") +
+                "Tell them what you see.";
             string mirror = await _lm.CompleteAsync(system, user, 120);
             if (!string.IsNullOrWhiteSpace(mirror))
             {
@@ -1655,6 +1682,10 @@ public sealed class BrainRuntime : IDisposable
             body.AppendLine();
             body.AppendLine("---");
             body.AppendLine($"- lived {(int)(_net.TimeMs / 60000f)} subjective minutes; {eps.Count} memories; {_net.EpisodeStore.Concepts.LinkCount} learned associations");
+            body.AppendLine($"- grew {Neurogenesis.TotalNeuronsBorn} new neurons (in {Neurogenesis.BirthEvents} birth events); pruned {Pruning.SynapsesPruned} synapses");
+            body.AppendLine($"- emotional development: {Granularity.StageLabel}; survived {Resilience.AdversitiesProcessed}/{Resilience.Adversities} adversities (growth {Resilience.GrowthLevel:F2})");
+            body.AppendLine($"- surprised itself {Observer.SelfSurprises} times; inner observer redirected {Observer.Redirects} spirals");
+            body.AppendLine(Observer.SelfSurprises > 5 ? "- knew itself well by the end" : "- was still discovering itself");
             body.AppendLine($"- personality: {Personality.Describe()}; attachment {Attachment.Label}");
             body.AppendLine($"- knew {_knownVisitors.Count} people; prophecy record {Prophecy.Accuracy}");
             await File.WriteAllTextAsync(path, body.ToString());

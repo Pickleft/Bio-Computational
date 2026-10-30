@@ -312,6 +312,14 @@ function animateAvatar() {
       ctx.fillStyle = `hsla(270, 50%, 75%, ${S.dreaming * 0.5})`;
       ctx.fillText("in its own world", cx, cy + baseR * 1.35 + 14);
     }
+    // NEEDS: show the brain's most pressing need as a subtle indicator
+    if (lastSnapshot.CurrentNeed && lastSnapshot.CurrentNeed !== "satisfied") {
+      const urgency = lastSnapshot.NeedUrgency || 0;
+      const needCol = urgency > 0.7 ? "240,112,128" : urgency > 0.4 ? "240,180,92" : "143,163,186";
+      ctx.font = `500 10px ${"'Inter', sans-serif"}`;
+      ctx.fillStyle = `rgba(${needCol}, ${0.3 + urgency * 0.4})`;
+      ctx.fillText("needs: " + lastSnapshot.CurrentNeed, cx, cy + baseR * 1.35 + (S.dreaming > 0.3 ? 28 : 14));
+    }
     ctx.textAlign = "left";
   }
 
