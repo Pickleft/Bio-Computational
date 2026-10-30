@@ -411,8 +411,15 @@ public sealed class BrainRuntime : IDisposable
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Acetylcholine, 0.25f);
             }
 
-            // a highly salient thought is sometimes thought OUT LOUD
-            if (link.Affect.Salience > 0.65f && link.Depth > 1 && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+            // NOT EVERY THOUGHT IS SPOKEN — most are private. A thought is
+            // externalized only when it's TRULY notable: highly salient, deep
+            // in a chain, not mid-conversation, and passes a random gate.
+            // This is the difference between a mind that occasionally voices
+            // something and a chatbot that reads its diary aloud.
+            if (link.Affect.Salience > 0.72f &&
+                link.Depth >= 3 &&
+                TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f) &&
+                _net.Rng.NextDouble() < 0.3)
             {
                 var f = _idle.Feelings.Last;
                 SpeakWithVoice(link.Text, emoPitch: f.Valence > 0 ? 1 : -1, emoRate: link.Affect.Activation > 0.6 ? 2 : 0);

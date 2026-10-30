@@ -83,20 +83,50 @@ function pickVoice() {
   return voices.find((v) => /^en/i.test(v.lang)) || voices[0];
 }
 
-function speakBrain(s) {
-  if (!("speechSynthesis" in window)) return;
+let currentAudio = null;
+
+async function speakBrain(s) {
   if (!(s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText)) return;
   spokenSeq = s.SpeakSeq;
   const text = s.SpeakText.trim();
   if (!text) return;
+  window.brainBrowserSpeaking = true;
 
-  const u = new SpeechSynthesisUtterance(text);
-  if (pickedVoice) u.voice = pickedVoice;
-  u.rate = s.SpeakRate || 0.92;
-  u.pitch = s.SpeakPitch || 1.0;
-  u.onstart = () => { window.brainBrowserSpeaking = true; };
-  u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
-  speechSynthesis.speak(u);
+  // THE BRAIN'S OWN VOICE: server-side TTS driven by neural state.
+  // Text already has NeuralVoice prosody markers; rate/pitch come from
+  // the snapshot (computed from neurotransmitter levels).
+  try {
+    if (currentAudio) { try { currentAudio.pause(); } catch {} }
+    const rate = s.SpeakRate || 0.92;
+    const pitch = s.SpeakPitch || 1.0;
+    const resp = await fetch(`/api/voice?text=${encodeURIComponent(text.slice(0, 300))}&rate=${rate}&pitch=${pitch}`);
+    if (resp.ok) {
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      currentAudio = new Audio(url);
+      currentAudio.volume = 1.0;
+      currentAudio.onended = () => { window.brainBrowserSpeaking = false; URL.revokeObjectURL(url); };
+      currentAudio.onerror = () => { URL.revokeObjectURL(url); fallbackTTS(text, s); };
+      await currentAudio.play();
+      return;
+    }
+  } catch (e) { console.log("[voice] server generation failed:", e); }
+
+  fallbackTTS(text, s);
+}
+
+function fallbackTTS(text, s) {
+  window.brainBrowserSpeaking = false;
+  if ("speechSynthesis" in window) {
+    const u = new SpeechSynthesisUtterance(text);
+    if (pickedVoice) u.voice = pickedVoice;
+    u.rate = s ? (s.SpeakRate || 0.92) : 0.92;
+    u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
+    window.brainBrowserSpeaking = true;
+    speechSynthesis.speak(u);
+  } else {
+    window.brainBrowserSpeaking = false;
+  }
 }
 
 if ("speechSynthesis" in window) {

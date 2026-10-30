@@ -62,34 +62,29 @@ app.MapPost("/api/test-voice", () =>
     return Results.Ok(new { ok = true });
 });
 
-// ---- NEURAL VOICE: server-side TTS that actually pronounces words ----
-app.MapGet("/api/speak", async (string text, string? voice) =>
+// ---- THE BRAIN'S OWN VOICE: server-side TTS from neural state ----
+// Text arrives already transformed by NeuralVoice (emotional prosody).
+// Rate/pitch come from the brain's neurotransmitter levels. Audio generated
+// on OUR server — no external TTS API.
+app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume) =>
 {
     if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
         return Results.BadRequest(new { error = "text required" });
-    var v = voice ?? "Brian";
     try
     {
-        using var http = new System.Net.Http.HttpClient();
-        http.Timeout = TimeSpan.FromSeconds(30);
-        // Some APIs reject requests without a User-Agent
-        http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-        var speakText = text.Length > 200 ? text[..200] : text;
-        // Use UriBuilder to control exact encoding (avoid .NET auto-encoding +)
-        var builder = new UriBuilder("https://api.streamelements.com/kappa/v2/speech");
-        builder.Query = $"voice={v}&text={Uri.EscapeDataString(speakText)}";
-        var audio = await http.GetByteArrayAsync(builder.Uri);
-        if (audio.Length > 100)
-        {
-            Console.WriteLine($"[voice] TTS OK: {audio.Length} bytes");
-            return Results.File(audio, "audio/mpeg");
-        }
-        Console.WriteLine($"[voice] TTS too small: {audio.Length}");
+        var r = Math.Clamp(rate ?? 0.92f, 0.5f, 1.5f);
+        var p = Math.Clamp(pitch ?? 1.0f, 0.5f, 1.5f);
+        var v = Math.Clamp(volume ?? 1.0f, 0.3f, 1.0f);
+        var tts = new BioComp.Host.BrainTTS();
+        var wav = tts.GenerateWav(text, r, p, v);
+        tts.Dispose();
+        if (wav.Length > 100)
+            return Results.File(wav, "audio/wav");
         return Results.StatusCode(502);
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[voice] TTS failed: {ex.Message}");
+        Console.WriteLine($"[voice] generation failed: {ex.Message}");
         return Results.StatusCode(502);
     }
 });
