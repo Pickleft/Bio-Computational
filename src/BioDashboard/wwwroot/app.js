@@ -178,8 +178,23 @@ function render(s) {
   if (typeof brainMusicTick === "function") brainMusicTick(s);
   if (typeof updateAvatarState === "function") updateAvatarState(s);
   speakBrain(s);
+  // THE LIVING CAPTION: what it's doing RIGHT NOW, directly under the face.
+  // Priority: speaking > thinking > dreaming > sleeping > feeling label
   const sn = $("saying-now");
-  if (sn) sn.textContent = (s.IsSpeaking || window.brainBrowserSpeaking) && s.SpeakText ? `“${s.SpeakText}”` : (s.SleepState === "NREM" ? "sleeping…" : s.SleepState === "REM" ? "dreaming…" : "");
+  if (sn) {
+    if ((s.IsSpeaking || window.brainBrowserSpeaking) && s.SpeakText) {
+      sn.textContent = `“${s.SpeakText}”`;
+      sn.style.fontStyle = "italic";
+    } else {
+      const tt = (s.ThoughtThread || []);
+      const last = tt.length ? tt[tt.length - 1] : "";
+      const text = last ? last.split("|").slice(3).join("|") : "";
+      if (s.SleepState === "NREM") { sn.textContent = "sleeping…"; sn.style.fontStyle = "normal"; }
+      else if (s.SleepState === "REM") { sn.textContent = s.LucidDreams > 0 ? "lucid dreaming…" : "dreaming…"; sn.style.fontStyle = "italic"; }
+      else if (text) { sn.textContent = `thinking: ${text}`; sn.style.fontStyle = "italic"; }
+      else { sn.textContent = s.FeelingNarrative || ""; sn.style.fontStyle = "normal"; }
+    }
+  }
   if (typeof drawEEG === "function") drawEEG(s);
   if (typeof drawPhiGauge === "function") drawPhiGauge(s);
   if (typeof drawFreeEnergy === "function") drawFreeEnergy(s);

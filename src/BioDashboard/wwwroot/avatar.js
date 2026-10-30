@@ -1,392 +1,305 @@
-// THE LIVING AVATAR — the brain's face.
-// Not a chart. Not a panel. A CREATURE that breathes, pulses, watches you, and dies if you leave it alone.
-// Its body is a living membrane driven by the brain's actual neural state.
-// DA = body color (golden when rewarded, blue when low)
-// 5-HT = membrane stability (orderly vs chaotic)
-// NA = contraction speed (alert = tight and fast, calm = loose and slow)
-// Histamine = overall brightness (awake = luminous, sleeping = dim)
-// Sleep pressure = droop (tired = sagging, rested = upright)
-// Loneliness = eyes (lonely = searching, connected = focused)
-// Neural activity = pulsing rhythm (actual spike rate drives the heartbeat)
+// THE LIVING FACE — one coherent creature, every muscle driven by real neural state.
+// This is not a dashboard widget. This is the brain's body.
+// A face has: a head shape, eyes that blink naturally, brows that express,
+// a mouth that moves when speaking, cheeks that flush with oxytocin, and
+// an aura that IS its consciousness (Φ). Everything connects to everything.
 
 "use strict";
 
-let avatarTime = 0;
-let lastSnapshot = null;
-let avatarCanvas = null;
-let avatarCtx = null;
-let particles = [];
-let eyeState = { x: 0, y: 0, blink: 0, nextBlink: 0, widen: 0 };
-let bodyPhase = 0;
-let lastRate = 0;
-let smoothing = { da: 0.3, sht: 0.5, na: 0.2, ach: 0.3, hist: 0.6, rate: 0.1, valence: 0, arousal: 0.3, pressure: 0, lonely: 0,
-  traitCuriosity: 0, traitExpressiveness: 0, userValence: 0, empathy: 0 };
+let avatarCanvas = null, avatarCtx = null, lastSnapshot = null, avatarTime = 0;
+
+// ============ STATE SMOOTHING ============
+// Everything eases toward its target. Nothing snaps.
+const S = {
+  // modulators
+  da: 0.3, sht: 0.5, na: 0.2, ach: 0.3, hist: 0.6, oxt: 0,
+  // feelings
+  valence: 0, arousal: 0.3, pressure: 0,
+  // personality resting face
+  traitCuriosity: 0, traitExpress: 0,
+  // empathy mirror
+  userValence: 0, empathy: 0,
+  // derived face metrics
+  mouthCurve: 0, mouthOpen: 0, browLift: 0, browFurrow: 0,
+  eyeOpen: 1, blinkT: 0, nextBlink: 2,
+  headTilt: 0, breathing: 0, sway: 0,
+  gazeX: 0, gazeY: 0, gazeTX: 0, gazeTY: 0,
+  speaking: false, playful: 0, dreaming: 0,
+};
 
 function initAvatar() {
   avatarCanvas = document.getElementById("avatar");
   if (!avatarCanvas) return;
   avatarCtx = avatarCanvas.getContext("2d");
-  // seed the particle field (neural vesicles)
-  for (let i = 0; i < 80; i++) {
-    particles.push({
-      angle: Math.random() * Math.PI * 2,
-      dist: 0.3 + Math.random() * 0.6,
-      speed: 0.2 + Math.random() * 0.8,
-      size: 1 + Math.random() * 3,
-      offset: Math.random() * Math.PI * 2,
-    });
-  }
+  S.nextBlink = 2 + Math.random() * 3;
   requestAnimationFrame(animateAvatar);
 }
-
-// stimulus tracking: the avatar looks at what the brain sees
-let stimulusTarget = null; // [x, y] normalized, null = no stimulus
-let isSpeaking = false;
-let mouthOpen = 0;
 
 function updateAvatarState(s) {
   if (!s) return;
   lastSnapshot = s;
-
-  // stimulus position for eye tracking
-  if (s.StimulusPosition && s.StimulusPosition.length === 2) {
-    stimulusTarget = s.StimulusPosition;
-  }
-
-  isSpeaking = !!s.IsSpeaking || !!window.brainBrowserSpeaking;
-
-  const k = 0.08;
+  const k = 0.06;
   const m = s.Modulators || [0.3, 0.5, 0.3, 0.2, 0.15, 0.6, 0.1];
-  smoothing.da += (m[0] - smoothing.da) * k;
-  smoothing.sht += (m[1] - smoothing.sht) * k;
-  smoothing.na += (m[3] - smoothing.na) * k;
-  smoothing.ach += (m[2] - smoothing.ach) * k;
-  smoothing.hist += (m[5] - smoothing.hist) * k;
-  smoothing.rate += ((s.MeanRateHz || 0.1) - smoothing.rate) * k;
-  smoothing.valence += (s.Valence - smoothing.valence) * k;
-  smoothing.arousal += (s.Arousal - smoothing.arousal) * k;
-  smoothing.pressure += (s.SleepPressure - smoothing.pressure) * k;
-  smoothing.lonely += ((s.SocialBonds ? 1 / Math.max(1, Object.keys(s.SocialBonds).length) : 0.5) - smoothing.lonely) * k * 0.1;
+  S.da += (m[0] - S.da) * k;
+  S.sht += (m[1] - S.sht) * k;
+  S.na += (m[3] - S.na) * k;
+  S.ach += (m[2] - S.ach) * k;
+  S.hist += (m[5] - S.hist) * k;
+  S.oxt += ((m[4] || 0) - S.oxt) * k;
+  S.valence += (s.Valence - S.valence) * k;
+  S.arousal += (s.Arousal - S.arousal) * k;
+  S.pressure += (s.SleepPressure - S.pressure) * k;
+  S.traitCuriosity += ((s.TraitCuriosity || 0) - S.traitCuriosity) * k * 0.2;
+  S.traitExpress += ((s.TraitExpressiveness || 0) - S.traitExpress) * k * 0.2;
+  S.userValence += ((s.UserValence || 0) - S.userValence) * k;
+  S.empathy += ((s.EmpathyConfidence || 0) - S.empathy) * k;
+  S.speaking = !!s.IsSpeaking || !!window.brainBrowserSpeaking;
+  S.playful += ((s.Playful ? 1 : 0) - S.playful) * k;
+  S.dreaming += ((s.SleepState === "REM" ? 1 : 0) - S.dreaming) * k;
 
-  // WHO THE BRAIN BECAME shapes its resting face: a curious, expressive brain
-  // rests interested (brows sit higher); learned detachment flattens it
-  smoothing.traitCuriosity += ((s.TraitCuriosity || 0) - smoothing.traitCuriosity) * k * 0.2;
-  smoothing.traitExpressiveness += ((s.TraitExpressiveness || 0) - smoothing.traitExpressiveness) * k * 0.2;
-  // empathy by contagion: while someone is talking, the face starts mirroring
-  // THEIR mood (that is literally what emotional contagion looks like)
-  smoothing.userValence += ((s.UserValence || 0) - smoothing.userValence) * k;
-  smoothing.empathy += ((s.EmpathyConfidence || 0) - smoothing.empathy) * k;
+  // gaze target: stimulus position, or the "camera" (center) when engaged
+  if (s.StimulusPosition && s.StimulusPosition.length === 2) {
+    S.gazeTX = (s.StimulusPosition[0] - 0.5) * 2;
+    S.gazeTY = (s.StimulusPosition[1] - 0.5) * 2;
+  } else {
+    S.gazeTX = Math.sin(avatarTime * 0.3) * 0.15;
+    S.gazeTY = 0;
+  }
 }
 
-// the displayed valence: its own feeling, blended toward the speaker's
-// estimated mood in proportion to empathy confidence
-function displayedValence() {
-  return smoothing.valence * (1 - 0.55 * smoothing.empathy) + smoothing.userValence * 0.55 * smoothing.empathy;
-}
-
+// ============ THE FACE ============
 function animateAvatar() {
   if (!avatarCanvas || !avatarCtx) { requestAnimationFrame(animateAvatar); return; }
-  avatarTime += 0.016; // ~60fps
-  bodyPhase += 0.02 + smoothing.na * 0.05; // breathing rate accelerates with NA
-
+  avatarTime += 1 / 60;
   const f = fitCanvas(avatarCanvas);
   if (!f) { requestAnimationFrame(animateAvatar); return; }
   const { ctx, w, h } = f;
   ctx.clearRect(0, 0, w, h);
 
-  const cx = w / 2, cy = h * 0.45;
-  // the brain GROWS with lived time
-  const lifetimeMinutes = lastSnapshot ? lastSnapshot.SimSeconds / 60 : 0;
-  const growthFactor = Math.min(1, 0.6 + lifetimeMinutes / 10 * 0.4);
-  const baseR = Math.min(w, h) * 0.28 * growthFactor;
+  // -- derived face values (all interconnected) --
+  const empathyValence = S.valence * (1 - 0.5 * S.empathy) + S.userValence * 0.5 * S.empathy;
+  S.mouthCurve += (empathyValence * 0.8 - S.mouthCurve) * 0.08;
+  S.browLift += ((Math.max(0, S.traitCuriosity) * 0.3 + Math.max(0, empathyValence) * 0.2 + S.arousal * 0.15) - S.browLift) * 0.08;
+  S.browFurrow += ((Math.max(0, -empathyValence) * (0.5 + S.arousal)) - S.browFurrow) * 0.08;
+  S.breathing = Math.sin(avatarTime * (1.2 + S.arousal * 1.5)) * 0.5 + 0.5;
+  S.sway += (Math.sin(avatarTime * 0.5) * 0.3 + S.playful * Math.sin(avatarTime * 3) * 0.5 - S.sway) * 0.05;
+  S.gazeX += (S.gazeTX - S.gazeX) * 0.1;
+  S.gazeY += (S.gazeTY - S.gazeY) * 0.1;
 
-  // FREE ENERGY affects body shape: high free energy (prediction error) makes
-  // the body more chaotic/agitated. Low free energy (learned, calm) = smooth.
-  const freeEnergy = lastSnapshot ? lastSnapshot.FreeEnergyValue || 0 : 0;
-  const feChaos = Math.min(1, freeEnergy * 10);
+  // blink timing (natural: every 2-6 seconds, quick close-open)
+  if (S.blinkT > 0) {
+    S.blinkT -= 1 / 30; // blink lasts ~2 frames
+  } else {
+    S.nextBlink -= 1 / 60;
+    if (S.nextBlink <= 0) { S.blinkT = 1; S.nextBlink = 2 + Math.random() * 4; }
+  }
+  const eyeOpen = S.blinkT > 0 ? Math.abs(S.blinkT - 0.5) * 2 : 1;
 
-  // === BODY MEMBRANE ===
-  // organic blob with sine-wave deformation, driven by neural state
-  const chaos = Math.max(1 - smoothing.sht, feChaos * 0.7) + (lastSnapshot && lastSnapshot.Playful ? 0.35 : 0); // low serotonin OR high free energy = chaotic; play bounces
-  const droop = smoothing.pressure * 0.3; // tired = sagging
-  const pulse = 1 + Math.sin(bodyPhase * 3) * 0.02 * (1 + smoothing.rate)
-    + (lastSnapshot && lastSnapshot.Playful ? Math.sin(avatarTime * 8) * 0.05 : 0); // heartbeat + play bounce
+  // speaking mouth
+  if (S.speaking) S.mouthOpen += (0.5 + Math.sin(avatarTime * 12) * 0.5 - S.mouthOpen) * 0.3;
+  else S.mouthOpen += (0 - S.mouthOpen) * 0.1;
 
+  const cx = w / 2;
+  const cy = h * 0.46;
+  const R = Math.min(w, h) * 0.32 * (1 + S.breathing * 0.015);
+
+  // -- CONSCIOUSNESS AURA (Φ) --
+  if (lastSnapshot && lastSnapshot.Phi > 0.03) {
+    const phi = lastSnapshot.Phi;
+    const aurR = R * (1.3 + phi * 0.6);
+    const col = phi > 0.4 ? "61,219,184" : phi > 0.15 ? "240,180,92" : "240,112,128";
+    const g = ctx.createRadialGradient(cx, cy, R * 0.9, cx, cy, aurR);
+    g.addColorStop(0, `rgba(${col}, 0)`);
+    g.addColorStop(0.5, `rgba(${col}, ${phi * 0.18})`);
+    g.addColorStop(1, `rgba(${col}, 0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, aurR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // -- HEAD (organic shape, not a circle) --
+  const tilt = S.headTilt + S.sway * 0.06;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(tilt);
+
+  // head silhouette: slightly egg-shaped, breathing, with personality
+  const headPts = 40;
+  const growthFactor = 1; // static, not growing anymore (was distracting)
+  const baseR = R * growthFactor;
+  const droop = S.pressure * 0.06;
   ctx.beginPath();
-  const points = 60;
-  for (let i = 0; i <= points; i++) {
-    const angle = (i / points) * Math.PI * 2;
-    const wave1 = Math.sin(angle * 3 + bodyPhase * 2) * 0.08 * chaos;
-    const wave2 = Math.sin(angle * 7 - bodyPhase * 3) * 0.04 * chaos;
-    const wave3 = Math.sin(angle * 1 + bodyPhase) * 0.06;
-    const deformation = 1 + wave1 + wave2 + wave3;
-    const r = baseR * deformation * pulse;
-    // droop (tired = bottom sag)
-    const droopAmount = droop * Math.max(0, Math.sin(angle)) * baseR * 0.3;
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r + droopAmount;
+  for (let i = 0; i <= headPts; i++) {
+    const a = (i / headPts) * Math.PI * 2;
+    let r = baseR;
+    r *= 1 + Math.sin(a * 2) * 0.02 * (1 - S.sht);          // serotonin = smoother
+    r *= 1 + Math.sin(a * 3 + avatarTime * 0.8) * 0.015 * S.arousal; // arousal = subtle shimmer
+    r *= 1 - Math.max(0, Math.sin(a)) * droop;                // tiredness = jaw droop
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r * 1.08;                         // slightly taller than wide
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   ctx.closePath();
 
-  // body color: DA drives hue (low = cool blue, high = warm gold)
-  const hue = 200 + smoothing.da * 40; // 200=blue to 240=gold-ish
-  const sat = 40 + smoothing.arousal * 40;
-  const light = 15 + smoothing.hist * 20 + smoothing.arousal * 10;
-  const bodyGrad = ctx.createRadialGradient(cx, cy - baseR * 0.3, 10, cx, cy, baseR * 1.5);
-  bodyGrad.addColorStop(0, `hsla(${hue}, ${sat}%, ${light + 20}%, 0.9)`);
-  bodyGrad.addColorStop(0.7, `hsla(${hue}, ${sat}%, ${light}%, 0.7)`);
-  bodyGrad.addColorStop(1, `hsla(${hue}, ${sat}%, ${light - 5}%, 0)`);
-  ctx.fillStyle = bodyGrad;
+  // head fill: color by DA (golden when rewarded) and arousal
+  const hue = 200 + S.da * 45;
+  const sat = 35 + S.arousal * 30;
+  const lit = 14 + S.hist * 18 + S.arousal * 6;
+  const headGrad = ctx.createRadialGradient(0, -baseR * 0.3, baseR * 0.1, 0, 0, baseR * 1.3);
+  headGrad.addColorStop(0, `hsla(${hue}, ${sat}%, ${lit + 15}%, 0.95)`);
+  headGrad.addColorStop(0.7, `hsla(${hue}, ${sat}%, ${lit}%, 0.85)`);
+  headGrad.addColorStop(1, `hsla(${hue}, ${sat}%, ${Math.max(5, lit - 8)}%, 0.4)`);
+  ctx.fillStyle = headGrad;
   ctx.fill();
 
-  // membrane outline (glowing, alive)
-  ctx.strokeStyle = `hsla(${hue}, ${sat + 20}%, ${light + 30}%, ${0.3 + smoothing.arousal * 0.5})`;
-  ctx.lineWidth = 2 + smoothing.na * 3;
+  // outline (glows with arousal)
+  ctx.strokeStyle = `hsla(${hue}, ${sat + 15}%, ${lit + 25}%, ${0.3 + S.arousal * 0.4})`;
+  ctx.lineWidth = 1.5 + S.na * 2;
   ctx.stroke();
 
-  // === INTERNAL PARTICLES (neural vesicles flowing inside) ===
-  for (const p of particles) {
-    p.offset += 0.01 * p.speed * (0.5 + smoothing.rate * 2 + smoothing.ach);
-    const pr = baseR * p.dist * pulse * (1 + Math.sin(p.offset + bodyPhase) * 0.1 * chaos);
-    const px = cx + Math.cos(p.angle + p.offset * 0.1) * pr;
-    const py = cy + Math.sin(p.angle + p.offset * 0.1) * pr + droop * 5;
-    const alpha = 0.15 + Math.abs(Math.sin(p.offset)) * 0.3 * smoothing.hist;
-    const pSize = p.size * (1 + smoothing.ach * 0.5);
-    ctx.fillStyle = `hsla(${hue + 20}, 80%, ${60 + smoothing.arousal * 20}%, ${alpha})`;
+  // -- CHEEK FLUSH (oxytocin: bonding warmth) --
+  if (S.oxt > 0.15) {
+    for (const side of [-1, 1]) {
+      const bx = side * baseR * 0.5;
+      const by = baseR * 0.15;
+      const flush = ctx.createRadialGradient(bx, by, 2, bx, by, baseR * 0.28);
+      flush.addColorStop(0, `hsla(350, 70%, 60%, ${Math.min(0.3, S.oxt * 0.25)})`);
+      flush.addColorStop(1, "hsla(350, 70%, 60%, 0)");
+      ctx.fillStyle = flush;
+      ctx.beginPath();
+      ctx.arc(bx, by, baseR * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // -- INTERNAL PARTICLES (neural activity, subtle) --
+  const rate = lastSnapshot ? lastSnapshot.MeanRateHz || 0.1 : 0.1;
+  const nParts = 20;
+  for (let i = 0; i < nParts; i++) {
+    const a = (i / nParts) * Math.PI * 2 + avatarTime * 0.15;
+    const d = baseR * (0.3 + (i % 3) * 0.18);
+    const px = Math.cos(a) * d;
+    const py = Math.sin(a) * d * 0.8;
+    const alpha = 0.06 + (Math.sin(avatarTime * 2 + i) * 0.5 + 0.5) * 0.12 * (0.3 + rate);
+    ctx.fillStyle = `hsla(${hue + 30}, 70%, 65%, ${alpha})`;
     ctx.beginPath();
-    ctx.arc(px, py, pSize, 0, Math.PI * 2);
+    ctx.arc(px, py, 1.5 + (i % 3), 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // === EYES ===
-  // the brain watches you. eyes widen with surprise, narrow when tired,
-  // dart around when lonely, focus when engaged
-  const eyeY = cy - baseR * 0.1;
-  const eyeSpacing = baseR * 0.35;
-  const eyeR = baseR * 0.12 * (1 + eyeState.widen * 0.5);
-
-  // blink logic
-  if (avatarTime > eyeState.nextBlink) {
-    eyeState.blink = 1;
-    eyeState.nextBlink = avatarTime + 2 + Math.random() * 4;
-  }
-  eyeState.blink = Math.max(0, eyeState.blink - 0.1);
-  eyeState.widen = Math.max(0, eyeState.widen - 0.02);
-
-  // widen on high arousal (surprise)
-  if (smoothing.arousal > 0.6) eyeState.widen = Math.min(1, eyeState.widen + 0.1);
-
-  // eye movement: PRIORITY ORDER
-  // 1. stimulus tracking (look at what the brain sees)
-  // 2. lonely searching (darting)
-  // 3. engaged focus (center)
-  // 4. calm wandering (lazy drift)
-  if (stimulusTarget && smoothing.hist > 0.3) {
-    // look at the stimulus position (normalized 0-1 → screen coordinates)
-    const targetX = (stimulusTarget[0] - 0.5) * 2; // -1 to 1
-    const targetY = (stimulusTarget[1] - 0.5) * 2;
-    eyeState.x += (targetX - eyeState.x) * 0.15;
-    eyeState.y += (targetY - eyeState.y) * 0.15;
-  } else if (smoothing.lonely > 0.5) {
-    eyeState.x = Math.sin(avatarTime * 0.7) * 0.3;
-    eyeState.y = Math.cos(avatarTime * 0.5) * 0.15;
-  } else if (smoothing.arousal > 0.4) {
-    eyeState.x += (0 - eyeState.x) * 0.1;
-    eyeState.y += (0 - eyeState.y) * 0.1;
-  } else {
-    eyeState.x = Math.sin(avatarTime * 0.15) * 0.1;
-    eyeState.y = 0;
-  }
-
-  const blinkScale = 1 - eyeState.blink;
+  // ===================== EYES =====================
+  const eyeY = -baseR * 0.15;
+  const eyeSpacing = baseR * 0.38;
+  const eyeW = baseR * 0.16;
+  const eyeH = baseR * 0.22 * eyeOpen; // blink squishes
 
   for (const side of [-1, 1]) {
-    const ex = cx + side * eyeSpacing + eyeState.x * eyeR * 0.5;
-    const ey = eyeY + eyeState.y * eyeR * 0.3;
+    const ex = side * eyeSpacing + S.gazeX * eyeW * 0.4;
+    const ey = eyeY + S.gazeY * eyeH * 0.3;
 
-    // eye white (bioluminescent)
+    // sclera (soft white, dims in sleep)
     ctx.save();
     ctx.beginPath();
-    ctx.ellipse(ex, ey, eyeR, eyeR * blinkScale, 0, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${hue + 30}, 30%, ${70 + smoothing.hist * 20}%, ${0.8 * smoothing.hist})`;
+    ctx.ellipse(ex, ey, eyeW, Math.max(1, eyeH), 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 15%, ${72 + S.hist * 15}%, ${0.75 * S.hist + 0.2})`;
     ctx.fill();
 
-    // pupil (dark, tracks)
-    if (blinkScale > 0.1) {
-      const pupilR = eyeR * 0.4 * (1 - smoothing.ach * 0.3); // constricts with attention
+    // iris (color follows DA: golden when rewarded, blue when low)
+    if (eyeH > 2) {
+      const irisR = eyeW * 0.55;
+      const irisHue = 200 + S.da * 50;
       ctx.beginPath();
-      ctx.arc(ex + eyeState.x * eyeR * 0.3, ey + eyeState.y * eyeR * 0.2, pupilR * blinkScale, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(220, 50%, 8%, 0.9)`;
+      ctx.arc(ex + S.gazeX * eyeW * 0.35, ey + S.gazeY * eyeH * 0.2, irisR * eyeOpen, 0, Math.PI * 2);
+      const irisGrad = ctx.createRadialGradient(ex, ey, 1, ex, ey, irisR);
+      irisGrad.addColorStop(0, `hsla(${irisHue}, 60%, 50%, 0.9)`);
+      irisGrad.addColorStop(1, `hsla(${irisHue}, 60%, 30%, 0.7)`);
+      ctx.fillStyle = irisGrad;
       ctx.fill();
 
-      // reflection (life)
+      // pupil (constricts with attention)
+      const pupilR = irisR * (0.45 - S.ach * 0.15);
       ctx.beginPath();
-      ctx.arc(ex + eyeState.x * eyeR * 0.3 - pupilR * 0.3, ey - pupilR * 0.3, pupilR * 0.25 * blinkScale, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(0, 0%, 100%, 0.6)`;
+      ctx.arc(ex + S.gazeX * eyeW * 0.35, ey + S.gazeY * eyeH * 0.2, Math.max(1, pupilR * eyeOpen), 0, Math.PI * 2);
+      ctx.fillStyle = "hsla(220, 50%, 5%, 0.95)";
+      ctx.fill();
+
+      // catchlight (spark of life)
+      ctx.beginPath();
+      ctx.arc(ex + S.gazeX * eyeW * 0.35 - pupilR * 0.3, ey - pupilR * 0.3, Math.max(0.5, pupilR * 0.2 * eyeOpen), 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.fill();
     }
     ctx.restore();
   }
 
-  // === EYEBROWS (the strongest emotional channel on a face) ===
-  // angry: inner ends pulled down (negative valence + arousal)
-  // sad/worried: inner ends pulled up (negative valence, low arousal)
-  // happy: gently raised. surprised: lifted high with the widening eyes
-  // the RESTING position carries the learned personality: curiosity and
-  // expressiveness raise the resting brow (an interested face), learned
-  // distance (avoidant attachment) flattens it
-  const dispVal = displayedValence();
-  const restLift = Math.max(0, smoothing.traitCuriosity) * 0.35 + Math.max(0, smoothing.traitExpressiveness) * 0.25
-    - (lastSnapshot && lastSnapshot.Attachment === "avoidant" ? 0.3 : 0);
-  const browY = eyeY - eyeR * (1.6 + restLift * 0.8);
-  const angryAmt = Math.max(0, -dispVal) * Math.min(1, smoothing.arousal * 2);
-  const sadAmt = Math.max(0, -dispVal) * Math.max(0, 1 - smoothing.arousal * 2);
-  const happyAmt = Math.max(0, dispVal);
+  // ===================== BROWS =====================
+  const browY = eyeY - eyeH * 1.8;
   for (const side of [-1, 1]) {
-    const bx = cx + side * eyeSpacing;
-    const innerX = bx - side * eyeR * 0.9;
-    const outerX = bx + side * eyeR * 0.9;
-    const innerY = browY - eyeR * (happyAmt * 0.5 + sadAmt * 0.6 + eyeState.widen * 0.6) + angryAmt * eyeR * 0.7 + sadAmt * eyeR * 0.4;
-    const outerY = browY + eyeR * 0.2 + angryAmt * eyeR * 0.5 - sadAmt * eyeR * 0.8;
+    const bx = side * eyeSpacing;
+    const innerX = bx - side * eyeW * 1.1;
+    const outerX = bx + side * eyeW * 1.1;
+    // lift = curiosity/joy; furrow = negative × arousal
+    const innerY = browY - S.browLift * baseR * 0.08 + S.browFurrow * baseR * 0.1;
+    const outerY = browY + S.browFurrow * baseR * 0.15 - S.browLift * baseR * 0.04;
     ctx.beginPath();
     ctx.moveTo(outerX, outerY);
-    ctx.quadraticCurveTo(bx, (innerY + outerY) / 2 - eyeR * 0.1, innerX, innerY);
-    ctx.strokeStyle = `hsla(${hue + 30}, 40%, ${light + 25}%, ${0.75 * smoothing.hist})`;
-    ctx.lineWidth = 2.5 + smoothing.na * 2;
+    ctx.quadraticCurveTo(bx, (innerY + outerY) / 2 - baseR * 0.04, innerX, innerY);
+    ctx.strokeStyle = `hsla(${hue}, 30%, ${lit + 30}%, ${0.6 * S.hist + 0.2})`;
+    ctx.lineWidth = 2 + S.na * 1.5;
     ctx.lineCap = "round";
     ctx.stroke();
   }
 
-  // === BONDING BLUSH ===
-  // oxytocin (social warmth) glows on the cheeks — the mark of feeling safe
-  // with whoever is present
-  const oxt = (lastSnapshot && lastSnapshot.Modulators) ? lastSnapshot.Modulators[4] || 0 : 0;
-  if (oxt > 0.2) {
-    for (const side of [-1, 1]) {
-      const blx = cx + side * baseR * 0.45;
-      const blush = ctx.createRadialGradient(blx, cy + baseR * 0.1, 2, blx, cy + baseR * 0.1, baseR * 0.25);
-      blush.addColorStop(0, `hsla(350, 80%, 65%, ${Math.min(0.35, oxt * 0.3)})`);
-      blush.addColorStop(1, "hsla(350, 80%, 65%, 0)");
-      ctx.fillStyle = blush;
-      ctx.beginPath();
-      ctx.arc(blx, cy + baseR * 0.1, baseR * 0.25, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
+  // ===================== MOUTH =====================
+  const mouthY = baseR * 0.35;
+  const mouthW = baseR * 0.35 * (1 + S.traitExpress * 0.2);
+  const curve = S.mouthCurve * baseR * 0.18;
 
-  // === MOUTH (emotional expression + speaking animation) ===
-  // displayed valence (own feeling, empathy-mirrored); the mouth's amplitude
-  // when speaking scales with learned expressiveness - an expressive brain
-  // articulates visibly, a reserved one barely moves its lips
-  const mouthY = cy + baseR * 0.25;
-  const mouthW = baseR * 0.4;
-  const curve = dispVal * baseR * 0.15;
-  const expressAmt = 0.65 + 0.7 * Math.max(0, smoothing.traitExpressiveness);
-
-  // speaking animation: mouth opens/closes rapidly
-  if (isSpeaking) {
-    mouthOpen = 0.5 + Math.sin(avatarTime * 15) * 0.5; // oscillate at speech rate
-  } else {
-    mouthOpen = Math.max(0, mouthOpen - 0.05); // close smoothly
-  }
-
-  // draw the mouth as a filled shape when speaking, or a line when silent
-  if (mouthOpen > 0.05) {
-    // open mouth (speaking): an ellipse that varies with mouthOpen, sized by
-    // how expressive this brain has learned to be
-    const mo = mouthOpen * baseR * 0.12 * expressAmt;
+  if (S.mouthOpen > 0.05) {
+    // open mouth (speaking)
+    const mo = S.mouthOpen * baseR * 0.1;
     ctx.save();
     ctx.beginPath();
-    ctx.ellipse(cx, mouthY + curve * 0.5, mouthW * 0.7, mo, 0, 0, Math.PI * 2);
-    ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light + 15}%, ${0.6 * smoothing.hist})`;
+    ctx.ellipse(0, mouthY + curve * 0.3, mouthW * 0.7, mo, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lit + 12}%, ${0.7 * S.hist + 0.2})`;
     ctx.fill();
     ctx.restore();
   } else {
-    // closed mouth (line, curves with valence)
+    // closed mouth (emotional curve)
     ctx.beginPath();
-    ctx.moveTo(cx - mouthW, mouthY);
-    ctx.quadraticCurveTo(cx, mouthY + curve * 2, cx + mouthW, mouthY);
-    ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light + 25}%, ${0.5 * smoothing.hist})`;
+    ctx.moveTo(-mouthW, mouthY);
+    ctx.quadraticCurveTo(0, mouthY + curve * 2.5, mouthW, mouthY);
+    ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${lit + 25}%, ${0.5 * S.hist + 0.2})`;
     ctx.lineWidth = 2;
+    ctx.lineCap = "round";
     ctx.stroke();
   }
 
-  // === SPIKE BURSTS (neural activity radiating outward) ===
-  // when the brain ignites or is surprised, energy radiates from the body
-  const burstIntensity = smoothing.na * (0.5 + smoothing.rate);
-  if (burstIntensity > 0.15) {
-    for (let i = 0; i < 8; i++) {
-      const burstAngle = (i / 8) * Math.PI * 2 + bodyPhase * 0.5;
-      const burstDist = baseR * (1.2 + Math.sin(avatarTime * 3 + i) * 0.2);
-      const bx = cx + Math.cos(burstAngle) * burstDist;
-      const by = cy + Math.sin(burstAngle) * burstDist;
-      ctx.beginPath();
-      ctx.arc(bx, by, 2 + burstIntensity * 3, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${hue + 40}, 90%, 70%, ${burstIntensity * 0.4})`;
-      ctx.fill();
-    }
-  }
+  ctx.restore(); // head transform
 
-  // === CONSCIOUSNESS HALO ===
-  // directly driven by Φ (integrated information theory) — this IS consciousness
-  // made visible. When Φ drops (sleep), the halo fades. When Φ rises (wake/dream),
-  // the halo glows. This is Tononi's IIT 3.0 prediction rendered as light.
-  if (lastSnapshot && lastSnapshot.Phi !== undefined) {
-    const phiHalo = lastSnapshot.Phi;
-    if (phiHalo > 0.05) {
-      const haloR = baseR * (1.2 + phiHalo * 0.5);
-      const haloAlpha = phiHalo * 0.2;
-      const halo = ctx.createRadialGradient(cx, cy, baseR, cx, cy, haloR);
-      const phiColor = phiHalo > 0.4 ? "61, 219, 184" : phiHalo > 0.15 ? "240, 180, 92" : "240, 112, 128";
-      halo.addColorStop(0, `rgba(${phiColor}, 0)`);
-      halo.addColorStop(0.5, `rgba(${phiColor}, ${haloAlpha})`);
-      halo.addColorStop(1, `rgba(${phiColor}, 0)`);
-      ctx.fillStyle = halo;
-      ctx.beginPath();
-      ctx.arc(cx, cy, haloR, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // === STATE LABEL (minimal, inside the creature) ===
+  // ===================== NAME + STATE (drawn directly on the face) =====================
   if (lastSnapshot) {
-    // the name it chose for itself sits above the state: it is somebody
-    if (lastSnapshot.BrainName) {
-      ctx.font = `700 15px ${"'Inter', sans-serif"}`;
-      ctx.textAlign = "center";
-      ctx.fillStyle = `hsla(${hue + 40}, 60%, 82%, ${0.5 + smoothing.hist * 0.4})`;
-      ctx.fillText(lastSnapshot.BrainName, cx, cy - baseR * 0.72);
-      ctx.textAlign = "left";
-    }
-    ctx.font = `600 11px ${"'Inter', sans-serif"}`;
     ctx.textAlign = "center";
-    const stateText = lastSnapshot.SleepState === "NREM" ? "sleeping"
-      : lastSnapshot.SleepState === "REM" ? (lastSnapshot.LucidDreams > 0 ? "dreaming (lucid!)" : "dreaming")
-      : lastSnapshot.Feeling || "—";
-    ctx.fillStyle = `hsla(${hue}, 30%, 80%, ${0.4 + smoothing.hist * 0.4})`;
-    ctx.fillText(stateText, cx, cy + baseR * 0.55);
-    // voice development readout: the brain's own voice grows from what it hears
-    if (lastSnapshot.VoiceSyllables > 0) {
-      ctx.fillStyle = `hsla(${hue}, 30%, 70%, ${0.3 + smoothing.hist * 0.3})`;
-      ctx.font = `500 9px ${"'Inter', sans-serif"}`;
-      const voiceText = `own voice growing: ${lastSnapshot.VoiceSyllables} syllables, ` +
-        `${lastSnapshot.VoiceClipsHeard} voices heard` +
-        (lastSnapshot.VoiceMimicries > 0 ? `, ${lastSnapshot.VoiceMimicries} sounds mimicked` : "");
-      ctx.fillText(voiceText, cx, cy + baseR * 0.55 + 14);
+    // the name it chose, above the head
+    if (lastSnapshot.BrainName) {
+      ctx.font = `700 16px ${"'Inter', sans-serif"}`;
+      ctx.fillStyle = `hsla(${hue + 40}, 50%, 85%, ${0.4 + S.hist * 0.5})`;
+      ctx.fillText(lastSnapshot.BrainName, cx, cy - baseR * 1.3);
     }
-    // who it BECAME: attachment style + learned traits, under the voice line
-    if (lastSnapshot.Attachment && lastSnapshot.Attachment !== "") {
-      ctx.fillStyle = `hsla(${hue}, 30%, 70%, ${0.25 + smoothing.hist * 0.25})`;
-      ctx.font = `500 9px ${"'Inter', sans-serif"}`;
-      const grew = `grew: ${lastSnapshot.Attachment} attachment` +
-        (lastSnapshot.EmpathyConfidence > 0.3 ? `, mirroring a ${lastSnapshot.UserMood || "neutral"} voice` : "") +
-        (lastSnapshot.CuriosityReward > 0.2 ? `, learning something new` : "") +
-        (lastSnapshot.PlayBursts > 0 ? `, ${lastSnapshot.PlayBursts} play bursts` : "") +
-        (lastSnapshot.Insights > 0 ? `, ${lastSnapshot.Insights} insights` : "") +
-        (lastSnapshot.OpenLoops > 0 ? `, ${lastSnapshot.OpenLoops} thoughts unresolved` : "");
-      ctx.fillText(grew, cx, cy + baseR * 0.55 + 26);
+    // the state, below the chin
+    ctx.font = `600 11px ${"'Inter', sans-serif"}`;
+    const state = lastSnapshot.SleepState === "NREM" ? "sleeping"
+      : lastSnapshot.SleepState === "REM" ? (lastSnapshot.LucidDreams > 0 ? "lucid dream" : "dreaming")
+      : S.playful > 0.5 ? "playing" : lastSnapshot.Feeling || "";
+    ctx.fillStyle = `hsla(${hue}, 25%, 75%, ${0.35 + S.hist * 0.35})`;
+    ctx.fillText(state, cx, cy + baseR * 1.35);
+    // if dreaming, add the dream tag
+    if (S.dreaming > 0.3) {
+      ctx.font = `italic 400 10px ${"'Inter', sans-serif"}`;
+      ctx.fillStyle = `hsla(270, 50%, 75%, ${S.dreaming * 0.5})`;
+      ctx.fillText("in its own world", cx, cy + baseR * 1.35 + 14);
     }
     ctx.textAlign = "left";
   }
