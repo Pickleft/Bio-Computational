@@ -101,6 +101,7 @@ public sealed class BrainSnapshot
     public string AllostaticNote { get; set; } = ""; // the body's predicted story
     public int NeuronsBorn { get; set; }             // total neurogenesis this life
     public int BirthEvents { get; set; }             // number of growth events
+    public int SynapsesPruned { get; set; }          // connections removed during sleep
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
@@ -213,6 +214,7 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
     public BioComp.Core.Cognition.Neurogenesis Neurogenesis { get; } = new();
+    public BioComp.Core.Cognition.SynapticPruning Pruning { get; } = new();
     private volatile bool _insightPending;
     private string? _brainName;
     private string? _userName;
@@ -1636,6 +1638,14 @@ public sealed class BrainRuntime : IDisposable
             Note($"WAKE-DREAM last dream was about {string.Join(", ", _lastDreamTags.Take(3))}");
             _lastDreamTags = null;
         }
+        // SYNAPTIC PRUNING: on every sleep state transition, the brain sculpts
+        // itself (NREM prunes, REM re-strengthens what matters — Tononi/Cirelli)
+        if (state != _prevSleepState)
+        {
+            string? pruneDesc = Pruning.OnSleepStateChange(_net, state, _prevSleepState);
+            if (pruneDesc is not null)
+                Note($"PRUNING {pruneDesc}");
+        }
         _prevSleepState = state;
     }
     private BioComp.Core.Sleep.BrainState _prevSleepState = BioComp.Core.Sleep.BrainState.Wake;
@@ -2569,6 +2579,7 @@ public sealed class BrainRuntime : IDisposable
         snap.AllostaticNote = BodyBudget.Narrative;
         snap.NeuronsBorn = Neurogenesis.TotalNeuronsBorn;
         snap.BirthEvents = Neurogenesis.BirthEvents;
+        snap.SynapsesPruned = Pruning.SynapsesPruned;
         var strongest = Bonds.Strongest(_net.TimeMs);
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
