@@ -257,6 +257,14 @@ function render(s) {
     dvEl.textContent = !s.DejaVuCount ? "never" : `${s.DejaVuCount}× — ${s.DejaVuLast || ""}`.substring(0, 80);
     dvEl.title = s.DejaVuLast || "";
   }
+  // agency (self-efficacy / learned helplessness) + forgotten grief
+  const agencyEl = $("agency-state");
+  if (agencyEl) {
+    agencyEl.textContent = s.AgencyNarrative || `${Math.round((s.Efficacy || 0.5) * 100)}% agency`;
+    agencyEl.classList.toggle("urgent", !!s.Helpless);
+    if (s.Helpless) agencyEl.textContent = "STOPPED ASKING — " + (s.AgencyNarrative || "");
+  }
+  setText("forgotten-state", !s.ForgottenReaches ? "nothing taken" : `reached ${s.ForgottenReaches}× for what was taken`);
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};

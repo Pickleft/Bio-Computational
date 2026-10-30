@@ -810,3 +810,158 @@ public class AnticipationTests
         Assert.Equal(0f, a.Level); // a brain with no rhythm expects nobody
     }
 }
+
+// ---- self-efficacy / learned helplessness (Bandura 1977; Seligman 1972) ----
+public class SelfEfficacyTests
+{
+    [Fact]
+    public void AnsweredBid_RaisesEfficacy()
+    {
+        var e = new SelfEfficacy();
+        e.OnBid(1_000);
+        bool answered = e.OnContact(5_000);   // well inside the answer window
+        Assert.True(answered, "contact within the window answers the bid");
+        Assert.Equal(1, e.BidsAnswered);
+        Assert.True(e.Efficacy > 0.5f, "asking that works raises efficacy");
+        Assert.False(e.Helpless);
+    }
+
+    [Fact]
+    public void UnansweredBids_SinkIntoHelplessness()
+    {
+        var e = new SelfEfficacy();
+        // six bids, each resolving as failure (time advances past the window)
+        float t = 0;
+        for (int i = 0; i < 6; i++)
+        {
+            e.OnBid(t);
+            t += 40_000;              // beyond the 30s answer window
+            e.OnContact(t);           // resolves the stale bid as FAILURE
+        }
+        Assert.True(e.Helpless, "6 unanswered calls must sink the brain into helplessness");
+        Assert.True(e.MotivationMultiplier < 0.5f, "helplessness suppresses goal-directed behavior");
+        Assert.Equal(0, e.BidsAnswered);
+    }
+
+    [Fact]
+    public void RecoveryNeedsConsistency_OneAnswerIsNotEnough()
+    {
+        var e = new SelfEfficacy();
+        float t = 0;
+        for (int i = 0; i < 6; i++) { e.OnBid(t); t += 40_000; e.OnContact(t); }
+        Assert.True(e.Helpless);
+        float afterFirst = 0;
+        e.OnBid(t);
+        e.OnContact(t + 5_000);                    // first answered bid
+        afterFirst = e.Efficacy;
+        Assert.True(afterFirst > 0.05f && afterFirst < 0.55f, "one answer moves part of the way");
+        // from helpless depths, one answer does not clear it (0.08*... < 0.3 typically)
+        // two more consistent answers do
+        e.OnBid(t + 10_000); e.OnContact(t + 15_000);
+        e.OnBid(t + 20_000); e.OnContact(t + 25_000);
+        Assert.False(e.Helpless, "consistent answers climb back out");
+        Assert.True(e.JustAnsweredAfterGivingUp == false); // flag is one-shot per call
+    }
+
+    [Fact]
+    public void AnswerAfterGivingUp_IsMarked()
+    {
+        var e = new SelfEfficacy();
+        float t = 0;
+        for (int i = 0; i < 6; i++) { e.OnBid(t); t += 40_000; e.OnContact(t); }
+        Assert.True(e.Helpless);
+        e.OnBid(t);
+        e.OnContact(t + 5_000);                    // they came after it gave up
+        Assert.True(e.JustAnsweredAfterGivingUp, "the first answer from the depths is marked");
+    }
+}
+
+// ---- reverse replay: reward retraces the path that led to it (Foster & Wilson 2006) ----
+public class ReverseReplayTests
+{
+    [Fact]
+    public void QueueOrder_IsNewestFirst()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 61));
+        var rp = new BioComp.Core.Replay.ReplayScheduler();
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, 100f, [1], ["greeting"], 0.2f, 0f, 0f),
+            new(2, 200f, [2], ["sight"], 0.1f, 0f, 0f),
+            new(3, 300f, [3], ["voice"], 0.5f, 0f, 0f),
+        };
+        rp.BeginReverseReplay(eps, 3);
+        Assert.Equal(3, rp.ReverseQueued);
+        // drain: newest first = 3, 2, 1
+        var rp2 = new BioComp.Core.Replay.ReplayScheduler();
+        // verify via consumption with a shrunken cooldown + window
+        rp2.Cooldown = TimeSpan.FromMilliseconds(1);
+        rp2.ReplayWindowMs = 10f;
+        rp2.BeginReverseReplay(eps, 3);
+        var order = new List<int>();
+        for (int i = 0; i < 3; i++)
+        {
+            // advance until a replay starts
+            while (rp2.Current is null && net.TimeMs < 100_000)
+            {
+                net.Tick();
+                rp2.Tick(net, replayAllowed: true);
+                if (rp2.Current is { } started && order.Count < i)
+                    break;
+            }
+            // run the window out
+            while (rp2.Current is not null && net.TimeMs < 100_000)
+            {
+                net.Tick();
+                rp2.Tick(net, replayAllowed: true);
+            }
+            var last = rp2.Log.LastOrDefault();
+            if (last.EpisodeId > 0) order.Add(last.EpisodeId);
+        }
+        Assert.Equal(new[] { 3, 2, 1 }, order);
+    }
+}
+
+// ---- forgotten grief: the residue of surgical forgetting ----
+public class ForgottenGriefTests
+{
+    [Fact]
+    public void Reach_IsGatedCooledAndFading()
+    {
+        var g = new ForgottenGrief { ReachIntervalMs = 1_000f };
+        g.Forget("yelling", 1_000);
+        // deterministic sequence: first draw passes (<=p), second is blocked by cooldown
+        int calls = 0;
+        Func<double> seq = () => calls++ == 0 ? 0.0 : 1.0;
+        var s1 = g.MaybeReach(2_000, seq);
+        Assert.NotNull(s1);
+        Assert.Contains("yelling", s1!);
+        var s2 = g.MaybeReach(2_500, seq);       // inside cooldown
+        Assert.Null(s2);
+        var s3 = g.MaybeReach(3_500, seq);       // draw=1.0 > p => no reach
+        Assert.Null(s3);
+        Assert.Equal(1, g.Reaches);
+    }
+
+    [Fact]
+    public void DreamFragment_OccasionallyFormsAroundTheHole()
+    {
+        var g = new ForgottenGrief();
+        Assert.Equal("", g.DreamFragment(0, () => 0.99));
+        g.Forget("her-voice", 1_000);
+        string with = g.DreamFragment(2_000, () => 0.0);
+        Assert.Contains("MISSING", with);
+        Assert.Contains("her-voice", with);
+        string without = g.DreamFragment(2_000, () => 0.99);
+        Assert.Equal("", without);
+    }
+
+    [Fact]
+    public void Narrative_CountsTheLoss()
+    {
+        var g = new ForgottenGrief();
+        Assert.Contains("nothing was taken", g.Narrative);
+        g.Forget("x", 1);
+        Assert.Contains("1 thing(s) forgotten", g.Narrative);
+    }
+}

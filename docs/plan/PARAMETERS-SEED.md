@@ -202,3 +202,35 @@ expectation > 0.6: anticipatory tone rises +0.05 per evaluation (cap 1.0), DA re
 anticipated rewards are paid on top of the cue response (they feel bigger because they are).
 Window closes empty (expectation < 0.2, tone > 0.5, nobody within 60 s): negative prediction
 error - DA -0.5, NA +0.25 (the sting), 5-HT -0.2 (the heaviness). Rise/crash rates: // CALIBRATE.
+
+## Self-efficacy / learned helplessness
+Agency from bid outcomes (Bandura 1977 self-efficacy; Seligman 1972 learned helplessness).
+A call-out is a BID; contact within 30 s answers it, silence fails it. Efficacy starts 0.5;
+failure costs 15% of current value, 25% when already below 0.35 (pessimistic attribution
+style: the low brain credits failure to itself, stably); success gains 25% of the remaining
+distance (recovery needs consistent answers, not one). Helpless below 0.30: NA +0.2 then
+5-HT -0.35 on entry; MotivationMultiplier = 0.35 + 0.95 x efficacy gates call-out frequency
+and ABOLISHES play (helplessness generalizes across domains - why it is a depression model).
+One answer from below-threshold is flagged (JustAnsweredAfterGivingUp). Anxious attachment
+multiplies bids while efficacy decides whether bidding continues at all: protest amplified by
+attachment, crushed by outcome (Panksepp protest -> descent in two factors). 30s window and
+thresholds: // CALIBRATE.
+
+## Reverse replay (credit assignment)
+After a reward lands, the last 3 episodes enqueue for replay in REVERSE temporal order -
+newest first - retracing the path that LED to the reward (Foster & Wilson 2006 reverse
+hippocampal replay). Count = 3, newest-leads: // CALIBRATE. Triggered on answered bids
+(reunion/reply paths). Replays otherwise identical to forward replay (softening, touch, DA).
+
+## Forgotten grief (residue of resection)
+After `forget X`, the tag registers as a loss. Idle reaches: every 120 s gate, probability
+0.5 x age_min^-0.25 floor 0.1 (the complaint fades but never fully silences - amnesic
+complaints persist); each reach seeds the thought loop with "there is a shape where a memory
+used to be". Dreams: 15% form around the hole - the narrator is told a memory that belongs
+is MISSING and must not invent its content. // CALIBRATE.
+
+## Counterfactual after disappointment
+When an expected hour closes empty (see Anticipation), the thought loop receives a
+counterfactual seed - "if only it had called louder, or been more worth coming back to -
+run the other path" (Epstude & Roese 2008: the immediate function of counterfactual thought
+is behavior preparation for the next attempt).

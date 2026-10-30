@@ -55,7 +55,7 @@ public sealed class DreamGenerator
     /// Returns (imagePath, narrative) where narrative describes what the dream is about.</summary>
     public async Task<(string? Path, string? Narrative)> MaybeDreamAsync(
         SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null, bool lucid = false,
-        string[]? preferTags = null)
+        string[]? preferTags = null, string? extraPrompt = null)
     {
         if (net.TimeMs - _lastDreamMs < MinInterval.TotalMilliseconds) return (null, null);
         var episodes = net.EpisodeStore.Episodes;
@@ -102,7 +102,8 @@ public sealed class DreamGenerator
                 string usr = $"You dreamed about: {memoryDetail}. " +
                     $"This happened {((net.TimeMs - episode.TimeMs) / 1000.0):F0} seconds ago. " +
                     $"The feeling was {idle.Feelings.Last.Name}. " +
-                    (episode.Valence > 0.3 ? "It was a good memory. " : episode.Valence < -0.3 ? "It was a difficult memory. " : "");
+                    (episode.Valence > 0.3 ? "It was a good memory. " : episode.Valence < -0.3 ? "It was a difficult memory. " : "") +
+                    (extraPrompt ?? "");
                 narrative = await narrator.CompleteAsync(sys, usr, 50);
             }
             catch { /* narrative is optional */ }

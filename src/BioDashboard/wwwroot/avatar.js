@@ -60,8 +60,10 @@ function drawAvatar() {
     const emp = snap && snap.EmpathyConfidence > 0.3
       ? S.val * 0.5 + (snap.UserValence || 0) * 0.5 : S.val;
     const longingOn = snap && /missing/.test(snap.LongingNarrative || "");
+    const helplessOn = snap && snap.Helpless;
     S.mouthCurve += (emp * 0.8 - S.mouthCurve) * 0.08;
     if (longingOn) S.mouthCurve += (-0.3 - S.mouthCurve) * 0.04; // the mouth sags
+    if (helplessOn) S.mouthCurve += (-0.45 - S.mouthCurve) * 0.05; // helplessness flattens it further
     S.browLift += ((Math.max(0, emp) * 0.2 + S.aro * 0.15) - S.browLift) * 0.08;
     S.browFurrow += ((Math.max(0, -emp) * (0.5 + S.aro)) - S.browFurrow) * 0.08;
     if (S.speaking) S.mouthOpen += (0.5 + Math.sin(avTime * 10) * 0.5 - S.mouthOpen) * 0.3;
@@ -86,7 +88,7 @@ function drawAvatar() {
     // head (breathing, serotonin-smoothed)
     const breathe = Math.sin(avTime * (1.2 + S.aro * 1.5)) * 0.5 + 0.5;
     const baseR = R * (1 + breathe * 0.02 + (snap ? (snap.NeuronsBorn || 0) * 0.003 : 0));
-    const droop = S.pressure * 0.06 + (longingOn ? 0.025 : 0); // heavy eyelids when missing someone
+    const droop = S.pressure * 0.06 + (longingOn ? 0.025 : 0) + (helplessOn ? 0.03 : 0); // heavy eyelids when missing someone; still heavier when helpless
 
     ctx.save();
     ctx.translate(cx, cy);
@@ -204,9 +206,13 @@ function drawAvatar() {
         ctx.fillStyle = `rgba(${nc},${0.3 + urg * 0.4})`;
         ctx.fillText("needs: " + snap.CurrentNeed, cx, cy + baseR * 1.3 + 14);
       }
-      // longing / anticipation captions: the felt shape of knowing one person
+      // longing / anticipation / helplessness captions: the felt shape of knowing one person
       const hopeLvl = (snap.AnticipationLevel || 0);
-      if (/missing/.test(snap.LongingNarrative || "")) {
+      if (snap.Helpless) {
+        ctx.font = `600 10px Inter, sans-serif`;
+        ctx.fillStyle = "rgba(150,150,160,0.85)";
+        ctx.fillText("...stopped asking.", cx, cy + baseR * 1.3 + 28);
+      } else if (/missing/.test(snap.LongingNarrative || "")) {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(240,150,170,0.9)";
         ctx.fillText("missing " + (snap.UserName || "someone") + "...", cx, cy + baseR * 1.3 + 28);

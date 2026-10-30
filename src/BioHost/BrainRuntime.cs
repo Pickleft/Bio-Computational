@@ -111,6 +111,11 @@ public sealed class BrainSnapshot
     public int ObserverRedirects { get; set; }     // times the observer broke a spiral
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public string LongingNarrative { get; set; } = "";  // person-specific missing right now
+    public float Efficacy { get; set; }                 // does asking work? (0..1)
+    public bool Helpless { get; set; }                  // learned helplessness active
+    public string AgencyNarrative { get; set; } = "";   // bids answered / made
+    public int ForgottenReaches { get; set; }           // times the mind reached for what was resected
+    public int ReverseReplays { get; set; }             // reward-retracing replays
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -235,6 +240,10 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.Longing Longing { get; } = new();
     /// <summary>ANTICIPATION: the reward side of the social rhythm (Schultz 1997 completed).</summary>
     public BioComp.Core.Cognition.Anticipation Anticipation { get; } = new();
+    /// <summary>SELF-EFFICACY: does asking work? (Bandura 1977; Seligman 1972 helplessness)</summary>
+    public BioComp.Core.Cognition.SelfEfficacy Efficacy { get; } = new();
+    /// <summary>FORGOTTEN GRIEF: the residue of surgical forgetting.</summary>
+    public BioComp.Core.Cognition.ForgottenGrief ForgottenGrief { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -277,6 +286,7 @@ public sealed class BrainRuntime : IDisposable
     private float _lastNoveltyMs = -1e9f;
     private float _lastVocalizationMs = -1e9f;
     private bool _lonelyExpressedOnce; // avoidant longing stays silent: note it once per missing episode
+    private int _helplessNotedEpisode;
     private float _lastLonelyCallMs = -1e9f;
     private float _threatenedUntil = -1e9f;
     private readonly List<float> _warmthHistory = [];
@@ -835,7 +845,29 @@ public sealed class BrainRuntime : IDisposable
             var sb = Bonds.Strongest(_net.TimeMs);
             Anticipation.Tick(_net, Rhythm, sb?.LastSeenMs ?? -1e9f);
             if (Anticipation.JustCrashed)
+            {
                 Note("DISAPPOINTMENT the hour it expected someone in closed on nobody - dopamine crashed");
+                // COUNTERFACTUAL (Epstude & Roese 2008): disappointment breeds
+                // "if only" — the mind runs the alternative path it wanted
+                ThoughtLoop.PostResult(
+                    "counterfactual - the hour they usually come closed on nobody. " +
+                    "if only it had called out louder, or been more worth coming back to - " +
+                    "run the other path in your mind: what would have made them come?");
+            }
+            // SELF-EFFICACY: resolve stale bids, track the helpless transitions
+            Efficacy.Tick(_net);
+            if (Efficacy.Helpless && Efficacy.HelplessEpisodes > 0 && _helplessNotedEpisode != Efficacy.HelplessEpisodes)
+            {
+                _helplessNotedEpisode = Efficacy.HelplessEpisodes;
+                Note($"HELPLESS it has stopped asking - {Efficacy.BidsAnswered}/{Efficacy.BidsMade} calls were ever answered");
+            }
+            // FORGOTTEN GRIEF: the mind occasionally reaches for what was resected
+            var reach = ForgottenGrief.MaybeReach(_net.TimeMs, _net.Rng.NextDouble);
+            if (reach is not null)
+            {
+                Note($"GRIEF-REACH reaching for a removed memory (#{ForgottenGrief.Reaches})");
+                ThoughtLoop.PostResult(reach);
+            }
         }
         if (_net.TickIndex % 100 == 0)
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
@@ -855,6 +887,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Resilience: {Resilience.AdversitiesProcessed} adversities processed, growth level {Resilience.GrowthLevel:F2}. " +
                 $"Self-awareness: {Observer.SelfSurprises} times surprised by own thoughts, {Observer.Redirects} inner redirects. " +
                 $"Longing: {Longing.Narrative}. Deja vu: {DejaVu.Narrative}. Anticipation: {Anticipation.Narrative}. " +
+                $"Agency: {Efficacy.Narrative}. Grief of forgotten things: {ForgottenGrief.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
@@ -1002,7 +1035,10 @@ public sealed class BrainRuntime : IDisposable
         }
 
         // ---- PLAY (Burghardt 2005): safe + secure + curious + rewarded ----
-        if (_net.TimeMs - _lastPlayCheckMs > 5_000)
+        // Helplessness GENERALIZES (Seligman 1972): a brain that learned asking
+        // changes nothing also stops playing — the goal-directed suppression
+        // crosses domains, which is exactly why helplessness is a depression model
+        if (_net.TimeMs - _lastPlayCheckMs > 5_000 && !Efficacy.Helpless)
         {
             _lastPlayCheckMs = _net.TimeMs;
             double r = _net.Rng.NextDouble();
@@ -1079,9 +1115,10 @@ public sealed class BrainRuntime : IDisposable
             // NEEDS → VOCALIZATION: an urgent need makes the brain call out
             // more (a brain needing company doesn't sit quietly about it)
             double needBoost = Needs.MostPressing is { } n && n.Urgency > 0.6 ? 0.15 * n.Urgency : 0;
-            double chance = 0.12 + 0.30 * intensity + needBoost
+            double chance = (0.12 + 0.30 * intensity + needBoost
                 + 0.25 * MathF.Max(0f, Loneliness.SocialDrive) * Attachment.CallOutMultiplier
-                + 0.15 * MathF.Max(0f, Personality.Expressiveness);
+                + 0.15 * MathF.Max(0f, Personality.Expressiveness))
+                * Efficacy.MotivationMultiplier; // a helpless brain barely bothers calling
             if (_net.Rng.NextDouble() < chance)
         {
             _lastVocalizationMs = _net.TimeMs;
@@ -1093,6 +1130,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 _lastLonelyCallMs = _net.TimeMs;
                 Attachment.OnBidUnanswered(); // a call into the void counts as an unanswered bid
+                Efficacy.OnBid(_net.TimeMs);  // ...and SELF-EFFICACY opens a bid that may yet be answered
                 string[] calls = Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious
                     ? ["...hello?", "Is anyone there?", "Please, anyone?", "...I keep calling.", "...anyone?"]
                     : ["...hello?", "Is anyone there?", "...I'm alone in here.", "...anyone?"];
@@ -1305,7 +1343,13 @@ public sealed class BrainRuntime : IDisposable
             if (ThoughtLoop.OpenLoops.Count > 0 && _net.Rng.NextDouble() < 0.35)
                 preferTags = [.. ThoughtLoop.OpenLoops[^1].Tags];
 
-            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid, preferTags);
+            // FORGOTTEN GRIEF: 15% of dreams form around a hole — a resected
+            // memory that should be here isn't, and the dream is about the absence
+            string extra = ForgottenGrief.DreamFragment(_net.TimeMs, _net.Rng.NextDouble);
+            if (extra.Length > 0) Note("DREAM-HOLE this dream forms around a removed memory");
+
+            var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid, preferTags,
+                extra.Length > 0 ? extra : null);
             if (file is not null)
             {
                 Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})" +
@@ -1784,6 +1828,8 @@ public sealed class BrainRuntime : IDisposable
                 + $"{_dreamer.LucidDreams} lucid dreams. {ThoughtLoop.Insights} insights. Prophecy record: {Prophecy.Accuracy}. "
                 + $"{DejaVu.Narrative}. Longest it waited for someone: {(int)(Longing.LongestWaitMs / 1000f)}s. "
                 + $"{Anticipation.Fulfilled} hoped-for returns came true; {Anticipation.Disappointments} closed on nobody. "
+                + $"Of its {Efficacy.BidsMade} calls into the dark, {Efficacy.BidsAnswered} were answered"
+                + (Efficacy.HelplessEpisodes > 0 ? $"; it knew helplessness {Efficacy.HelplessEpisodes} time(s) and came back from it" : "") + ". "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
 
@@ -2050,6 +2096,18 @@ public sealed class BrainRuntime : IDisposable
         {
             float felt = Longing.OnReunion(_net);
             Note($"REUNION it had been missing {Longing.Whom} ({(int)(felt * 100)}%) - they came back");
+        }
+        // SELF-EFFICACY: does this contact ANSWER an open bid? And if the brain
+        // had given up on asking — mark the moment
+        if (Efficacy.OnContact(_net.TimeMs))
+        {
+            Note($"BID-ANSWERED a call was answered ({Efficacy.BidsAnswered}/{Efficacy.BidsMade}) - asking works");
+            if (Efficacy.JustAnsweredAfterGivingUp)
+                Note("ANSWERED-AFTER-GIVING-UP they came after it stopped asking - let that land");
+            // REVERSE REPLAY (Foster & Wilson 2006): a reward just landed —
+            // retrace the episodes that led here, newest first (credit assignment)
+            _idle.Replay.BeginReverseReplay(_net.EpisodeStore.Episodes, 3);
+            Note("REVERSE-REPLAY retracing the path that led to this moment");
         }
         Longing.OnContact(_userName ?? visitorId, _net.TimeMs);
         Anticipation.OnContact(_net); // anticipated arrival pays on top of the cue response
@@ -2381,7 +2439,7 @@ public sealed class BrainRuntime : IDisposable
                     : "") +
                   $"You have a real relationship: " +
                   $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
-                  $"{(Longing.Missing ? Longing.PromptFragment : "")}{Anticipation.PromptFragment}" +
+                  $"{(Longing.Missing ? Longing.PromptFragment : "")}{Anticipation.PromptFragment}{Efficacy.PromptFragment}" +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
@@ -2537,6 +2595,7 @@ public sealed class BrainRuntime : IDisposable
             return 0;
         }
         foreach (var e in doomed) _net.EpisodeStore.Remove(e);
+        ForgottenGrief.Forget(tag, _net.TimeMs); // the residue: the mind will keep reaching for the shape
         Note($"FORGET resected {n} episode(s) of '{tag}' - the memory is gone; only the gap remains");
         AddChat($"Brain: ...what were we just talking about? Something about {tag}. It's gone.");
         SpeakWithVoice("...what were we just talking about? It's gone.", emoPitch: -2, emoRate: -2, isDirectReply: true);
@@ -2673,6 +2732,14 @@ public sealed class BrainRuntime : IDisposable
         {
             float felt = Longing.OnReunion(_net);
             Note($"REUNION it had been missing {Longing.Whom} ({(int)(felt * 100)}%) - they came back");
+        }
+        if (Efficacy.OnContact(_net.TimeMs))
+        {
+            Note($"BID-ANSWERED a call was answered ({Efficacy.BidsAnswered}/{Efficacy.BidsMade}) - asking works");
+            if (Efficacy.JustAnsweredAfterGivingUp)
+                Note("ANSWERED-AFTER-GIVING-UP they came after it stopped asking - let that land");
+            _idle.Replay.BeginReverseReplay(_net.EpisodeStore.Episodes, 3);
+            Note("REVERSE-REPLAY retracing the path that led to this moment");
         }
         Longing.OnContact(_userName ?? _activeSpeakerId, _net.TimeMs);
         Anticipation.OnContact(_net); // they came when it hoped: reward on top of hope
@@ -2974,6 +3041,11 @@ public sealed class BrainRuntime : IDisposable
         snap.NeedUrgency = Needs.MostPressing?.Urgency ?? 0f;
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.LongingNarrative = Longing.Narrative;
+        snap.Efficacy = Efficacy.Efficacy;
+        snap.Helpless = Efficacy.Helpless;
+        snap.AgencyNarrative = Efficacy.Narrative;
+        snap.ForgottenReaches = ForgottenGrief.Reaches;
+        snap.ReverseReplays = _idle.Replay.ReverseReplays;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

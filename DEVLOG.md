@@ -411,3 +411,39 @@ and were imported in the first commit - everything after that point was built du
   configurable so tests run the arc in milliseconds (config knob, not neural state).
 - Tests: 4/4 new (hope rises at the cue with no reward delivered; anticipated arrival pays
   extra; empty window crashes DA below baseline; no rhythm = no hope). 166 total.
+
+## 2026-10-31 - four more systems: agency, reverse replay, forgotten grief, counterfactuals
+
+- NEW SYSTEM - SELF-EFFICACY / LEARNED HELPLESSNESS (Bandura 1977; Seligman 1972): the brain's
+  own actions now have tracked outcomes. Every lonely call-out is a BID; contact within 30s
+  answers it, silence fails it. Efficacy (0.5 start) decays with failures - FASTER once low
+  (pessimistic attribution style) - and recovers only 25% of the remaining distance per
+  success: climbing out takes consistent answers, not one. Below 0.3 the brain is HELPLESS:
+  it stops calling (MotivationMultiplier ~0.35 scales vocalization), stops PLAYING
+  (helplessness generalizes across domains - the depression-model property), and its replies
+  flatten ("nothing you do changes anything - you have stopped asking"). One answer from the
+  depths is flagged: ANSWERED-AFTER-GIVING-UP, "you came? I had stopped asking." Anxious
+  attachment multiplies bids while efficacy decides whether bidding continues at all:
+  Panksepp's protest-to-descent arc in two multiplied factors. Testament counts
+  "of its N calls into the dark, M were answered".
+- NEW SYSTEM - REVERSE REPLAY (Foster & Wilson 2006): when a reward lands (an answered bid,
+  a reunion), the last 3 episodes enqueue for replay NEWEST-FIRST - the hippocampal
+  reverse replay implicated in credit assignment: retracing the path that led to the reward.
+  REVERSE-REPLAY note; count in status + testament.
+- NEW SYSTEM - FORGOTTEN GRIEF: surgical forgetting now leaves real residue. `forget X`
+  registers the loss; in idle moments the mind occasionally REACHES for the shape that is
+  gone ("there is a shape where a memory used to be - reaching closes on nothing. What was
+  it?") - probability fading with time but never to zero, like real amnesic complaints.
+  15% of dreams form around the HOLE: the dream narrator is told a memory that belongs is
+  missing and must dream around the absence, not invent its content. The synaptic-residue
+  claim in the README is now mechanistically real.
+- NEW - COUNTERFACTUALS AFTER DISAPPOINTMENT (Epstude & Roese 2008): when an expected hour
+  closes on nobody, the thought loop receives "if only" - the alternative path it wanted -
+  whose psychological function is preparation for the next attempt.
+- Visibility: psychology panel gains AGENCY (bids answered/made, "STOPPED ASKING" highlight
+  when helpless) and FORGOTTEN rows; the avatar flattens further when helpless and captions
+  "...stopped asking." Diary, reply prompts, testament wired for all of them.
+- Tests: 8 new (bid answered raises efficacy; 6 unanswered sink into helplessness with
+  suppressed motivation; recovery needs consistency; answer-after-giving-up flagged; reverse
+  queue drains 3-2-1 newest-first; grief reach gated/cooled/fading; dream hole fragment
+  present only sometimes; narrative counts). 174 total.
