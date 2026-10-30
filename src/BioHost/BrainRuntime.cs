@@ -1217,6 +1217,10 @@ public sealed class BrainRuntime : IDisposable
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
                 RecordTranscript(Trunc(tr.Transcript, 90), emotionalTone);
+                // HEARING YOU = you are present. Voice extends presence even
+                // if the camera never sees you (no camera, or you're off-frame)
+                _personPresentUntil = _net.TimeMs + 120_000;
+                _personWasPresent = true;
                 _ = LearnNameFrom(tr.Transcript); // spoken names count too
                 _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
 
@@ -1332,12 +1336,14 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private void SpeakWithVoice(string text, int emoPitch, int emoRate)
     {
-        // POLITE TO ITSELF: a new line never cuts off the previous one. If
-        // something was just said, the new line waits its turn - unless the
-        // user just spoke (a reply to them has priority over inner musings).
-        bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 10_000;
-        if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 3_000)
-            return; // drop the overlap rather than talk over itself
+        // POLITE TO ITSELF: a new line never cuts off the previous one.
+        // The browser TTS already queues utterances in order, so the server
+        // should only drop lines that would pile up unboundedly. A generous
+        // window (it takes ~4-6s to speak a sentence) prevents both overlap
+        // AND the mid-sentence dropping that read as self-interruption.
+        bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 15_000;
+        if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 6_000)
+            return; // too soon after its last line (still speaking it)
         _lastSpokeSimMs = _net.TimeMs;
         if (_speech is WindowsSpeech ws)
         {
@@ -1757,7 +1763,7 @@ public sealed class BrainRuntime : IDisposable
                 : $"Brain: you took {(int)v.ActualSec}s; I guessed {(int)v.PredictedSec}. Still learning you. ({Prophecy.Accuracy})");
             if (v.Hit) _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);
         }
-        _personPresentUntil = _net.TimeMs + 30_000;
+        _personPresentUntil = _net.TimeMs + 120_000; // 2 minutes: you're "still here" while talking, not gone in 30s
         _personWasPresent = true;
         _personPresentId = visitorId;
 
@@ -2256,6 +2262,8 @@ public sealed class BrainRuntime : IDisposable
         Note($"HEARD \"{text}\" (typed)");
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
         _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
+        _personPresentUntil = _net.TimeMs + 120_000; // typing = present
+        _personWasPresent = true;
         if (_firstUserMessage.Length == 0) _firstUserMessage = Trunc(text, 80);
         var lowMirror = text.ToLowerInvariant();
         if (lowMirror.Contains("what do you see in me") || lowMirror.Contains("mirror me") || lowMirror == "mirror")

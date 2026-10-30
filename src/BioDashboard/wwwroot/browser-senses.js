@@ -28,7 +28,7 @@ async function enableBrowserSenses() {
   let haveCam = false, haveMic = false;
   try {
     senseStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 320, height: 320, facingMode: "user" },
+      video: { width: 320, height: 320, facingMode: "environment" },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
     haveCam = haveMic = true;
@@ -42,7 +42,7 @@ async function enableBrowserSenses() {
     } catch (micFailed) {
       try {
         camStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 320, height: 320, facingMode: "user" }
+          video: { width: 320, height: 320, facingMode: "environment" }
         });
         haveCam = true;
         console.log("[senses] no microphone available - running on camera only");
@@ -216,8 +216,15 @@ function sendVideoFrame() {
   if (eyes) {
     const ectx = eyes.getContext("2d");
     const out = ectx.createImageData(64, 64);
+    // auto-brightness: measure average, stretch so even a dim front
+    // camera in a lit room shows properly (fixed gain isn't enough)
+    let sum = 0;
+    for (let j = 0; j < gray.length; j++) sum += gray[j];
+    const avg = sum / gray.length;
+    const gain = avg < 30 ? 2.8 : avg < 60 ? 2.2 : avg < 100 ? 1.6 : 1.0;
+    const lift = avg < 30 ? 25 : avg < 60 ? 15 : 8;
     for (let j = 0; j < gray.length; j++) {
-      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] = Math.min(255, gray[j] * 1.6 + 18); // brightened preview
+      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] = Math.min(255, gray[j] * gain + lift);
       out.data[j * 4 + 3] = 255;
     }
     ectx.putImageData(out, 0, 0);
