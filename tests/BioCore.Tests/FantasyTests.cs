@@ -267,3 +267,50 @@ public class StructuredThoughtTests
         Assert.Null(StructuredThought.EvalSimple("the meaning of life")); // not arithmetic
     }
 }
+
+// ---- neurogenesis: the brain grows for what matters ----
+public class NeurogenesisTests
+{
+    [Fact]
+    public void Neurogenesis_BirthsDuringHighDopamine()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 42));
+        var idle = new IdleController(net);
+        for (int i = 0; i < 100; i++) { idle.Tick(net); net.Tick(); }
+        var ng = new Neurogenesis { DopamineThreshold = 0.5f, BirthCooldownMs = 100f };
+
+        // low dopamine: no growth
+        string? result = ng.Tick(net, idle, "quiet moment");
+        Assert.Null(result);
+
+        // high dopamine: neurons are born
+        net.Modulators.Release(NeuromodulatorKind.Dopamine, 1.5f);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > 0.5f, "setup");
+        for (int i = 0; i < 200; i++) net.Tick(); // advance past cooldown
+
+        result = ng.Tick(net, idle, "meeting someone important");
+        Assert.NotNull(result);
+        Assert.Contains("new neurons", result);
+        Assert.True(ng.TotalNeuronsBorn > 0);
+        Assert.True(ng.BirthEvents == 1);
+    }
+
+    [Fact]
+    public void Neurogenesis_RespectsCooldownAndMax()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 7));
+        var idle = new IdleController(net);
+        var ng = new Neurogenesis { DopamineThreshold = 0.3f, BirthCooldownMs = 50f, MaxTotalBirths = 8 };
+
+        for (int round = 0; round < 20; round++)
+        {
+            net.Modulators.Release(NeuromodulatorKind.Dopamine, 2f);
+            net.Modulators.Step();
+            for (int i = 0; i < 100; i++) { idle.Tick(net); net.Tick(); }
+            ng.Tick(net, idle, $"round {round}");
+        }
+        Assert.True(ng.TotalNeuronsBorn <= 8, $"should respect max, got {ng.TotalNeuronsBorn}");
+        Assert.True(ng.BirthLog.Count > 0, "should have birth log");
+    }
+}

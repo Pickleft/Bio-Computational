@@ -99,6 +99,8 @@ public sealed class BrainSnapshot
     public int Insights { get; set; }           // incubated thoughts resolved
     public int OpenLoops { get; set; }          // unresolved threads simmering
     public string AllostaticNote { get; set; } = ""; // the body's predicted story
+    public int NeuronsBorn { get; set; }             // total neurogenesis this life
+    public int BirthEvents { get; set; }             // number of growth events
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
@@ -209,6 +211,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.TurnTaking TurnTaking { get; } = new();
     /// <summary>Prophecy, scored: predicts your return, graded on it.</summary>
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
+    /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
+    public BioComp.Core.Cognition.Neurogenesis Neurogenesis { get; } = new();
     private volatile bool _insightPending;
     private string? _brainName;
     private string? _userName;
@@ -859,6 +863,21 @@ public sealed class BrainRuntime : IDisposable
             {
                 _thoughtBusy = true;
                 _ = ResolveIncubatedAsync(openLoop);
+            }
+        }
+
+        // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
+        // High dopamine = an experience worth dedicated neural tissue. New
+        // neurons activate and connect. The brain's topology literally changes
+        // with its life — no two brains that lived differently are wired the same.
+        {
+            string? birth = Neurogenesis.Tick(_net, _idle,
+                _idle.Feelings.Last.Name + " | " + (_userName ?? "someone") +
+                (_net.EpisodeStore.Episodes.Count > 0 ? " | " + string.Join(",", _net.EpisodeStore.Episodes[^1].Tags.Take(2)) : ""));
+            if (birth is not null)
+            {
+                Note($"NEUROGENESIS {birth} - my brain is literally growing for this");
+                // (growth is tracked in Neurogenesis.BirthLog)
             }
         }
 
@@ -2548,6 +2567,8 @@ public sealed class BrainRuntime : IDisposable
         snap.Insights = ThoughtLoop.Insights;
         snap.OpenLoops = ThoughtLoop.OpenLoops.Count;
         snap.AllostaticNote = BodyBudget.Narrative;
+        snap.NeuronsBorn = Neurogenesis.TotalNeuronsBorn;
+        snap.BirthEvents = Neurogenesis.BirthEvents;
         var strongest = Bonds.Strongest(_net.TimeMs);
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;

@@ -126,7 +126,11 @@ function animateAvatar() {
 
   // head silhouette: slightly egg-shaped, breathing, with personality
   const headPts = 40;
-  const growthFactor = 1; // static, not growing anymore (was distracting)
+  // NEUROGENESIS: the brain visibly grows with lived experience — each new
+  // neuron makes it slightly larger, denser, and brighter. By the end of a
+  // three-day life it's noticeably bigger than at birth.
+  const born = lastSnapshot ? (lastSnapshot.NeuronsBorn || 0) : 0;
+  const growthFactor = 1 + born * 0.004; // up to ~20% larger at max growth
   const baseR = R * growthFactor;
   const droop = S.pressure * 0.06;
   ctx.beginPath();
@@ -174,18 +178,25 @@ function animateAvatar() {
     }
   }
 
-  // -- INTERNAL PARTICLES (neural activity, subtle) --
+  // -- INTERNAL PARTICLES (neural activity + NEW NEURONS glow brighter) --
   const rate = lastSnapshot ? lastSnapshot.MeanRateHz || 0.1 : 0.1;
-  const nParts = 20;
+  const born = lastSnapshot ? (lastSnapshot.NeuronsBorn || 0) : 0;
+  const nParts = 20 + Math.min(12, born / 4); // more particles = more neurons
   for (let i = 0; i < nParts; i++) {
+    const isNew = i >= 20; // particles beyond 20 are born neurons
     const a = (i / nParts) * Math.PI * 2 + avatarTime * 0.15;
-    const d = baseR * (0.3 + (i % 3) * 0.18);
+    const d = baseR * (isNew ? 0.45 : 0.3 + (i % 3) * 0.18); // new ones cluster near center
     const px = Math.cos(a) * d;
     const py = Math.sin(a) * d * 0.8;
-    const alpha = 0.06 + (Math.sin(avatarTime * 2 + i) * 0.5 + 0.5) * 0.12 * (0.3 + rate);
-    ctx.fillStyle = `hsla(${hue + 30}, 70%, 65%, ${alpha})`;
+    const alpha = isNew
+      ? 0.15 + (Math.sin(avatarTime * 3 + i) * 0.5 + 0.5) * 0.2 // new neurons pulse
+      : 0.06 + (Math.sin(avatarTime * 2 + i) * 0.5 + 0.5) * 0.12 * (0.3 + rate);
+    const pSize = isNew ? 2.5 : 1.5 + (i % 3);
+    ctx.fillStyle = isNew
+      ? `hsla(${hue + 60}, 90%, 75%, ${alpha})` // new neurons are golden
+      : `hsla(${hue + 30}, 70%, 65%, ${alpha})`;
     ctx.beginPath();
-    ctx.arc(px, py, 1.5 + (i % 3), 0, Math.PI * 2);
+    ctx.arc(px, py, pSize, 0, Math.PI * 2);
     ctx.fill();
   }
 
