@@ -250,11 +250,9 @@ function startTranscription() {
       "audio-capture": "\u26A0 NO MIC FOUND - check microphone connection",
       "service-not-allowed": "\u26A0 VOICE SERVICE BLOCKED - try Chrome on PC",
     };
-      setStatus(hints[err] || "(voice error: " + err + ")", "#f07080");
-      if (dot) { dot.style.color = "#f07080"; dot.classList.remove("on"); }
-      // clear the persisting flag after 5s so new errors can show
-      setTimeout(() => { if (fin) fin.dataset.persisting = "0"; }, 5000);
-    }
+    setStatus(hints[err] || "(voice error: " + err + ")", "#f07080");
+    if (dot) { dot.style.color = "#f07080"; dot.classList.remove("on"); }
+    setTimeout(() => { if (fin) fin.dataset.persisting = "0"; }, 5000);
   };
   rec.onend = () => {
     console.log("[senses] SpeechRecognition ended, restarting...");

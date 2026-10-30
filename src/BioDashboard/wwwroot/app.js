@@ -83,59 +83,20 @@ function pickVoice() {
   return voices.find((v) => /^en/i.test(v.lang)) || voices[0];
 }
 
-let currentAudio = null;
-
-async function speakBrain(s) {
+function speakBrain(s) {
+  if (!("speechSynthesis" in window)) return;
   if (!(s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText)) return;
   spokenSeq = s.SpeakSeq;
   const text = s.SpeakText.trim();
   if (!text) return;
-  window.brainBrowserSpeaking = true;
 
-  // PRIMARY: StreamElements TTS — free neural voices (Amazon Polly)
-  try {
-    if (currentAudio) { try { currentAudio.pause(); } catch {} }
-    const encoded = text.slice(0, 300).split(" ").join("+");
-    const audioUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encoded}`;
-    currentAudio = new Audio(audioUrl);
-    currentAudio.volume = 1.0;
-    currentAudio.onended = () => { window.brainBrowserSpeaking = false; };
-    currentAudio.onerror = () => {
-      console.log("[voice] StreamElements failed, retrying once...");
-      // RETRY once after a short delay (transient network errors are common)
-      setTimeout(() => {
-        const retry = new Audio(audioUrl);
-        retry.volume = 1.0;
-        retry.onended = () => { window.brainBrowserSpeaking = false; };
-        retry.onerror = () => {
-          console.log("[voice] retry also failed, using speechSynthesis");
-          fallbackToSpeechSynthesis(text, s);
-        };
-        retry.play().catch(() => fallbackToSpeechSynthesis(text, s));
-      }, 1000);
-    };
-    await currentAudio.play();
-    console.log("[voice] neural TTS playing:", text.slice(0, 50));
-    return;
-  } catch (e) {
-    console.log("[voice] play failed:", e);
-    fallbackToSpeechSynthesis(text, s);
-  }
-}
-
-function fallbackToSpeechSynthesis(text, s) {
-  window.brainBrowserSpeaking = false;
-  if ("speechSynthesis" in window) {
-    const u = new SpeechSynthesisUtterance(text);
-    if (pickedVoice) u.voice = pickedVoice;
-    u.rate = s ? (s.SpeakRate || 0.92) : 0.92;
-    u.pitch = s ? (s.SpeakPitch || 1.0) : 1.0;
-    u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
-    window.brainBrowserSpeaking = true;
-    speechSynthesis.speak(u);
-  } else {
-    window.brainBrowserSpeaking = false;
-  }
+  const u = new SpeechSynthesisUtterance(text);
+  if (pickedVoice) u.voice = pickedVoice;
+  u.rate = s.SpeakRate || 0.92;
+  u.pitch = s.SpeakPitch || 1.0;
+  u.onstart = () => { window.brainBrowserSpeaking = true; };
+  u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
+  speechSynthesis.speak(u);
 }
 
 if ("speechSynthesis" in window) {

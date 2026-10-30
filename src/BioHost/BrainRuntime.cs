@@ -378,7 +378,7 @@ public sealed class BrainRuntime : IDisposable
         }
         _monologue = new MonologueGenerator(_lm)
         {
-            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 45 : 180),
+            MinInterval = TimeSpan.FromSeconds(cfg.DemoMode ? 90 : 180),
         };
         _dreamer = new DreamGenerator(_imager)
         {
@@ -454,7 +454,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"ATTACHMENT formed: {Attachment.Label} (warmth {Attachment.Warmth:F1}, responsiveness {Attachment.Responsiveness:F1}, {Attachment.Separations} separations)");
             if (line.Length > 0) { AddChat($"Brain: {line}"); SpeakWithVoice(line, 0, 0); }
         };
-        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 12000f; // demo pacing: thoughts breathe between links
+        if (cfg.DemoMode) ThoughtLoop.MinIntervalMs = 20000f; // demo pacing: thoughts breathe between links
 
         _thread = new Thread(RunLoop) { IsBackground = true, Name = "brain" };
     }
@@ -1002,7 +1002,7 @@ public sealed class BrainRuntime : IDisposable
         // ---- ambient inner monologue + autonomous daydreaming ----
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 25_000 : 30_000);
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 60_000 : 60_000);
             string? line = AmbientThought();
             if (line is not null) Note($"AMBIENT {line}");
         }
@@ -2059,7 +2059,10 @@ public sealed class BrainRuntime : IDisposable
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline, 0.5f);
             Note($"NEW PERSON {visitorId} — first meeting");
             Personality.OnSocialInteraction(_net, positive: true); // new social contact is still social
-            if (_net.TimeMs - _lastGreetMs > 20_000)
+            // Don't greet if user just sent a chat message — the DIRECT
+            // reply IS the response. Greetings are for physical arrivals only.
+            if (_net.TimeMs - _lastUserUtteranceSimMs > 10_000 &&
+                _net.TimeMs - _lastGreetMs > 60_000)
             {
                 _lastGreetMs = _net.TimeMs;
                 AddChat("Brain: Oh... someone new.");
@@ -2164,7 +2167,14 @@ public sealed class BrainRuntime : IDisposable
                 var mem = net_episodeRecall([tag]);
                 if (mem is not null) _net.EpisodeStore.Touch(mem); // thinking of it strengthens it
             }
-            ThoughtLoop.PostResult(st.Conclusion);
+            // Sanitize: strip any leaked format markers from the conclusion
+            var cleanConclusion = st.Conclusion;
+            foreach (var marker in new[] { "CONCLUSION:", "FEELING:", "MATH:", "MEMORY:" })
+            {
+                var idx = cleanConclusion.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0) cleanConclusion = cleanConclusion[..idx] + cleanConclusion[(idx + marker.Length)..].TrimStart();
+            }
+            ThoughtLoop.PostResult(cleanConclusion);
         }
         catch (Exception ex) { Note($"thought link failed: {ex.Message}"); }
         finally { _thoughtBusy = false; }
@@ -2508,11 +2518,19 @@ public sealed class BrainRuntime : IDisposable
             return;
         }
         if (LearnNameFrom(text) is not null) return; // learning the name IS the response
-        ProcessVisitor(IdentifyVisitor("speaker")); // being spoken to is contact
+
+        // Track the contact for bonds/attachment but SKIP the greeting —
+        // the DIRECT reply below IS the response. No double-speaking.
+        _lastVisitorId = IdentifyVisitor("speaker");
+        Bonds.OnContact(_activeSpeakerId,
+            Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f,
+            _net.TimeMs);
+        _warmthHistory.Add(Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f);
+        if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
+        Loneliness.OnSocialContact(_net, quality: 0.6f);
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
 
-        // EVERY typed message gets a real, spoken reply - a brain spoken to
-        // answers (DIRECT: bypasses the reaction rate limit)
+        // ONE response only: the DIRECT reply
         _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
             "typed in the chat - they are talking to you directly; answer them");
 

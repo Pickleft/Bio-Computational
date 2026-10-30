@@ -72,14 +72,19 @@ app.MapGet("/api/speak", async (string text, string? voice) =>
     {
         using var http = new System.Net.Http.HttpClient();
         http.Timeout = TimeSpan.FromSeconds(30);
-        // StreamElements needs + for spaces (NOT %20 which returns 401).
-        // Just replace spaces with + and encode special chars minimally.
+        // Some APIs reject requests without a User-Agent
+        http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
         var speakText = text.Length > 200 ? text[..200] : text;
-        var encoded = speakText.Replace(" ", "+").Replace("&", "%26").Replace("?", "%3F").Replace("#", "%23");
-        var url = $"https://api.streamelements.com/kappa/v2/speech?voice={v}&text={encoded}";
-        var audio = await http.GetByteArrayAsync(url);
+        // Use UriBuilder to control exact encoding (avoid .NET auto-encoding +)
+        var builder = new UriBuilder("https://api.streamelements.com/kappa/v2/speech");
+        builder.Query = $"voice={v}&text={Uri.EscapeDataString(speakText)}";
+        var audio = await http.GetByteArrayAsync(builder.Uri);
         if (audio.Length > 100)
+        {
+            Console.WriteLine($"[voice] TTS OK: {audio.Length} bytes");
             return Results.File(audio, "audio/mpeg");
+        }
+        Console.WriteLine($"[voice] TTS too small: {audio.Length}");
         return Results.StatusCode(502);
     }
     catch (Exception ex)
