@@ -83,20 +83,56 @@ function pickVoice() {
   return voices.find((v) => /^en/i.test(v.lang)) || voices[0];
 }
 
-function speakBrain(s) {
-  if (!("speechSynthesis" in window)) return;
-  if (s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
-    spokenSeq = s.SpeakSeq;
-    const text = s.SpeakText.trim();
-    if (!text) return;
+let currentAudio = null;
+
+async function speakBrain(s) {
+  if (!(s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText)) return;
+  spokenSeq = s.SpeakSeq;
+  const text = s.SpeakText.trim();
+  if (!text) return;
+  window.brainBrowserSpeaking = true;
+
+  // PRIMARY: StreamElements TTS — free neural voices (Amazon Polly), no key
+  // needed. Browser fetches directly (no server proxy = no encoding issues).
+  // Spaces must be + not %20 for this API.
+  try {
+    if (currentAudio) { try { currentAudio.pause(); } catch {} }
+    const encoded = text.slice(0, 300).split(" ").join("+");
+    const audioUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encoded}`;
+    currentAudio = new Audio(audioUrl);
+    currentAudio.volume = 1.0;
+    currentAudio.onended = () => { window.brainBrowserSpeaking = false; };
+    currentAudio.onerror = () => {
+      console.log("[voice] StreamElements failed, trying speechSynthesis");
+      window.brainBrowserSpeaking = false;
+      // FALLBACK: browser speechSynthesis
+      if ("speechSynthesis" in window) {
+        const u = new SpeechSynthesisUtterance(text);
+        if (pickedVoice) u.voice = pickedVoice;
+        u.rate = s.SpeakRate || 0.92;
+        u.onend = () => { window.brainBrowserSpeaking = false; };
+        window.brainBrowserSpeaking = true;
+        speechSynthesis.speak(u);
+      }
+    };
+    await currentAudio.play();
+    console.log("[voice] neural TTS playing:", text.slice(0, 50));
+    return;
+  } catch (e) {
+    console.log("[voice] play failed:", e);
+    window.brainBrowserSpeaking = false;
+  }
+
+  // FALLBACK: browser speechSynthesis
+  if ("speechSynthesis" in window) {
     const u = new SpeechSynthesisUtterance(text);
     if (pickedVoice) u.voice = pickedVoice;
     u.rate = s.SpeakRate || 0.92;
     u.pitch = s.SpeakPitch || 1.0;
-    u.volume = 1.0;
-    u.onstart = () => { window.brainBrowserSpeaking = true; };
     u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
     speechSynthesis.speak(u);
+  } else {
+    window.brainBrowserSpeaking = false;
   }
 }
 

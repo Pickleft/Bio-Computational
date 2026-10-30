@@ -62,6 +62,33 @@ app.MapPost("/api/test-voice", () =>
     return Results.Ok(new { ok = true });
 });
 
+// ---- NEURAL VOICE: server-side TTS that actually pronounces words ----
+app.MapGet("/api/speak", async (string text, string? voice) =>
+{
+    if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
+        return Results.BadRequest(new { error = "text required" });
+    var v = voice ?? "Brian";
+    try
+    {
+        using var http = new System.Net.Http.HttpClient();
+        http.Timeout = TimeSpan.FromSeconds(30);
+        // StreamElements needs + for spaces (NOT %20 which returns 401).
+        // Just replace spaces with + and encode special chars minimally.
+        var speakText = text.Length > 200 ? text[..200] : text;
+        var encoded = speakText.Replace(" ", "+").Replace("&", "%26").Replace("?", "%3F").Replace("#", "%23");
+        var url = $"https://api.streamelements.com/kappa/v2/speech?voice={v}&text={encoded}";
+        var audio = await http.GetByteArrayAsync(url);
+        if (audio.Length > 100)
+            return Results.File(audio, "audio/mpeg");
+        return Results.StatusCode(502);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[voice] TTS failed: {ex.Message}");
+        return Results.StatusCode(502);
+    }
+});
+
 // ---- REAL-TIME SPEECH TRANSCRIPTION (WebSocket to Meta Muse Voice) ----
 app.Map("/ws/transcribe", async (HttpContext ctx) =>
 {
