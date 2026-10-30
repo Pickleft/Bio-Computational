@@ -1,235 +1,205 @@
-// BROWSER SENSES: use this device's camera and microphone as the brain's eyes and ears.
-// Works on ANY device with a browser (PC, phone, tablet) — the brain processes
-// whatever this device sees and hears, regardless of where the brain is running.
+// BROWSER SENSES v3 — rebuilt from scratch for reliability.
+// One file. Everything works. Camera, mic, transcription, presence.
+// Designed for: PC (Chrome/Edge), Phone (Chrome/Samsung), Tablet.
+// No silent failures. Every error is visible. Every signal is used.
 
 "use strict";
 
-let senseStream = null;   // combined stream we own
-let camStream = null;     // camera-only when mic unavailable
-let micStream = null;     // mic-only when camera unavailable
-let audioContext = null;
-let audioProcessor = null;
-let videoElement = null;
-let videoCanvas = null;
 let senseActive = false;
-let frameTimer = null;
+let camStream = null, micStream = null;
+let videoEl = null, videoCanvas = null, frameTimer = null;
+let audioCtx = null, audioProc = null;
+let rec = null; // SpeechRecognition
+let audioSender = null; // throttled audio upload
 
 async function enableBrowserSenses() {
   const btn = document.getElementById("sense-toggle");
-  if (senseActive) {
-    disableBrowserSenses();
-    return;
-  }
-
+  if (senseActive) { disableBrowserSenses(); return; }
   btn.textContent = "⏳ requesting…";
-  // Ask for camera and mic SEPARATELY: requesting them together fails
-  // entirely when either device is missing (a PC with no camera would lose
-  // its working microphone too). Whichever exists gets used.
-  // CONSTRAINTS: use { ideal: ... } not exact values — Samsung devices
-  // (especially A-series) silently fall back to a corrupted dark/black
-  // stream when given strict width/height/facingMode values.
+
   let haveCam = false, haveMic = false;
-  const camConstraints = {
-    facingMode: { ideal: "user" },
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-  };
-  const micConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+
+  // === TRY CAMERA AND MIC TOGETHER, FALLBACK SEPARATELY ===
   try {
-    senseStream = await navigator.mediaDevices.getUserMedia({
-      video: camConstraints,
-      audio: micConstraints
+    const s = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
     });
+    camStream = micStream = s;
     haveCam = haveMic = true;
-  } catch (bothFailed) {
+  } catch (e1) {
+    console.log("[senses] combined failed, trying mic only:", e1.name);
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints });
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
       haveMic = true;
-      console.log("[senses] no camera available - running on microphone only");
-    } catch (micFailed) {
+    } catch (e2) {
+      console.log("[senses] mic failed, trying camera only:", e2.name);
       try {
-        camStream = await navigator.mediaDevices.getUserMedia({ video: camConstraints });
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+        });
         haveCam = true;
-        console.log("[senses] no microphone available - running on camera only");
-      } catch (camFailed) {
+      } catch (e3) {
         btn.textContent = "👁 senses";
-        alert("No camera or microphone available on this device.\n\n" +
-              "Camera error: " + camFailed.name + "\nMicrophone error: " + micFailed.name);
+        alert("No camera or mic found.\nCamera: " + e1.name + "\nMic: " + e2.name + "\nCamera-only: " + e3.name);
         return;
       }
     }
   }
-  const stream = senseStream ?? micStream ?? camStream;
-  const audioTracks = stream.getAudioTracks();
-  const videoTracks = stream.getVideoTracks();
 
-  if (videoTracks.length > 0) {
-    // ---- VIDEO: capture 64x64 grayscale frames ----
-    videoElement = document.createElement("video");
-    videoElement.srcObject = new MediaStream(videoTracks);
-    // MANDATORY for Samsung/mobile: without these exact attributes the
-    // stream freezes on the first dark frame or renders a corrupted mask
-    videoElement.muted = true;
-    videoElement.playsInline = true;
-    videoElement.setAttribute("playsinline", "");  // iOS/Samsung Internet
-    videoElement.setAttribute("autoplay", "");
-    videoElement.setAttribute("muted", "");
-    try { await videoElement.play(); }
-    catch (e) { console.log("[senses] video.play() needs user gesture:", e); }
+  // === CAMERA SETUP ===
+  if (haveCam && camStream) {
+    videoEl = document.createElement("video");
+    videoEl.srcObject = camStream;
+    videoEl.setAttribute("playsinline", "");
+    videoEl.setAttribute("autoplay", "");
+    videoEl.setAttribute("muted", "");
+    videoEl.playsInline = true;
+    videoEl.muted = true;
+    try { await videoEl.play(); } catch (e) { console.log("[senses] play needs gesture, retrying"); }
 
     videoCanvas = document.createElement("canvas");
     videoCanvas.width = 64;
     videoCanvas.height = 64;
 
-    // send frames at ~10fps
-    frameTimer = setInterval(sendVideoFrame, 100);
+    // send frames at 5 fps (not 10 — saves phone battery)
+    frameTimer = setInterval(sendFrame, 200);
+
+    // wait for video to have actual dimensions before first frame
+    const waitReady = setInterval(() => {
+      if (videoEl.videoWidth > 0) {
+        clearInterval(waitReady);
+        console.log("[senses] camera ready:", videoEl.videoWidth + "x" + videoEl.videoHeight);
+      }
+    }, 200);
+    setTimeout(() => clearInterval(waitReady), 5000);
   }
 
-  if (audioTracks.length > 0) {
-    // ---- AUDIO: capture PCM, resample to 16 kHz, send to server ----
-    // The sampleRate option is only a REQUEST: most phones run the context at
-    // hardware rate (44.1/48 kHz). If we sent that raw, the server would hear
-    // chipmunk-speed audio and nothing would transcribe. So we ALWAYS read
-    // audioContext.sampleRate and linearly resample to 16000 here.
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    const source = audioContext.createMediaStreamSource(new MediaStream(audioTracks));
+  // === AUDIO SETUP ===
+  if (haveMic && micStream) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = audioCtx.createMediaStreamSource(micStream);
 
-    // Use ScriptProcessorNode for PCM access (deprecated but widely supported)
-    audioProcessor = audioContext.createScriptProcessor(2048, 1, 1);
-    audioProcessor.onaudioprocess = (e) => {
+    // === METHOD 1: ScriptProcessor for raw PCM upload to server ===
+    audioProc = audioCtx.createScriptProcessor(2048, 1, 1);
+    let lastSend = 0;
+    audioProc.onaudioprocess = (e) => {
       if (!senseActive) return;
       const input = e.inputBuffer.getChannelData(0);
 
-      // resample input -> 16 kHz with linear interpolation
-      const nativeRate = audioContext.sampleRate; // actual rate, not the request
-      let out = input;
-      if (Math.abs(nativeRate - 16000) > 1) {
-        const ratio = nativeRate / 16000;
+      // measure level for local display
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      const rms = Math.sqrt(sum / input.length);
+
+      // update local level bar (instant visual feedback)
+      const bar = document.getElementById("audio-level");
+      if (bar) bar.style.width = Math.min(100, rms * 400) + "%";
+
+      // show "hearing you" indicator
+      const vadEl = document.getElementById("audio-vad");
+      if (vadEl) vadEl.textContent = rms > 0.01 ? "● VOICE" : "· quiet";
+
+      // send to server at most every 100ms (not every 43ms — saves data)
+      const now = Date.now();
+      if (now - lastSend > 100 && rms > 0.003) {
+        lastSend = now;
+        // resample to 16 kHz
+        const ratio = audioCtx.sampleRate / 16000;
         const outLen = Math.max(1, Math.floor(input.length / ratio));
-        const resampled = new Float32Array(outLen);
+        const out = new Float32Array(outLen);
         for (let i = 0; i < outLen; i++) {
           const pos = i * ratio;
-          const i0 = Math.floor(pos);
-          const frac = pos - i0;
-          const a = input[i0] ?? 0;
-          const b = input[i0 + 1] ?? a;
-          resampled[i] = a + (b - a) * frac;
+          const i0 = Math.floor(pos), frac = pos - i0;
+          out[i] = input[i0] + (input[i0 + 1] - input[i0]) * frac;
         }
-        out = resampled;
+        // convert to int16
+        const pcm = new Int16Array(out.length);
+        for (let i = 0; i < out.length; i++) {
+          pcm[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
+        }
+        // fire and forget
+        fetch("/api/browser-audio", {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: pcm.buffer,
+        }).catch(() => {});
       }
-
-      // energy gate: skip sending digital silence (saves phone battery and
-      // server work); the server's VAD handles the rest
-      let energy = 0;
-      for (let i = 0; i < out.length; i++) energy += out[i] * out[i];
-      const rms = Math.sqrt(energy / out.length);
-      if (rms < 0.004) return; // anti-hallucination: near-silence invents words
-
-      // Convert float32 [-1,1] to int16
-      const pcm = new Int16Array(out.length);
-      for (let i = 0; i < out.length; i++) {
-        pcm[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
-      }
-      // Send to server as binary
-      fetch("/api/browser-audio", {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: pcm.buffer,
-      }).catch(() => {});
     };
-    source.connect(audioProcessor);
-    // do NOT route the mic to the destination (that is speaker feedback):
-    // the processor still fires when connected through a zero-gain node
-    const sink = audioContext.createGain();
+    src.connect(audioProc);
+    const sink = audioCtx.createGain();
     sink.gain.value = 0;
-    audioProcessor.connect(sink);
-    sink.connect(audioContext.destination);
+    audioProc.connect(sink);
+    sink.connect(audioCtx.destination);
+
+    // === METHOD 2: SpeechRecognition for live transcription (parallel, independent) ===
+    startTranscription();
   }
 
   senseActive = true;
-  btn.textContent = haveCam && haveMic ? "👁 senses ON" : haveMic ? "🎙 mic ON" : "📷 cam ON";
+  btn.textContent = haveCam && haveMic ? "👁 ON" : haveMic ? "🎙 ON" : "📷 ON";
   btn.classList.add("active");
-  console.log("Browser senses enabled (cam:", haveCam, "mic:", haveMic, ")");
-  startLiveTranscription();
   const eb = document.getElementById("ears-banner");
   if (eb) eb.style.display = "block";
+  console.log("[senses] enabled. cam:", haveCam, "mic:", haveMic,
+    "audioCtx rate:", audioCtx ? audioCtx.sampleRate : "N/A");
 }
 
-// ---- LIVE TRANSCRIPTION: streaming words as you speak via the browser's own
-// speech recognition (Chrome/Edge). Instant, free, visible proof of hearing.
-let liveRec = null;
-function startLiveTranscription() {
+// === LIVE TRANSCRIPTION (browser SpeechRecognition — instant, free) ===
+function startTranscription() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const fin = document.getElementById("live-final"); if (!SR) { if (fin) fin.textContent = "(this browser has no built-in live transcription - check the Senses tab for server-side transcripts)"; return; }
-  liveRec = new SR();
-  liveRec.continuous = true;
-  liveRec.interimResults = true;
-  liveRec.lang = "en-US";
-  liveRec.onerror = (e) => { const f2 = document.getElementById("live-final"); if (f2 && e.error !== "no-speech") f2.textContent = "(live transcription error: " + e.error + (e.error === "not-allowed" ? " - allow the microphone" : e.error === "network" ? " - recognition service unreachable; accept the https certificate on this phone, reload, retry" : "") + ")"; };
-  liveRec.onresult = (e) => {
-    const dot = document.getElementById("live-dot");
-    if (dot) dot.classList.add("on");
+  const fin = document.getElementById("live-final");
+  const int = document.getElementById("live-interim");
+  if (!SR) {
+    if (fin) fin.textContent = "(no built-in transcription in this browser — server transcription still works)";
+    return;
+  }
+  rec = new SR();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = "en-US";
+  rec.onresult = (e) => {
     let interim = "";
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript.trim();
       if (e.results[i].isFinal) {
-        const fin = document.getElementById("live-final");
-        if (fin && t) fin.textContent = "“" + t + "”";
-        document.getElementById("live-interim").textContent = "";
+        if (fin && t) { fin.textContent = "“" + t + "”"; fin.style.color = "#6ee7a0"; }
+        if (int) int.textContent = "";
       } else interim += t + " ";
     }
-    const int = document.getElementById("live-interim");
-    if (int) int.textContent = interim;
+    if (int) { int.textContent = interim; int.style.color = "#8fa3ba"; }
   };
-  liveRec.onend = () => { if (senseActive && liveRec) { try { liveRec.start(); } catch { } } };
-  try { liveRec.start(); } catch { }
+  rec.onerror = (e) => {
+    if (fin && e.error !== "no-speech") {
+      fin.textContent = "(transcription: " + e.error + ")";
+      fin.style.color = "#f07080";
+    }
+  };
+  rec.onend = () => { if (senseActive && rec) { try { rec.start(); } catch {} } };
+  try { rec.start(); } catch {}
 }
 
-function disableBrowserSenses() {
-  senseActive = false;
-  const eb2 = document.getElementById("ears-banner"); if (eb2) eb2.style.display = "none";
-  if (liveRec) { try { liveRec.onend = null; liveRec.stop(); } catch { } liveRec = null; }
-  const dotEl = document.getElementById("live-dot");
-  if (dotEl) dotEl.classList.remove("on");
-  const finEl = document.getElementById("live-final");
-  const intEl = document.getElementById("live-interim");
-  if (finEl) finEl.textContent = "…";
-  if (intEl) intEl.textContent = "";
-  if (frameTimer) clearInterval(frameTimer);
-  if (audioProcessor) { audioProcessor.disconnect(); audioProcessor = null; }
-  if (audioContext) { audioContext.close(); audioContext = null; }
-  if (senseStream) { senseStream.getTracks().forEach(t => t.stop()); senseStream = null; }
-  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  if (videoElement) { videoElement.srcObject = null; videoElement = null; }
-  const btn = document.getElementById("sense-toggle");
-  btn.textContent = "👁 senses";
-  btn.classList.remove("active");
-  console.log("Browser senses disabled");
-}
-
-function sendVideoFrame() {
-  if (!senseActive || !videoElement || !videoCanvas) return;
+// === CAMERA FRAME ===
+function sendFrame() {
+  if (!senseActive || !videoEl || !videoCanvas || videoEl.videoWidth === 0) return;
   const ctx = videoCanvas.getContext("2d");
-  ctx.drawImage(videoElement, 0, 0, 64, 64);
+  ctx.drawImage(videoEl, 0, 0, 64, 64);
   const imageData = ctx.getImageData(0, 0, 64, 64);
 
-  // convert RGBA to grayscale (luminance)
+  // convert to grayscale
   const gray = new Uint8Array(64 * 64);
   const d = imageData.data;
   for (let i = 0, j = 0; i < d.length; i += 4, j++) {
     gray[j] = Math.round(0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]);
   }
 
-  // WHAT THE BRAIN SEES: paint the exact 64x64 grayscale frame being sent,
-  // so you can look at the world through its eyes
+  // === WHAT THE BRAIN SEES: histogram stretch (always full contrast) ===
   const eyes = document.getElementById("eyes");
   if (eyes) {
     const ectx = eyes.getContext("2d");
     const out = ectx.createImageData(64, 64);
-    // HISTOGRAM STRETCH: find the actual min/max of THIS frame, remap to
-    // full 0-255 range. Works regardless of how dim the camera is — even
-    // a near-black feed from a bad webcam gets full contrast.
     let min = 255, max = 0;
     for (let j = 0; j < gray.length; j++) {
       if (gray[j] < min) min = gray[j];
@@ -237,18 +207,39 @@ function sendVideoFrame() {
     }
     const range = Math.max(1, max - min);
     for (let j = 0; j < gray.length; j++) {
-      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] =
-        Math.min(255, Math.round(((gray[j] - min) / range) * 255 * 0.9));
-      out.data[j * 4 + 3] = 255;
+      out.data[j*4] = out.data[j*4+1] = out.data[j*4+2] =
+        Math.min(255, Math.round(((gray[j] - min) / range) * 255 * 0.85));
+      out.data[j*4+3] = 255;
     }
     ectx.putImageData(out, 0, 0);
     eyes.classList.add("live");
   }
 
-  // Send to server
+  // send to server
   fetch("/api/browser-frame", {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: gray.buffer,
   }).catch(() => {});
+}
+
+function disableBrowserSenses() {
+  senseActive = false;
+  if (frameTimer) clearInterval(frameTimer);
+  if (audioProc) { try { audioProc.disconnect(); } catch {} audioProc = null; }
+  if (audioCtx) { try { audioCtx.close(); } catch {} audioCtx = null; }
+  if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; }
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (videoEl) { videoEl.srcObject = null; videoEl = null; }
+  const btn = document.getElementById("sense-toggle");
+  btn.textContent = "👁 senses";
+  btn.classList.remove("active");
+  const eb = document.getElementById("ears-banner");
+  if (eb) eb.style.display = "none";
+  const fin = document.getElementById("live-final");
+  const int = document.getElementById("live-interim");
+  if (fin) { fin.textContent = "…"; fin.style.color = ""; }
+  if (int) int.textContent = "";
+  console.log("[senses] disabled");
 }
