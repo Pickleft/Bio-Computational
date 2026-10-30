@@ -1,4 +1,4 @@
-// THE LIVING FACE — minimal, bulletproof. Every draw call wrapped in try/catch.
+// THE LIVING FACE - minimal, bulletproof. Every draw call wrapped in try/catch.
 // If anything fails, the face still renders on the next frame.
 
 "use strict";
@@ -205,7 +205,7 @@ function drawAvatar() {
       ctx.textAlign = "left";
     }
   } catch (e) {
-    // face must never break the page — log and continue next frame
+    // face must never break the page - log and continue next frame
     console.error("[avatar] draw error:", e);
   }
 

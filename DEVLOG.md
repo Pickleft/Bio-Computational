@@ -326,3 +326,37 @@ and were imported in the first commit - everything after that point was built du
   difference is what love does. Report: exports/twin-study.md.
 - MEMETIC INHERITANCE: biolab child now grafts one story-episode from the parent at birth -
   the child can dream its parent's story without ever living it. Culture, not genes.
+
+## 2026-10-30 - the dashboard, rebuilt: the observatory
+
+- Complete UI redesign of src/BioDashboard/wwwroot. New structure: the creature is the hero
+  (full stage with live caption and retina monitor), conversation and live ears sit beside it,
+  the thought thread keeps its own card, the "who it is becoming" vitals are organized into
+  three labeled groups (the person it knows / how it grows / the body), science, body and mind
+  live in tabbed wings with the citations on display (Tononi, Friston, Stringer, Russell,
+  Borbely), the raw EEG is a full-width band, and all actions live in a floating dock.
+  Mobile gets a compact status rail and a jump rail (face / talk / ears / thread / life /
+  science). A CSS design system: tokens, type scale, card styles, 44px touch targets,
+  safe-area insets, reduced-motion support.
+- MOBILE CRASH ROOT CAUSE: brain-music.js and browser-senses.js both declared a top-level
+  `let audioCtx`. Scripts share one global lexical scope, so whichever senses file loaded
+  second died with a redeclaration early error before executing a single line - the senses
+  button did nothing on every device, phone voice input included. Renamed the music file's
+  handle. (The curly quotes sitting in browser-senses.js were a second, independent syntax
+  error in the same file; cleared too.)
+- Render loop reworked for phones: DOM text is diffed instead of rebuilt at 10 Hz, the heavy
+  canvases redraw at 5 Hz (the face keeps its own rAF), and the reconnect reload only fires
+  while somebody is actually watching - a phone left overnight no longer reloads in a loop
+  in the dark.
+- Fixed along the way: the leave-confirmation crashed on an undefined variable (lastSnapshot
+  vs lastSnap) so it never fired; the sleep-strip CSS rule was swallowed by a missing brace;
+  the live caption repeated the feeling line verbatim; brain-map labels clipped on narrow
+  canvases (they now flip to the left of the node near the right edge); the "this device is
+  the ears" banner now uses the hidden attribute.
+- New: quick-reply chips under the chat box for the signature commands (what do you see in me,
+  how do you feel, my name is, forget, cherish), a reconnecting pill in the status rail,
+  fullscreen in the dock, and the whole page is tinted by the brain's actual dopamine and
+  arousal - the client always computed the hue and glow, now the room is lit by them.
+- Verified live end to end at 1440x900 and 390x844: every script loads (no missing globals),
+  WebSocket streams, typed and quick-chip messages reach the brain and the chat log, tabs
+  switch, no horizontal overflow, brain map labels intact on a 390px canvas. 153/153 green.

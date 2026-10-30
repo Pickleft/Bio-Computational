@@ -1,4 +1,5 @@
-// Bio-Computational dashboard: crisp, DPR-aware, one WebSocket at 10 Hz.
+// Dashboard client: one WebSocket at 10 Hz. DOM text is diffed, heavy canvases
+// redraw at 5 Hz, the face runs on its own rAF loop. Phones stay cool.
 "use strict";
 
 if (new URLSearchParams(location.search).has("demo")) document.body.classList.add("demo");
@@ -14,7 +15,7 @@ const PALETTE = [
 const MONO = "'JetBrains Mono', 'Cascadia Code', Consolas, monospace";
 const UI = "'Inter', -apple-system, sans-serif";
 
-// ---- canvas helper: set resolution to CSS size x DPR for crisp rendering ----
+// canvas helper: set resolution to CSS size x DPR for crisp rendering
 function fitCanvas(c) {
   const rect = c.getBoundingClientRect();
   if (rect.width === 0) return null;
@@ -29,10 +30,32 @@ function fitCanvas(c) {
 // ---- state ----
 let MAP = null;
 let lastSnap = null;
+let tick = 0;
+
+// diffed DOM: skip writes when the value has not changed
+const memo = Object.create(null);
+function setText(id, v) {
+  if (memo[id] === v) return;
+  const el = $(id);
+  if (!el) return;
+  memo[id] = v;
+  el.textContent = v;
+}
 
 const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+ws.onopen = () => { const c = $("conn"); if (c) c.hidden = true; };
 ws.onmessage = (ev) => { lastSnap = JSON.parse(ev.data); render(lastSnap); };
-ws.onclose = () => { $("state").textContent = "offline"; setTimeout(() => location.reload(), 3000); };
+ws.onerror = () => { const c = $("conn"); if (c) c.hidden = false; };
+ws.onclose = () => {
+  const c = $("conn");
+  if (c) c.hidden = false;
+  setText("state", "offline");
+  // recover only while somebody is actually watching; a phone left running
+  // overnight must not reload in a loop in the dark
+  setTimeout(() => {
+    if (document.visibilityState === "visible") location.reload();
+  }, 4000);
+};
 
 // ---- the brain's voice ----
 // Natural browser voices (Edge/Chrome online neural voices, Google voices on
@@ -71,9 +94,8 @@ function speakBrain(s) {
     const u = new SpeechSynthesisUtterance(text);
     if (pickedVoice) u.voice = pickedVoice;
     // Natural defaults: slightly slow, neutral pitch. Server provides the
-    // emotional modulation — the browser just renders it faithfully.
+    // emotional modulation - the browser just renders it faithfully.
     u.rate = s.SpeakRate || 0.92;
-    u.volume = 1.0;
     u.pitch = s.SpeakPitch || 1.0;
     u.volume = 1.0;
     u.onstart = () => { window.brainBrowserSpeaking = true; };
@@ -85,8 +107,8 @@ function speakBrain(s) {
 if ("speechSynthesis" in window) {
   pickedVoice = pickVoice();
   const GOOD = /Natural|Neural|Online|Google|Aria|Jenny|Guy|Ana/i;
-  // VOICE PICKER: lets you choose the brain's voice directly; starred names
-  // are the human-quality ones. Choice persists in localStorage.
+  // VOICE PICKER: choose the brain's voice directly; starred names are the
+  // human-quality ones. Choice persists in localStorage.
   const fillPicker = () => {
     const sel = document.getElementById("voice-pick");
     if (!sel) return;
@@ -96,7 +118,7 @@ if ("speechSynthesis" in window) {
     voices.forEach((v) => {
       const o = document.createElement("option");
       o.value = v.name;
-      o.textContent = (GOOD.test(v.name) ? "★ " : "") + v.name;
+      o.textContent = (GOOD.test(v.name) ? "\u2605 " : "") + v.name;
       sel.appendChild(o);
     });
     const saved = localStorage.getItem("brainVoice");
@@ -107,7 +129,7 @@ if ("speechSynthesis" in window) {
     // honest warning: if ONLY robotic voices exist, say so once
     if (!voices.some((v) => GOOD.test(v.name))) {
       sel.style.borderColor = "#f07080";
-      sel.title = "Only robotic voices found on this machine/browser — open this page in Microsoft Edge for the free neural (Natural) voices, or pick the least-bad one";
+      sel.title = "Only robotic voices found on this machine/browser - open this page in Microsoft Edge for the free neural (Natural) voices, or pick the least-bad one";
     }
   };
   fillPicker();
@@ -135,67 +157,66 @@ if ("speechSynthesis" in window) {
   document.addEventListener("pointerdown", unlock);
 }
 
-fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; });
+fetch("/api/map").then((r) => r.json()).then((m) => { MAP = m; }).catch(() => {});
+
+// ---- send a message to the brain (typed or quick chip) ----
+async function say(text) {
+  try {
+    await fetch("/api/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+  } catch (e) { console.warn(e); }
+}
 
 // ---- render ----
 function render(s) {
-  $("clock").textContent = s.SimSeconds.toFixed(0) + "s";
-  $("state").textContent = s.SleepState;
-  $("feeling").textContent = s.Feeling;
-  $("rate").textContent = s.MeanRateHz.toFixed(2) + " Hz";
-  $("cost").textContent = "$" + s.SpentUsd.toFixed(3);
-  $("senses").textContent =
-    (s.CameraLive ? "cam" : "—") + " " + (s.MicLive ? "mic" : "—") + " " + (s.MetaLive ? "api" : "mock");
-  $("rec").classList.toggle("on", !!s.CameraLive);
-  $("feeling-narrative").textContent = s.FeelingNarrative;
-  $("energy").textContent = fmt(s.Energy);
-  $("clockrate").textContent = s.ClockRate.toFixed(2) + "×";
-  $("subj").textContent = s.SubjectiveMinutes.toFixed(1) + "m";
-  $("pressure").textContent = s.SleepPressure.toFixed(2);
-  $("ignitions").textContent = s.Ignitions;
-  $("surprises").textContent = s.Surprises;
-  $("replays").textContent = s.Replays;
-  $("episode-count").textContent = s.Episodes;
-  $("lfp-slope").textContent = s.LfpSlope.toFixed(1);
-  $("alpha-ratio").textContent = s.AlphaRatio.toFixed(1);
-  $("meta-badge").textContent = s.MetaLive ? "live" : "mock";
+  tick++;
+  setText("clock", s.SimSeconds.toFixed(0) + "s");
+  setText("state", s.SleepState);
+  setText("feeling", s.Feeling || "-");
+  setText("rate", s.MeanRateHz.toFixed(2) + " Hz");
+  setText("cost", "$" + s.SpentUsd.toFixed(3));
+  setText("senses", (s.CameraLive ? "cam" : "-") + " " + (s.MicLive ? "mic" : "-") + " " + (s.MetaLive ? "api" : "mock"));
+  const rec = $("rec");
+  if (rec) rec.classList.toggle("on", !!s.CameraLive);
+  setText("meta-badge", s.MetaLive ? "live" : "mock");
 
-  drawRegionGraph(s);
-  drawConsciousness(s);
-  drawJourney(s);
-  drawPalace(s);
-  drawSpectrogram(s);
-  drawCircumplex(s);
-  drawSleep(s);
-  drawMods(s);
-  drawDreams(s);
-  drawChat(s);
-  if (typeof brainMusicTick === "function") brainMusicTick(s);
-  if (typeof updateAvatarState === "function") updateAvatarState(s);
-  speakBrain(s);
-  // THE LIVING CAPTION: what it's doing RIGHT NOW, directly under the face.
-  // Priority: speaking > thinking > dreaming > sleeping > feeling label
-  const sn = $("saying-now");
-  if (sn) {
-    if ((s.IsSpeaking || window.brainBrowserSpeaking) && s.SpeakText) {
-      sn.textContent = `“${s.SpeakText}”`;
-      sn.style.fontStyle = "italic";
-    } else {
-      const tt = (s.ThoughtThread || []);
-      const last = tt.length ? tt[tt.length - 1] : "";
-      const text = last ? last.split("|").slice(3).join("|") : "";
-      if (s.SleepState === "NREM") { sn.textContent = "sleeping…"; sn.style.fontStyle = "normal"; }
-      else if (s.SleepState === "REM") { sn.textContent = s.LucidDreams > 0 ? "lucid dreaming…" : "dreaming…"; sn.style.fontStyle = "italic"; }
-      else if (text) { sn.textContent = `thinking: ${text}`; sn.style.fontStyle = "italic"; }
-      else { sn.textContent = s.FeelingNarrative || ""; sn.style.fontStyle = "normal"; }
-    }
-  }
-  if (typeof drawEEG === "function") drawEEG(s);
-  if (typeof drawPhiGauge === "function") drawPhiGauge(s);
-  if (typeof drawFreeEnergy === "function") drawFreeEnergy(s);
-  if (typeof drawManifold === "function") drawManifold(s);
+  setText("feeling-narrative", s.FeelingNarrative || "");
+  setText("energy", fmt(s.Energy));
+  setText("clockrate", s.ClockRate.toFixed(2) + "\u00d7");
+  setText("subj", s.SubjectiveMinutes.toFixed(1) + "m");
+  setText("pressure", s.SleepPressure.toFixed(2));
+  setText("ignitions", String(s.Ignitions));
+  setText("surprises", String(s.Surprises));
+  setText("replays", String(s.Replays));
+  setText("episode-count", String(s.Episodes));
+  setText("lfp-slope", s.LfpSlope.toFixed(1));
+  setText("alpha-ratio", s.AlphaRatio.toFixed(1));
+  setText("consciousness-label", s.ConsciousnessLabel || "-");
 
-  $("consciousness-label").textContent = s.ConsciousnessLabel || "—";
+  // psychology readout: who the brain is becoming
+  setText("knows-name", s.UserName || "a stranger");
+  setText("attach-style", s.Attachment || "forming");
+  setText("empathy-mood", (s.EmpathyConfidence || 0) > 0.3 ? `${s.UserMood} voice` : "no voice yet");
+  setText("curiosity-prog", `progress ${(s.CuriosityProgress || 0).toFixed(2)}, reward ${(s.CuriosityReward || 0).toFixed(2)}`);
+  setText("play-count", `${s.PlayBursts || 0} bursts${s.Playful ? " (playing now)" : ""}`);
+  setText("insight-count", `${s.Insights || 0}${s.OpenLoops ? ` (+${s.OpenLoops} unresolved)` : ""}`);
+  setText("allostatic", s.AllostaticNote || "body steady");
+  setText("voice-growth", s.VoiceSyllables > 0
+    ? `${s.VoiceSyllables} syllables, ${s.VoiceClipsHeard} voices heard${s.VoiceMimicries ? `, ${s.VoiceMimicries} mimicked` : ""}`
+    : "listening");
+  setText("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
+  setText("turn-state", s.TurnState || "silent room");
+  const dg = s.Dreams || [];
+  setText("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
+  setText("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
+  setText("pruned", `${s.SynapsesPruned || 0} synapses`);
+  setText("self-surprise", `${s.SelfSurprises || 0} surprises, ${s.ObserverRedirects || 0} redirects`);
+  setText("current-need", `${s.CurrentNeed || "satisfied"}${s.NeedUrgency > 0.5 ? " (urgent!)" : ""}`);
+  setText("emo-granularity", s.EmotionalStage || "newborn");
+  setText("life-story", s.HowIveChanged || "too young to have changed yet");
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};
@@ -203,85 +224,96 @@ function render(s) {
   const bondEl = $("social-bonds");
   if (bondEl && bondKeys.length > 0) {
     const strengths = s.BondStrengths || {};
-    if (bondEl.childElementCount !== bondKeys.length ||
-        (bondEl.firstElementChild && bondEl.firstElementChild.dataset.id !== bondKeys[0])) {
+    const sig = bondKeys.map((k) => `${k}:${Math.round((strengths[k] || 0) * 100)}`).join("|");
+    if (memo.bonds !== sig) {
+      memo.bonds = sig;
       bondEl.innerHTML = "";
       for (const [id, visits] of Object.entries(bonds)) {
         const div = document.createElement("div");
         div.className = "bond";
         div.dataset.id = id;
         const short = id.split(":")[0].substring(0, 12);
-        // the bar now shows BOND DEPTH (visits x warmth x recency), not raw visits
+        // the bar shows BOND DEPTH (visits x warmth x recency), not raw visits
         const strength = Math.round((strengths[id] || 0) * 100);
         div.innerHTML = `<span class="bond-name">${short}</span>` +
           `<div class="bond-bar"><i style="width:${strength}%"></i></div>` +
-          `<span class="bond-count" title="bond depth">${strength}%</span>`;
+          `<span class="bond-count" title="${visits} visits - bond depth">${strength}%</span>`;
         bondEl.appendChild(div);
       }
     }
   }
 
+  drawChat(s);
   setFeed($("plain"), s.PlainThoughts);
   setFeed($("monologue"), s.Monologues);
   setFeed($("episodes"), s.RecentEpisodes);
+  setFeed($("thought"), s.Thought);
+  if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
   drawThread(s);
+  drawMods(s);
+  drawDreams(s);
 
-  // psychology readout (Social tab): who the brain is becoming
-  const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
-  set("knows-name", s.UserName || "a stranger");
-  set("attach-style", s.Attachment || "forming");
-  set("empathy-mood", (s.EmpathyConfidence || 0) > 0.3 ? `${s.UserMood} voice` : "no voice yet");
-  set("curiosity-prog", `progress ${(s.CuriosityProgress || 0).toFixed(2)}, reward ${(s.CuriosityReward || 0).toFixed(2)}`);
-  set("play-count", `${s.PlayBursts || 0} bursts${s.Playful ? " (playing now)" : ""}`);
-  set("insight-count", `${s.Insights || 0}${s.OpenLoops ? ` (+${s.OpenLoops} unresolved)` : ""}`);
-  set("allostatic", s.AllostaticNote || "body steady");
-  set("voice-growth", s.VoiceSyllables > 0
-    ? `${s.VoiceSyllables} syllables, ${s.VoiceClipsHeard} voices heard${s.VoiceMimicries ? `, ${s.VoiceMimicries} mimicked` : ""}`
-    : "listening");
-  set("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
-  set("turn-state", s.TurnState || "silent room");
-  const dg = s.Dreams || [];
-  set("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
-  set("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
-  set("pruned", `${s.SynapsesPruned || 0} synapses`);
-  set("self-surprise", `${s.SelfSurprises || 0} surprises, ${s.ObserverRedirects || 0} redirects`);
-  set("current-need", `${s.CurrentNeed || "satisfied"}${s.NeedUrgency > 0.5 ? " (urgent!)" : ""}`);
-  set("emo-granularity", s.EmotionalStage || "newborn");
-  set("life-story", s.HowIveChanged || "too young to have changed yet");
-  // LIVE STRIP from the SERVER transcripts (always works - the browser
+  // THE LIVING CAPTION under the face. Priority: speaking > dreaming >
+  // sleeping > thinking > feeling
+  const tt = (s.ThoughtThread || []);
+  const last = tt.length ? tt[tt.length - 1] : "";
+  const thoughtText = last ? last.split("|").slice(3).join("|") : "";
+  let caption = s.FeelingNarrative || "";
+  if (s.SleepState === "NREM") caption = "sleeping\u2026";
+  else if (s.SleepState === "REM") caption = s.LucidDreams > 0 ? "lucid dreaming\u2026" : "dreaming\u2026";
+  else if ((s.IsSpeaking || window.brainBrowserSpeaking) && s.SpeakText) caption = `\u201c${s.SpeakText}\u201d`;
+  else if (thoughtText) caption = `thinking: ${thoughtText}`;
+  const sn = $("saying-now");
+  if (sn && memo.caption !== caption) {
+    memo.caption = caption;
+    sn.textContent = caption;
+    sn.style.fontStyle = caption.startsWith("\u201c") || caption.startsWith("thinking") || caption.includes("dream") ? "italic" : "normal";
+  }
+  // when the caption falls back to the feeling line itself, do not repeat it
+  const narr = $("feeling-narrative");
+  if (narr) narr.style.display = caption === (s.FeelingNarrative || "") ? "none" : "";
+
+  // audio diagnostics
+  const lvl = $("audio-level");
+  if (lvl) lvl.style.width = Math.min(100, (s.AudioRms || 0) * 300).toFixed(0) + "%";
+  setText("audio-source", "source: " + (s.AudioSource || "none"));
+  setText("audio-live", s.AudioLive ? "AUDIO ARRIVING" : "no audio arriving");
+  const liveEl = $("audio-live");
+  if (liveEl) liveEl.style.color = s.AudioLive ? "#6ee7a0" : "#f07080";
+  setText("audio-vad", s.AudioVad ? "VOICE DETECTED" : "-");
+  setText("audio-clip", s.AudioClipBuilding ? "capturing speech..." : "idle");
+  setText("audio-blocks", String(s.AudioBlocks || 0));
+  drawTranscripts(s);
+
+  // live strip from the SERVER transcripts (always works - the browser
   // recognizer is flaky; the server chain is the source of truth)
   const logs = s.TranscriptLog || [];
-  const lf = document.getElementById("live-final");
-  if (lf && logs.length && lf.dataset.t !== logs[logs.length-1]) {
-    lf.dataset.t = logs[logs.length-1];
-    lf.textContent = logs[logs.length-1];
+  const lf = $("live-final");
+  if (lf && logs.length && memo.liveFinal !== logs[logs.length - 1]) {
+    memo.liveFinal = logs[logs.length - 1];
+    lf.dataset.t = memo.liveFinal;
+    lf.textContent = memo.liveFinal;
   }
   if (lf && !logs.length && !lf.dataset.t && s.AudioLive) lf.textContent = "(hearing you - listening for words...)";
 
-  // live transcribe panel: proves whether the mic is actually intercepted
-  const lvl = document.getElementById("audio-level");
-  if (lvl) lvl.style.width = Math.min(100, (s.AudioRms || 0) * 300).toFixed(0) + "%";
-  set("audio-source", "source: " + (s.AudioSource || "none"));
-  set("audio-live", s.AudioLive ? "AUDIO ARRIVING" : "no audio arriving");
-  const liveEl = $("audio-live");
-  if (liveEl) liveEl.style.color = s.AudioLive ? "var(--pos, #6ee7a0)" : "var(--neg, #f07080)";
-  set("audio-vad", s.AudioVad ? "VOICE DETECTED" : "—");
-  set("audio-clip", s.AudioClipBuilding ? "capturing speech..." : "idle");
-  set("audio-blocks", String(s.AudioBlocks || 0));
-  const tl = $("transcripts");
-  if (tl) {
-    const lines = s.TranscriptLog || [];
-    if (tl.childElementCount !== lines.length || (lines.length && tl.lastChild && tl.lastChild.textContent !== lines[lines.length - 1])) {
-      tl.innerHTML = "";
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const li = document.createElement("li");
-        li.textContent = lines[i];
-        tl.appendChild(li);
-      }
-    }
+  speakBrain(s);
+  if (typeof updateAvatarState === "function") updateAvatarState(s);
+  if (typeof brainMusicTick === "function") brainMusicTick(s);
+
+  // heavy canvases at 5 Hz: plenty smooth for plots, half the work on a phone
+  if (tick % 2 === 0) {
+    drawRegionGraph(s);
+    drawConsciousness(s);
+    drawJourney(s);
+    drawPalace(s);
+    drawSpectrogram(s);
+    drawCircumplex(s);
+    drawSleep(s);
+    if (typeof drawEEG === "function") drawEEG(s);
+    if (typeof drawPhiGauge === "function") drawPhiGauge(s);
+    if (typeof drawFreeEnergy === "function") drawFreeEnergy(s);
+    if (typeof drawManifold === "function") drawManifold(s);
   }
-  setFeed($("thought"), s.Thought);
-  if (s.DreamNarratives) setFeed($("dream-stories"), s.DreamNarratives);
 }
 
 function fmt(n) {
@@ -291,7 +323,10 @@ function fmt(n) {
 }
 
 function setFeed(ul, lines) {
-  if (!lines || lines.length === 0) return;
+  if (!ul || !lines || lines.length === 0) return;
+  const sig = lines.join("\n");
+  if (memo[ul.id] === sig) return;
+  memo[ul.id] = sig;
   ul.innerHTML = "";
   for (let i = lines.length - 1; i >= 0; i--) {
     const li = document.createElement("li");
@@ -307,6 +342,21 @@ function setFeed(ul, lines) {
   }
 }
 
+function drawTranscripts(s) {
+  const tl = $("transcripts");
+  if (!tl) return;
+  const lines = s.TranscriptLog || [];
+  const sig = lines.join("\n");
+  if (memo.transcripts === sig) return;
+  memo.transcripts = sig;
+  tl.innerHTML = "";
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const li = document.createElement("li");
+    li.textContent = lines[i];
+    tl.appendChild(li);
+  }
+}
+
 // ---- the thought thread: the live chain developing link by link ----
 // each link is colored by its evaluated valence (green positive, red negative,
 // gray neutral) and faded by decaying salience: unresolved thoughts glow,
@@ -315,9 +365,13 @@ function drawThread(s) {
   const el = $("thread");
   if (!el) return;
   const stats = $("thread-stats");
-  if (stats) stats.textContent =
-    `${s.ThoughtChains || 0} chains, ${s.ThoughtInhibited || 0} repeats inhibited`;
+  const statText = `${s.ThoughtChains || 0} chains, ${s.ThoughtInhibited || 0} repeats inhibited`;
+  if (stats && memo.threadStats !== statText) { memo.threadStats = statText; stats.textContent = statText; }
+
   const links = s.ThoughtThread || [];
+  const sig = links.join("\n");
+  if (memo.thread === sig) return;
+  memo.thread = sig;
   el.innerHTML = "";
   if (!links.length) {
     const li = document.createElement("li");
@@ -331,8 +385,7 @@ function drawThread(s) {
     const depth = parts[0], val = parseFloat(parts[1]), sal = parseFloat(parts[2]), text = parts.slice(3).join("|");
     const li = document.createElement("li");
     const color = val > 0.2 ? "#6ee7a0" : val < -0.2 ? "#f07080" : "#7d8fa8";
-    li.style.borderLeft = `2px solid ${color}`;
-    li.style.paddingLeft = "8px";
+    li.style.borderLeftColor = color;
     li.style.opacity = (0.45 + 0.55 * Math.min(1, sal * 1.5)).toFixed(2);
     const d = document.createElement("span");
     d.className = "t";
@@ -349,7 +402,7 @@ function drawRegionGraph(s) {
   const f = fitCanvas(c);
   if (!f || !MAP) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0a0f16";
   ctx.fillRect(0, 0, w, h);
 
   let maxX = 1, maxY = 1;
@@ -388,36 +441,45 @@ function drawRegionGraph(s) {
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "#d1d9e6";
-    ctx.fillText(MAP.names[i], x + 14, y + 3);
-    ctx.fillStyle = "#5a6474";
-    ctx.fillText((rate * 1000).toFixed(0) + "/s", x + 14, y + 14);
+    // labels flip to the left of the node near the right edge so they
+    // never clip on a narrow canvas
+    if (x + 74 > w) {
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#d1d9e6";
+      ctx.fillText(MAP.names[i], x - 14, y + 3);
+      ctx.fillStyle = "#5c6f86";
+      ctx.fillText((rate * 1000).toFixed(0) + "/s", x - 14, y + 14);
+      ctx.textAlign = "left";
+    } else {
+      ctx.fillStyle = "#d1d9e6";
+      ctx.fillText(MAP.names[i], x + 14, y + 3);
+      ctx.fillStyle = "#5c6f86";
+      ctx.fillText((rate * 1000).toFixed(0) + "/s", x + 14, y + 14);
+    }
   }
 }
 
-// ---- consciousness gauge: a single dramatic dial ----
+// ---- composite awareness dial ----
 function drawConsciousness(s) {
   const c = $("consciousness");
   const f = fitCanvas(c);
   if (!f) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0d131c";
   ctx.fillRect(0, 0, w, h);
 
   const score = s.Consciousness || 0;
   const cx = w / 2, cy = h * 0.42, r = Math.min(w, h) * 0.32;
 
-  // arc background (track)
-  ctx.strokeStyle = "#1c222e";
+  ctx.strokeStyle = "#1c2634";
   ctx.lineWidth = 12;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 2.25);
   ctx.stroke();
 
-  // arc fill (score)
   const frac = Math.PI * 1.5 * score;
-  const color = score > 0.5 ? "#3ddbb8" : score > 0.25 ? "#f0b45c" : "#5a6474";
+  const color = score > 0.5 ? "#3ddbb8" : score > 0.25 ? "#f0b45c" : "#5c6f86";
   const grad = ctx.createLinearGradient(cx - r, 0, cx + r, 0);
   grad.addColorStop(0, color + "44");
   grad.addColorStop(1, color);
@@ -427,14 +489,13 @@ function drawConsciousness(s) {
   ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 0.75 + frac);
   ctx.stroke();
 
-  // score text
   ctx.fillStyle = color;
   ctx.font = `700 ${Math.round(r * 0.5)}px ${UI}`;
   ctx.textAlign = "center";
   ctx.fillText((score * 100).toFixed(0), cx, cy + r * 0.15);
-  ctx.fillStyle = "#5a6474";
+  ctx.fillStyle = "#5c6f86";
   ctx.font = `500 10px ${MONO}`;
-  ctx.fillText("consciousness", cx, cy + r * 0.35);
+  ctx.fillText("awareness", cx, cy + r * 0.35);
   ctx.textAlign = "left";
 }
 
@@ -444,7 +505,7 @@ function drawJourney(s) {
   const f = fitCanvas(c);
   if (!f) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0d131c";
   ctx.fillRect(0, 0, w, h);
 
   const journey = s.FeelingJourney || [];
@@ -454,8 +515,7 @@ function drawJourney(s) {
   const timeSpan = Math.max(1, tMax - tMin);
   const midY = h / 2;
 
-  // zero lines
-  ctx.strokeStyle = "#1c222e";
+  ctx.strokeStyle = "#1c2634";
   ctx.lineWidth = 1;
   ctx.setLineDash([2, 4]);
   ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(w, midY); ctx.stroke();
@@ -479,7 +539,6 @@ function drawJourney(s) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // valence line
   ctx.beginPath();
   for (let i = 0; i < journey.length; i++) {
     const [t, valence] = journey[i];
@@ -503,9 +562,8 @@ function drawJourney(s) {
     ctx.fill();
   }
 
-  // labels
   ctx.font = `500 9px ${MONO}`;
-  ctx.fillStyle = "#5a6474";
+  ctx.fillStyle = "#5c6f86";
   ctx.fillText("positive", 6, 12);
   ctx.fillText("negative", 6, h - 6);
   ctx.fillText(`last ${timeSpan.toFixed(0)}s`, w - 50, h - 6);
@@ -517,47 +575,42 @@ function drawPalace(s) {
   const f = fitCanvas(c);
   if (!f) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0d131c";
   ctx.fillRect(0, 0, w, h);
 
   const memories = s.MemoryPalace || [];
   if (memories.length === 0) {
-    ctx.fillStyle = "#5a6474";
+    ctx.fillStyle = "#5c6f86";
     ctx.font = `500 10px ${MONO}`;
-    ctx.fillText("no memories yet", w / 2 - 30, h / 2);
+    ctx.fillText("no memories yet", w / 2 - 40, h / 2);
     return;
   }
 
   const cx = w / 2, cy = h / 2;
 
-  // axes
-  ctx.strokeStyle = "#1c222e";
+  ctx.strokeStyle = "#1c2634";
   ctx.lineWidth = 1;
   ctx.setLineDash([2, 4]);
   ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
   ctx.setLineDash([]);
 
-  // labels
   ctx.font = `500 8px ${MONO}`;
-  ctx.fillStyle = "#5a6474";
-  ctx.fillText("positive →", w - 40, cy - 4);
-  ctx.fillText("← negative", 4, cy - 4);
+  ctx.fillStyle = "#5c6f86";
+  ctx.fillText("positive \u2192", w - 46, cy - 4);
+  ctx.fillText("\u2190 negative", 4, cy - 4);
   ctx.fillText("exciting", cx + 4, 10);
   ctx.fillText("calm", cx + 4, h - 6);
 
-  // memory nodes
   for (const m of memories) {
     const [x, y, size, brightness, valence, tag] = m;
     const px = cx + x * (cx - 20);
     const py = cy - y * (cy - 20);
-    const r = size * (w / 200); // scale to canvas
+    const r = size * (w / 200);
     const alpha = brightness;
 
-    // color: green for positive, red for negative, amber for neutral
     const color = valence > 0.1 ? "#3ddbb8" : valence < -0.1 ? "#f07080" : "#f0b45c";
 
-    // glow for significant memories
     if (Math.abs(valence) > 0.3) {
       const grad = ctx.createRadialGradient(px, py, 1, px, py, r * 2);
       grad.addColorStop(0, color + "88");
@@ -571,7 +624,6 @@ function drawPalace(s) {
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
 
-    // tag label for significant memories
     if (Math.abs(valence) > 0.3 && brightness > 0.3) {
       ctx.fillStyle = "#8b96a8";
       ctx.font = `500 8px ${MONO}`;
@@ -587,7 +639,7 @@ function drawSpectrogram(s) {
   const f = fitCanvas(c);
   if (!f) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0d131c";
   ctx.fillRect(0, 0, w, h);
 
   const bands = ["\u03B4 1-4", "\u03B8 4-8", "\u03B1 8-12", "\u03B2 12-30", "\u03B3 30-80"];
@@ -611,7 +663,7 @@ function drawSpectrogram(s) {
   }
 
   ctx.font = `500 9px ${MONO}`;
-  ctx.fillStyle = "#5a6474";
+  ctx.fillStyle = "#5c6f86";
   for (let b = 0; b < 5; b++) ctx.fillText(bands[b], 4, 4 + b * bh + bh / 2 + 3);
 }
 
@@ -621,11 +673,11 @@ function drawCircumplex(s) {
   const f = fitCanvas(c);
   if (!f) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0d131c";
   ctx.fillRect(0, 0, w, h);
 
   const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
-  ctx.strokeStyle = "#1c222e";
+  ctx.strokeStyle = "#1c2634";
   ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath();
@@ -634,7 +686,7 @@ function drawCircumplex(s) {
   ctx.stroke();
 
   ctx.font = `500 8px ${MONO}`;
-  ctx.fillStyle = "#5a6474";
+  ctx.fillStyle = "#5c6f86";
   ctx.fillText("high", cx + 4, 10);
   ctx.fillText("calm", cx + 4, cy - 4);
 
@@ -658,32 +710,37 @@ function drawSleep(s) {
   const f = fitCanvas(c);
   if (!f) return;
   const { ctx, w, h } = f;
-  ctx.fillStyle = "#0d1017";
+  ctx.fillStyle = "#0d131c";
   ctx.fillRect(0, 0, w, h);
 
   const strip = s.SleepStrip || [];
   if (strip.length < 2) return;
   const tMin = strip[0][0], tMax = Math.max(strip[strip.length - 1][0], tMin + 1);
-  const colors = { Wake: "#3ddbb8", Drowsy: "#f0b45c", NREM: "#5a6474", REM: "#a78bfa" };
+  const colors = { Wake: "#3ddbb8", Drowsy: "#f0b45c", NREM: "#5c6f86", REM: "#a78bfa" };
 
   for (let i = 0; i < strip.length - 1; i++) {
     const [t0, st] = strip[i];
     const t1 = strip[i + 1][0];
     const x0 = ((t0 - tMin) / (tMax - tMin)) * w;
     const x1 = ((t1 - tMin) / (tMax - tMin)) * w;
-    ctx.fillStyle = colors[st] || "#5a6474";
+    ctx.fillStyle = colors[st] || "#5c6f86";
     ctx.fillRect(x0, h * 0.2, Math.max(2, x1 - x0), h * 0.6);
   }
 }
 
-// ---- modulators ----
+// ---- modulators: the seven chemical moods ----
 function drawMods(s) {
   const wrap = $("mods");
+  if (!wrap) return;
   const names = ["dopamine", "serotonin", "acetylcholine", "noradrenaline", "oxytocin", "histamine", "melatonin"];
   const colors = ["#3ddbb8", "#a78bfa", "#f0b45c", "#f07080", "#e888b8", "#5ba8e0", "#7d8fa8"];
+  const vals = names.map((n, i) => (s.Modulators && s.Modulators[i]) || 0);
+  const sig = vals.map((v) => v.toFixed(2)).join("|");
+  if (memo.mods === sig) return;
+  memo.mods = sig;
   wrap.innerHTML = "";
   names.forEach((n, i) => {
-    const v = (s.Modulators && s.Modulators[i]) || 0;
+    const v = vals[i];
     const el = document.createElement("div");
     el.className = "mod";
     el.innerHTML =
@@ -696,8 +753,11 @@ function drawMods(s) {
 // ---- dreams ----
 function drawDreams(s) {
   const wrap = $("dreams");
+  if (!wrap) return;
   const dreams = s.Dreams || [];
-  if (wrap.childElementCount === dreams.length) return;
+  const sig = dreams.join("|");
+  if (memo.dreams === sig) return;
+  memo.dreams = sig;
   wrap.innerHTML = "";
   for (const d of dreams) {
     const div = document.createElement("div");
@@ -707,6 +767,8 @@ function drawDreams(s) {
     } else {
       const img = document.createElement("img");
       img.src = "/dreams/" + d;
+      img.alt = "dream imagery";
+      img.loading = "lazy";
       div.appendChild(img);
     }
     wrap.appendChild(div);
@@ -716,15 +778,18 @@ function drawDreams(s) {
 // ---- chat ----
 function drawChat(s) {
   const log = $("chat");
+  if (!log) return;
   const msgs = s.Chat || [];
   const last = msgs.length ? msgs[msgs.length - 1] : "";
-  if (log.childElementCount === msgs.length && log.lastElementChild && log.lastElementChild.dataset.raw === last) return;
+  const sig = msgs.join("\n");
+  if (memo.chat === sig) return;
+  memo.chat = sig;
+  const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 90;
   log.innerHTML = "";
   for (const m of msgs) {
     const div = document.createElement("div");
     const you = m.startsWith("You:");
     div.className = "msg " + (you ? "you" : "brain");
-    div.dataset.raw = m;
     const who = document.createElement("div");
     who.className = "who";
     who.textContent = you ? "you" : "brain";
@@ -732,57 +797,57 @@ function drawChat(s) {
     div.appendChild(document.createTextNode(you ? m.slice(5) : m.slice(7)));
     log.appendChild(div);
   }
-  log.scrollTop = log.scrollHeight;
+  if (nearBottom) log.scrollTop = log.scrollHeight;
 }
 
-// ---- chat input ----
+// ---- chat input and quick chips ----
 $("chatform").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const box = $("chatbox");
   const text = box.value.trim();
   if (!text) return;
   box.value = "";
-  try {
-    await fetch("/api/say", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-  } catch (e) { console.warn(e); }
+  await say(text);
+});
+
+document.querySelectorAll("#quick-chips [data-say]").forEach((btn) => {
+  btn.addEventListener("click", () => say(btn.dataset.say));
+});
+document.querySelectorAll("#quick-chips [data-fill]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const box = $("chatbox");
+    box.value = btn.dataset.fill;
+    box.focus();
+  });
 });
 
 // ---- the brain reacts when you try to leave ----
-window.addEventListener("beforeunload", async (ev) => {
-  if (!lastSnapshot || lastSnapshot.SleepState === "NREM") return;
+window.addEventListener("beforeunload", (ev) => {
+  if (!lastSnap || lastSnap.SleepState === "NREM") return;
   try {
-    // tell the brain you're leaving (it can't respond fast enough for the unload,
-    // but the next session it will remember)
-    fetch("/api/say", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: "[the person is leaving]" }),
-      keepalive: true,
-    });
+    // tell the brain you're leaving (it can't respond fast enough for the
+    // unload, but the next session it will remember)
+    say("[the person is leaving]");
   } catch (e) { /* fire and forget */ }
-  // show the confirmation dialog with the brain's plea
   ev.preventDefault();
   ev.returnValue = "";
 });
-let resizeTimer;
+
 // ---- test voice button ----
 async function testVoice() {
   try {
     const r = await fetch("/api/test-voice", { method: "POST" });
     if (r.ok) {
       const btn = document.getElementById("voice-test");
-      btn.textContent = "🔊 speaking...";
-      setTimeout(() => btn.textContent = "🔊 voice", 3000);
+      btn.textContent = "speaking...";
+      setTimeout(() => btn.textContent = "voice", 3000);
     } else {
       alert("Voice not available. Run with --voice and check Windows TTS voices.");
     }
   } catch (e) { alert("Could not test voice: " + e.message); }
 }
 
+let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => { if (lastSnap) render(lastSnap); }, 150);

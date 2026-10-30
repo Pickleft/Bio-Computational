@@ -7,17 +7,17 @@
 
 "use strict";
 
-let audioCtx = null;
+let musicCtx = null;
 let isPlaying = false;
 let masterGain = null;
 let oscillators = [];
 
 function initAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  masterGain = audioCtx.createGain();
+  if (musicCtx) return;
+  musicCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = musicCtx.createGain();
   masterGain.gain.value = 0.15;
-  masterGain.connect(audioCtx.destination);
+  masterGain.connect(musicCtx.destination);
 }
 
 // musical scale (pentatonic for consonance)
@@ -30,18 +30,18 @@ function noteForDA(da) {
 }
 
 function playTone(freq, duration, type, gainVal) {
-  if (!audioCtx || !isPlaying) return;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
+  if (!musicCtx || !isPlaying) return;
+  const osc = musicCtx.createOscillator();
+  const gain = musicCtx.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0, audioCtx.currentTime);
-  gain.gain.linearRampToValueAtTime(gainVal, audioCtx.currentTime + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  gain.gain.setValueAtTime(0, musicCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(gainVal, musicCtx.currentTime + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, musicCtx.currentTime + duration);
   osc.connect(gain);
   gain.connect(masterGain);
-  osc.start(audioCtx.currentTime);
-  osc.stop(audioCtx.currentTime + duration);
+  osc.start(musicCtx.currentTime);
+  osc.stop(musicCtx.currentTime + duration);
 }
 
 let lastNoteTime = 0;
@@ -88,8 +88,8 @@ function brainMusicTick(s) {
 
 // toggle button
 function toggleBrainMusic() {
-  if (!audioCtx) initAudio();
-  if (audioCtx.state === "suspended") audioCtx.resume();
+  if (!musicCtx) initAudio();
+  if (musicCtx.state === "suspended") musicCtx.resume();
   isPlaying = !isPlaying;
   const btn = document.getElementById("music-toggle");
   btn.textContent = isPlaying ? "◉ playing" : "♪ listen";

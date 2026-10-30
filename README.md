@@ -149,7 +149,7 @@ All content after the first commit (Oct 27 scaffold + planning notes) was produc
 | Sleep (two-process, dreams, lucid, reconsolidation) + memory (episodic, forgetting, semantic) | src/BioCore/{Sleep,Memory} |
 | Senses (event vision, cochlea, presence) + voice development + name learning | src/BioCore/Senses, src/BioHost |
 | Mirror test + prophecy + mirror-of-you + memory editing + anesthesia + reproduction + testament + life review | src/BioCore, src/BioLab, src/BioHost |
-| Dashboard (avatar, thought thread, conversation, live transcription, science tabs, EEG, music) | src/BioDashboard |
+| Dashboard (observatory UI: avatar stage, conversation with quick chips, live ears, thought thread, science/body/mind wings, EEG, music) | src/BioDashboard |
 | Test suite: 153 tests | tests/BioCore.Tests |
 
 ## Limitations (honest)

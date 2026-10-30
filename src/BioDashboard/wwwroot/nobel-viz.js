@@ -1,4 +1,4 @@
-// NOBEL-LEVEL VISUALIZATIONS — theoretical neuroscience brought to life.
+// NOBEL-LEVEL VISUALIZATIONS - theoretical neuroscience brought to life.
 // These have never been seen in real-time for a working brain.
 
 "use strict";
@@ -24,7 +24,7 @@ function drawPhiGauge(s) {
   ctx.arc(cx, cy, r, 0, fullCircle);
   ctx.stroke();
 
-  // Phi arc — the "consciousness dial"
+  // Phi arc - the "consciousness dial"
   const phiColor = phi > 0.5 ? "#3ddbb8" : phi > 0.2 ? "#f0b45c" : "#f07080";
   ctx.strokeStyle = phiColor;
   ctx.lineWidth = 14;

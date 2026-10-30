@@ -1,7 +1,7 @@
-// SCROLLING EEG — the brain's raw neural signal in real-time.
+// SCROLLING EEG - the brain's raw neural signal in real-time.
 // Like a hospital EEG machine. Not a spectrogram (frequency) but the actual
 // voltage trace scrolling across the screen. This is what people picture
-// when they hear "brain activity" — now it's live and real.
+// when they hear "brain activity" - now it's live and real.
 
 "use strict";
 

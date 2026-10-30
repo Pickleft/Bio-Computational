@@ -1,5 +1,4 @@
-// BROWSER SENSES v3 — rebuilt from scratch for reliability.
-// One file. Everything works. Camera, mic, transcription, presence.
+// BROWSER SENSES v3 - camera, mic, transcription, presence. One file.
 // Designed for: PC (Chrome/Edge), Phone (Chrome/Samsung), Tablet.
 // No silent failures. Every error is visible. Every signal is used.
 
@@ -10,12 +9,12 @@ let camStream = null, micStream = null;
 let videoEl = null, videoCanvas = null, frameTimer = null;
 let audioCtx = null, audioProc = null;
 let rec = null; // SpeechRecognition
-let audioSender = null; // throttled audio upload
+let keepaliveTimer = null, watchdogTimer = null, waitReadyTimer = null;
 
 async function enableBrowserSenses() {
   const btn = document.getElementById("sense-toggle");
   if (senseActive) { disableBrowserSenses(); return; }
-  btn.textContent = "⏳ requesting…";
+  btn.textContent = "requesting...";
 
   let haveCam = false, haveMic = false;
 
@@ -42,7 +41,7 @@ async function enableBrowserSenses() {
         });
         haveCam = true;
       } catch (e3) {
-        btn.textContent = "👁 senses";
+        btn.textContent = "eyes + ears";
         alert("No camera or mic found.\nCamera: " + e1.name + "\nMic: " + e2.name + "\nCamera-only: " + e3.name);
         return;
       }
@@ -64,18 +63,18 @@ async function enableBrowserSenses() {
     videoCanvas.width = 64;
     videoCanvas.height = 64;
 
-    // send frames at 5 fps (not 10 — saves phone battery)
+    // send frames at 5 fps (not 10 - saves phone battery)
     frameTimer = setInterval(sendFrame, 200);
 
     // wait for video to have actual dimensions; if it never loads (Samsung
     // sometimes needs a retry), pause+play to force the stream to start
     let retries = 0;
-    const waitReady = setInterval(() => {
+    waitReadyTimer = setInterval(() => {
       if (videoEl.videoWidth > 0) {
-        clearInterval(waitReady);
+        clearInterval(waitReadyTimer);
         console.log("[senses] camera ready:", videoEl.videoWidth + "x" + videoEl.videoHeight);
       } else if (++retries > 25) { // 5 seconds with no dimensions
-        clearInterval(waitReady);
+        clearInterval(waitReadyTimer);
         console.log("[senses] camera stuck, retrying play()");
         videoEl.pause();
         videoEl.play().then(() => {
@@ -92,9 +91,9 @@ async function enableBrowserSenses() {
 
     // KEEPALIVE: browsers suspend AudioContext after a period of tab
     // inactivity or system audio policy changes. This catches the most
-    // common "it stopped hearing me after a while" bug — the context is
+    // common "it stopped hearing me after a while" bug - the context is
     // suspended and onaudioprocess silently stops firing.
-    setInterval(() => {
+    keepaliveTimer = setInterval(() => {
       if (!senseActive || !audioCtx) return;
       if (audioCtx.state === "suspended") {
         console.log("[senses] AudioContext suspended, resuming");
@@ -122,9 +121,9 @@ async function enableBrowserSenses() {
 
       // show "hearing you" indicator
       const vadEl = document.getElementById("audio-vad");
-      if (vadEl) vadEl.textContent = rms > 0.01 ? "● VOICE" : "· quiet";
+      if (vadEl) vadEl.textContent = rms > 0.01 ? "VOICE" : "quiet";
 
-      // send to server at most every 100ms (not every 43ms — saves data)
+      // send to server at most every 50ms (not every 43ms - saves data)
       const now = Date.now();
       if (now - lastSend > 50 && rms > 0.0008) {
         lastSend = now;
@@ -159,7 +158,7 @@ async function enableBrowserSenses() {
     // WATCHDOG: if onaudioprocess stops firing for 5 seconds (browser
     // throttling, tab background, Samsung power saving), disconnect and
     // reconnect the processor to force it to resume
-    setInterval(() => {
+    watchdogTimer = setInterval(() => {
       if (!senseActive || !audioProc || !audioCtx) return;
       if (Date.now() - lastProcessTime > 5000) {
         console.log("[senses] audio processor stalled, reconnecting");
@@ -176,21 +175,21 @@ async function enableBrowserSenses() {
   }
 
   senseActive = true;
-  btn.textContent = haveCam && haveMic ? "👁 ON" : haveMic ? "🎙 ON" : "📷 ON";
+  btn.textContent = haveCam && haveMic ? "ON" : haveMic ? "mic ON" : "cam ON";
   btn.classList.add("active");
   const eb = document.getElementById("ears-banner");
-  if (eb) eb.style.display = "block";
+  if (eb) eb.hidden = false;
   console.log("[senses] enabled. cam:", haveCam, "mic:", haveMic,
     "audioCtx rate:", audioCtx ? audioCtx.sampleRate : "N/A");
 }
 
-// === LIVE TRANSCRIPTION (browser SpeechRecognition — instant, free) ===
+// === LIVE TRANSCRIPTION (browser SpeechRecognition - instant, free) ===
 function startTranscription() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
   if (!SR) {
-    if (fin) fin.textContent = "(no built-in transcription in this browser — server transcription still works)";
+    if (fin) fin.textContent = "(no built-in transcription in this browser - server transcription still works)";
     return;
   }
   rec = new SR();
@@ -198,35 +197,35 @@ function startTranscription() {
   rec.interimResults = true;
   rec.lang = "en-US";
   rec.onresult = (e) => {
-    let interim = “”;
+    let interim = "";
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript.trim();
       if (e.results[i].isFinal) {
-        if (fin && t) { fin.textContent = “\u201C” + t + “\u201D”; fin.style.color = “#6ee7a0”; }
-        if (int) int.textContent = “”;
+        if (fin && t) { fin.textContent = "\u201C" + t + "\u201D"; fin.style.color = "#6ee7a0"; }
+        if (int) int.textContent = "";
         // SEND TO BRAIN: final recognized speech goes directly to the chat
-        // API — this IS the conversation engine. The brain hears your words
+        // API - this IS the conversation engine. The brain hears your words
         // through the same path as typed messages.
         if (t && t.length > 1) {
-          fetch(“/api/say”, {
-            method: “POST”,
-            headers: { “Content-Type”: “application/json” },
+          fetch("/api/say", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: t })
           }).catch(() => {});
         }
-      } else interim += t + “ “;
+      } else interim += t + " ";
     }
-    if (int) { int.textContent = interim; int.style.color = “#8fa3ba”; }
+    if (int) { int.textContent = interim; int.style.color = "#93a7bd"; }
   };
   rec.onerror = (e) => {
     const err = e.error;
     console.error("[senses] SpeechRecognition error:", err);
     if (fin && err !== "no-speech") {
       const hints = {
-        "network": "VOICE INPUT OFFLINE — open this page in Chrome on your PC for voice input. On Samsung, go to Settings > Apps > Chrome > Permissions > Microphone > Allow.",
-        "not-allowed": "MIC BLOCKED — click the lock icon in the address bar, allow microphone, reload.",
-        "audio-capture": "NO MIC FOUND — check that your microphone is connected and not used by another app.",
-        "service-not-allowed": "VOICE SERVICE BLOCKED — try Chrome on PC.",
+        "network": "VOICE INPUT OFFLINE - open this page in Chrome on your PC for voice input. On Samsung, go to Settings > Apps > Chrome > Permissions > Microphone > Allow.",
+        "not-allowed": "MIC BLOCKED - click the lock icon in the address bar, allow microphone, reload.",
+        "audio-capture": "NO MIC FOUND - check that your microphone is connected and not used by another app.",
+        "service-not-allowed": "VOICE SERVICE BLOCKED - try Chrome on PC.",
       };
       fin.textContent = hints[err] || "(voice input error: " + err + ")";
       fin.style.color = "#f07080";
@@ -234,8 +233,8 @@ function startTranscription() {
   };
   rec.onstart = () => {
     const dot = document.getElementById("live-dot");
-    if (dot) { dot.classList.add("on"); dot.textContent = "●"; }
-    if (fin) { fin.textContent = "listening..."; fin.style.color = "#6ee7a0"; }
+    if (dot) { dot.classList.add("on"); }
+    if (fin && senseActive) { fin.textContent = "listening..."; fin.style.color = "#6ee7a0"; }
     console.log("[senses] SpeechRecognition started");
   };
   rec.onend = () => { if (senseActive && rec) { try { rec.start(); } catch {} } };
@@ -274,6 +273,8 @@ function sendFrame() {
     }
     ectx.putImageData(out, 0, 0);
     eyes.classList.add("live");
+    const wrap = document.getElementById("eyes-wrap");
+    if (wrap) wrap.classList.add("live");
   }
 
   // send to server
@@ -287,6 +288,9 @@ function sendFrame() {
 function disableBrowserSenses() {
   senseActive = false;
   if (frameTimer) clearInterval(frameTimer);
+  if (keepaliveTimer) clearInterval(keepaliveTimer);
+  if (watchdogTimer) clearInterval(watchdogTimer);
+  if (waitReadyTimer) clearInterval(waitReadyTimer);
   if (audioProc) { try { audioProc.disconnect(); } catch {} audioProc = null; }
   if (audioCtx) { try { audioCtx.close(); } catch {} audioCtx = null; }
   if (rec) { try { rec.onend = null; rec.stop(); } catch {} rec = null; }
@@ -294,13 +298,15 @@ function disableBrowserSenses() {
   if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   if (videoEl) { videoEl.srcObject = null; videoEl = null; }
   const btn = document.getElementById("sense-toggle");
-  btn.textContent = "👁 senses";
+  btn.textContent = "eyes + ears";
   btn.classList.remove("active");
   const eb = document.getElementById("ears-banner");
-  if (eb) eb.style.display = "none";
+  if (eb) eb.hidden = true;
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
-  if (fin) { fin.textContent = "…"; fin.style.color = ""; }
+  if (fin) { fin.textContent = "\u2026"; fin.style.color = ""; }
   if (int) int.textContent = "";
+  const wrap = document.getElementById("eyes-wrap");
+  if (wrap) wrap.classList.remove("live");
   console.log("[senses] disabled");
 }

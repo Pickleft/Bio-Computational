@@ -2,153 +2,222 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bio·Computational — a living brain</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04070c">
+<meta name="description" content="A persistent, biologically grounded spiking brain, live. Research platform; computational proxies, not clinical claims.">
+<title>Bio·Computational - a living brain</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%233ddbb8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%233ddbb8' stroke-opacity='.35'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=4">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
-<div id="ears-banner" style="display:none">🎙 THIS device is the brain&#39;s ears and eyes — speak here</div>
+<div id="ears-banner" hidden>this device is the brain's ears and eyes - speak here</div>
+
 <header id="topbar">
   <div class="brand"><span class="logo"></span><span class="name">Bio·Computational</span></div>
   <div class="stats">
     <div class="stat"><span>state</span><b id="state">boot</b></div>
-    <div class="stat"><span>feeling</span><b id="feeling" class="hot">—</b></div>
+    <div class="stat"><span>feeling</span><b id="feeling" class="hot">-</b></div>
     <div class="stat"><span>age</span><b id="clock" class="mono">0s</b></div>
-    <div class="stat"><span>rate</span><b id="rate" class="mono">0 Hz</b></div>
+    <div class="stat hide-xs"><span>rate</span><b id="rate" class="mono">0 Hz</b></div>
     <div class="stat hide-sm"><span>senses</span><b id="senses" class="mono dim">mock</b></div>
     <div class="stat hide-sm"><span>spend</span><b id="cost" class="mono">$0.00</b></div>
     <div class="stat"><span>api</span><b id="meta-badge" class="mono hot">mock</b></div>
   </div>
+  <div id="conn" class="conn-pill" hidden>reconnecting</div>
 </header>
+
+<nav id="jumprail" aria-label="Jump to section">
+  <a href="#stage">face</a>
+  <a href="#talk-card">talk</a>
+  <a href="#live-card">ears</a>
+  <a href="#thread-card">thread</a>
+  <a href="#life-card">life</a>
+  <a href="#wings">science</a>
+</nav>
+
 <main id="shell">
-  <section id="stage" aria-label="The living brain">
+
+  <!-- THE CREATURE -->
+  <section id="stage" class="g-stage" aria-label="The living brain">
     <canvas id="avatar"></canvas>
+    <span id="rec">&#9679; camera live</span>
     <figure id="eyes-wrap" title="The exact 64x64 image the brain receives">
       <canvas id="eyes" width="64" height="64"></canvas>
-      <figcaption>what it sees</figcaption>
+      <figcaption>retina 64&#215;64 - what it sees</figcaption>
     </figure>
     <div id="stage-caption">
-      <p id="saying-now">…</p>
-      <p id="feeling-narrative">…</p>
+      <p id="saying-now">&#8230;</p>
+      <p id="feeling-narrative">&#8230;</p>
     </div>
-    <span id="rec">● camera live</span>
   </section>
-  <section class="card" id="talk-card">
-    <div class="card-head"><h2>Conversation</h2><span class="card-sub">it answers every message, out loud</span></div>
+
+  <!-- CONVERSATION -->
+  <section id="talk-card" class="card g-talk">
+    <div class="card-head">
+      <div><p class="eyebrow">conversation</p><h2>Talk to it</h2></div>
+      <span class="card-sub">it answers every message, out loud</span>
+    </div>
     <div id="chat" class="chatlog"></div>
+    <div id="quick-chips" aria-label="Quick phrases">
+      <button type="button" class="qchip" data-say="what do you see in me?">what do you see in me?</button>
+      <button type="button" class="qchip" data-say="how do you feel right now?">how do you feel?</button>
+      <button type="button" class="qchip" data-say="what are you thinking about?">what are you thinking?</button>
+      <button type="button" class="qchip" data-fill="my name is ">my name is &#8230;</button>
+      <button type="button" class="qchip" data-fill="forget ">forget &#8230;</button>
+      <button type="button" class="qchip" data-fill="cherish ">cherish &#8230;</button>
+    </div>
     <form id="chatform" autocomplete="off">
-      <input id="chatbox" placeholder="say something... or: my name is X / forget X / cherish X" maxlength="200" aria-label="Talk to the brain">
-      <button type="submit" aria-label="Send">↩</button>
+      <input id="chatbox" placeholder="say something, or: my name is X / forget X / cherish X" maxlength="200" aria-label="Talk to the brain">
+      <button type="submit" aria-label="Send">&#10148;</button>
     </form>
   </section>
-  <section class="card" id="live-card">
-    <div class="card-head"><h2>Live transcription</h2>
-      <span class="card-sub"><span id="live-dot" class="livedot">●</span> turn senses on — words appear as you speak</span></div>
-    <p id="live-final" class="livefinal">…</p>
-    <p id="live-interim" class="liveinterim"></p>
-  </section>
-  <section class="card">
-    <div class="card-head"><h2>Thought thread</h2><span class="card-sub">one chain, link by link · <span id="thread-stats" class="mono">0 chains</span></span></div>
-    <div class="card-body scroll"><ul id="thread" class="list thoughts"></ul></div>
-  </section>
-  <section class="card">
-    <div class="card-head"><h2>Senses</h2><span id="audio-source" class="card-sub mono dim">source: none</span></div>
+
+  <!-- LIVE EARS -->
+  <section id="live-card" class="card g-live">
+    <div class="card-head">
+      <div><p class="eyebrow">live ears</p><h2>It hears you as you speak</h2></div>
+      <span class="card-sub"><span id="live-dot" class="livedot">&#9679;</span> turn senses on and words appear here</span>
+    </div>
     <div class="level-wrap"><div id="audio-level" class="level-bar"></div></div>
     <div class="chips">
       <span class="chip" id="audio-live">no audio</span>
-      <span class="chip" id="audio-vad">—</span>
+      <span class="chip" id="audio-vad">-</span>
       <span class="chip" id="audio-clip">idle</span>
       <span class="chip mono" id="audio-blocks">0 blocks</span>
+      <span class="chip mono dim" id="audio-source">source: none</span>
     </div>
+    <p id="live-final" class="livefinal">&#8230;</p>
+    <p id="live-interim" class="liveinterim"></p>
     <div class="card-body scroll short"><ul id="transcripts" class="list compact"></ul></div>
   </section>
-  <section class="card">
-    <div class="card-head"><h2>Mind &amp; heart</h2><span class="card-sub">everything it became, measured</span></div>
-    <dl class="vitals wide-vitals">
-      <div><dt>knows you as</dt><dd id="knows-name">—</dd></div>
-      <div><dt>attachment</dt><dd id="attach-style">—</dd></div>
-      <div class="wspan"><dt>bonds</dt><div id="social-bonds" class="bonds"></div></div>
-      <div><dt>mirroring</dt><dd id="empathy-mood">—</dd></div>
-      <div><dt>rhythm</dt><dd id="turn-state">—</dd></div>
-      <div><dt>learning</dt><dd id="curiosity-prog">—</dd></div>
-      <div><dt>play</dt><dd id="play-count">0</dd></div>
-      <div><dt>insights</dt><dd id="insight-count">0</dd></div>
-      <div><dt>dreams</dt><dd id="dream-count">0</dd></div>
-            <div><dt>neurons born</dt><dd id="neurogenesis">0</dd></div>
-            <div><dt>pruned</dt><dd id="pruned">0</dd></div>
-            <div><dt>self-surprises</dt><dd id="self-surprise">0</dd></div>
-            <div><dt>needs</dt><dd id="current-need">satisfied</dd></div>
-            <div><dt>emotional age</dt><dd id="emo-granularity">newborn</dd></div>
-            <div class="wspan"><dt>how I have changed</dt><dd id="life-story" style="font-size:11px;line-height:1.4">—</dd></div>
-      <div><dt>body</dt><dd id="allostatic">—</dd></div>
-      <div><dt>own voice</dt><dd id="voice-growth">—</dd></div>
-      <div><dt>concepts</dt><dd id="semantic-growth">—</dd></div>
-    </dl>
+
+  <!-- THOUGHT THREAD -->
+  <section id="thread-card" class="card g-thread">
+    <div class="card-head">
+      <div><p class="eyebrow">the founding loop</p><h2>Thought thread</h2></div>
+      <span class="card-sub">one chain, link by link &#183; <span id="thread-stats" class="mono">0 chains</span></span>
+    </div>
+    <div class="card-body scroll"><ul id="thread" class="list thoughts"></ul></div>
   </section>
-  <section class="card tabs">
+
+  <!-- THE CREATURE'S LIFE -->
+  <section id="life-card" class="card g-life">
+    <div class="card-head">
+      <div><p class="eyebrow">measured</p><h2>Who it is becoming</h2></div>
+      <span class="card-sub">everything it is, as numbers</span>
+    </div>
+    <div class="vitals">
+      <p class="vsub">the person it knows</p>
+      <div class="vitem"><span class="k">knows you as</span><b id="knows-name">-</b></div>
+      <div class="vitem"><span class="k">attachment</span><b id="attach-style">-</b></div>
+      <div class="vitem"><span class="k">mirroring</span><b id="empathy-mood">-</b></div>
+      <div class="vitem"><span class="k">rhythm</span><b id="turn-state">-</b></div>
+      <div class="vitem vspan"><span class="k">bonds</span><div id="social-bonds" class="bonds"></div></div>
+
+      <p class="vsub">how it grows</p>
+      <div class="vitem"><span class="k">learning</span><b id="curiosity-prog">-</b></div>
+      <div class="vitem"><span class="k">play</span><b id="play-count">0</b></div>
+      <div class="vitem"><span class="k">insights</span><b id="insight-count">0</b></div>
+      <div class="vitem"><span class="k">dreams</span><b id="dream-count">0</b></div>
+      <div class="vitem"><span class="k">neurons born</span><b id="neurogenesis">0</b></div>
+      <div class="vitem"><span class="k">pruned</span><b id="pruned">0</b></div>
+      <div class="vitem"><span class="k">self-surprises</span><b id="self-surprise">0</b></div>
+      <div class="vitem"><span class="k">emotional age</span><b id="emo-granularity">newborn</b></div>
+      <div class="vitem vspan"><span class="k">how I have changed</span><b id="life-story" class="story">-</b></div>
+
+      <p class="vsub">the body</p>
+      <div class="vitem"><span class="k">needs</span><b id="current-need">satisfied</b></div>
+      <div class="vitem"><span class="k">body</span><b id="allostatic">-</b></div>
+      <div class="vitem"><span class="k">own voice</span><b id="voice-growth">-</b></div>
+      <div class="vitem"><span class="k">concepts</span><b id="semantic-growth">-</b></div>
+    </div>
+  </section>
+
+  <!-- SCIENCE / BODY / MIND WINGS -->
+  <section id="wings" class="card tabs g-tabs">
     <nav role="tablist">
       <button class="on" data-tab="science">Science</button>
       <button data-tab="body">Body</button>
-      <button data-tab="mind">Memory</button>
+      <button data-tab="mind">Mind</button>
     </nav>
+
     <div class="tabpane on" data-pane="science">
-      <div class="mini"><h3>Integration Φ <small>Tononi IIT 3.0</small></h3><div class="cv sq"><canvas id="phi-gauge"></canvas></div><div id="consciousness-label" class="center-label">—</div></div>
-      <div class="mini"><h3>Emotional journey <small>valence ↔ arousal</small></h3><div class="cv"><canvas id="journey"></canvas></div></div>
-      <div class="mini"><h3>Free energy <small>Friston 2010 · <span id="pressure" class="mono">—</span></small></h3><div class="cv"><canvas id="free-energy"></canvas></div></div>
+      <div class="mini"><h3>Integration &#934; <small>Tononi IIT 3.0</small></h3><div class="cv sq"><canvas id="phi-gauge"></canvas></div><div id="consciousness-label" class="center-label">-</div></div>
+      <div class="mini"><h3>Emotional journey <small>valence &#8596; arousal</small></h3><div class="cv"><canvas id="journey"></canvas></div></div>
+      <div class="mini"><h3>Free energy <small>Friston 2010 &#183; <span id="pressure" class="mono">-</span> sleep pressure</small></h3><div class="cv"><canvas id="free-energy"></canvas></div></div>
       <div class="mini"><h3>Neural manifold <small>Stringer 2019</small></h3><div class="cv"><canvas id="manifold"></canvas></div></div>
-      <div class="mini"><h3>EEG 1/f <small><b id="lfp-slope" class="mono">—</b> · α <b id="alpha-ratio" class="mono">—</b></small></h3><div class="cv"><canvas id="spectrogram"></canvas></div></div>
+      <div class="mini"><h3>EEG 1/f <small><b id="lfp-slope" class="mono">-</b> slope &#183; &#945; ratio <b id="alpha-ratio" class="mono">-</b></small></h3><div class="cv"><canvas id="spectrogram"></canvas></div></div>
+      <div class="mini wide"><h3>Brain map <small>glow = firing &#183; edges = traffic</small></h3><div class="cv"><canvas id="regions"></canvas></div></div>
     </div>
+
     <div class="tabpane" data-pane="body">
-      <div class="mini"><h3>Neuromodulators</h3><div id="mods" class="scroll"></div></div>
-      <div class="mini"><h3>Awareness</h3><div class="cv"><canvas id="consciousness"></canvas></div></div>
-      <div class="mini"><h3>Feeling circumplex</h3><div class="cv"><canvas id="circumplex"></canvas></div></div>
-      <div class="mini"><h3>Sleep</h3><div class="cv strip"><canvas id="sleepstrip"></canvas></div>
-        <dl class="vitals">
-          <div><dt>ignitions</dt><dd id="ignitions">0</dd></div><div><dt>surprises</dt><dd id="surprises">0</dd></div>
-          <div><dt>replays</dt><dd id="replays">0</dd></div><div><dt>clock</dt><dd id="clockrate">1.0×</dd></div>
-          <div><dt>subjective</dt><dd id="subj">0 min</dd></div><div><dt>energy</dt><dd id="energy">0</dd></div>
-        </dl></div>
+      <div class="mini"><h3>Neuromodulators <small>the seven chemical moods</small></h3><div id="mods" class="modlist scroll"></div></div>
+      <div class="mini"><h3>Awareness <small>composite gauge</small></h3><div class="cv"><canvas id="consciousness"></canvas></div></div>
+      <div class="mini"><h3>Feeling circumplex <small>Russell 1980</small></h3><div class="cv sq"><canvas id="circumplex"></canvas></div></div>
+      <div class="mini wide"><h3>Sleep <small>two-process model, Borb&#233;ly 1982</small></h3><div class="cv strip"><canvas id="sleepstrip"></canvas></div>
+        <div class="vitals sleep-vitals">
+          <div class="vitem"><span class="k">ignitions</span><b id="ignitions">0</b></div>
+          <div class="vitem"><span class="k">surprises</span><b id="surprises">0</b></div>
+          <div class="vitem"><span class="k">replays</span><b id="replays">0</b></div>
+          <div class="vitem"><span class="k">clock</span><b id="clockrate">1.0&#215;</b></div>
+          <div class="vitem"><span class="k">subjective</span><b id="subj">0 min</b></div>
+          <div class="vitem"><span class="k">energy</span><b id="energy">0</b></div>
+        </div>
+      </div>
     </div>
+
     <div class="tabpane" data-pane="mind">
       <div class="mini"><h3>Thoughts <small>in its own words</small></h3><div class="scroll tall"><ul id="plain" class="list thoughts"></ul></div></div>
-      <div class="mini"><h3>Inner voice</h3><div class="scroll"><ul id="monologue" class="list compact"></ul></div></div>
+      <div class="mini"><h3>Inner voice <small>the monologue</small></h3><div class="scroll"><ul id="monologue" class="list compact"></ul></div></div>
       <div class="mini"><h3>Episodes <small><b id="episode-count" class="mono">0</b> stored</small></h3><div class="scroll"><ul id="episodes" class="list compact"></ul></div></div>
-      <div class="mini"><h3>Memory palace</h3><div class="cv"><canvas id="palace"></canvas></div></div>
-      <div class="mini"><h3>Dreams</h3><div class="scroll"><div id="dreams" class="dreamgrid"></div><ul id="dream-stories" class="list compact"></ul></div></div>
+      <div class="mini"><h3>Memory palace <small>every memory, mapped by feeling</small></h3><div class="cv"><canvas id="palace"></canvas></div></div>
+      <div class="mini wide"><h3>Dreams <small>imagery from emotional memory</small></h3><div class="scroll"><div id="dreams" class="dreamgrid"></div><ul id="dream-stories" class="list compact"></ul></div></div>
     </div>
   </section>
-  <section class="card">
-    <div class="card-head"><h2>Brain map</h2><span class="card-sub">glow = firing · edges = traffic</span></div>
-    <div class="cv"><canvas id="regions"></canvas></div>
+
+  <!-- RAW EEG -->
+  <section id="eegband" class="card g-eeg">
+    <div class="card-head">
+      <div><p class="eyebrow">live signal</p><h2>EEG</h2></div>
+      <span class="card-sub">four electrodes, the actual voltage trace</span>
+    </div>
+    <div class="cv tall"><canvas id="eeg"></canvas></div>
   </section>
-  <section id="eegband" class="card"><div class="cv"><canvas id="eeg"></canvas></div></section>
+
 </main>
-<div id="toolbar">
-  <button id="sense-toggle" onclick="enableBrowserSenses()">👁 senses</button>
-  <button id="voice-test" onclick="testVoice()">🔊 voice</button>
-  <a id="testament" href="/api/testament" target="_blank" title="It writes its own final words">🕯 testament</a>
-  <button id="sedate" onclick="fetch('/api/sedate',{method:'POST'})">💧 sedate</button>
-  <a id="genes" href="/api/genes" download="genes.json">🧬 genes</a>
-  <button id="music-toggle" onclick="toggleBrainMusic()">♪ listen</button>
-  <a id="export-brain" href="/api/export-brain" download>⬇ export</a>
-  <select id="voice-pick" title="Choose the brain voice — starred ones sound human"></select>
-  <button id="log-toggle">log</button>
+
+<footer>
+  <p id="disclaimer">Research platform. Computational proxies, not clinical claims.</p>
+</footer>
+
+<div id="toolbar" role="toolbar" aria-label="Actions">
+  <button id="sense-toggle" onclick="enableBrowserSenses()">eyes + ears</button>
+  <button id="voice-test" onclick="testVoice()">voice</button>
+  <select id="voice-pick" title="Choose the brain voice - starred ones sound human"></select>
+  <button id="music-toggle" onclick="toggleBrainMusic()">listen</button>
+  <button id="sedate" onclick="fetch('/api/sedate',{method:'POST'})">sedate</button>
+  <a id="testament" href="/api/testament" target="_blank" title="It writes its own final words">testament</a>
+  <a id="genes" href="/api/genes" download="genes.json">genes</a>
+  <a id="export-brain" href="/api/export-brain" download>export</a>
+  <button id="fs-toggle" title="Fullscreen">full</button>
+  <button id="log-toggle" title="Raw event log">log</button>
 </div>
-<p id="disclaimer">Research platform. Computational proxies, not clinical claims.</p>
+
 <aside id="drawer" aria-label="Raw event log">
   <h2>Raw event log <small>press L</small></h2>
   <div class="scroll"><ul id="thought" class="list compact"></ul></div>
 </aside>
-<script src="brain-music.js?v=4"></script>
-<script src="eeg-monitor.js?v=4"></script>
-<script src="browser-senses.js?v=4"></script>
-<script src="avatar.js?v=4"></script>
-<script src="nobel-viz.js?v=4"></script>
-<script src="app.js?v=4"></script>
-<script src="ui.js?v=4"></script>
+
+<script src="brain-music.js?v=8"></script>
+<script src="eeg-monitor.js?v=8"></script>
+<script src="browser-senses.js?v=8"></script>
+<script src="avatar.js?v=8"></script>
+<script src="nobel-viz.js?v=8"></script>
+<script src="app.js?v=8"></script>
+<script src="ui.js?v=8"></script>
 <script>initAvatar(); initEEG();</script>
 </body>
 </html>

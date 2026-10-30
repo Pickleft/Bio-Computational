@@ -1,9 +1,11 @@
-// UI glue: the whole room is lit by the creature (hue = dopamine, glow = arousal + firing), tabs, log drawer.
+// UI glue: the whole room is lit by the creature (--hue = dopamine,
+// --glow = arousal + firing, consumed by the body's ambient gradients),
+// science wings (tabs), log drawer, fullscreen.
 "use strict";
 (() => {
   const root = document.documentElement.style;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  let hue = 175, glow = 0.3;
+  let hue = 205, glow = 0.3;
 
   ws.addEventListener("message", (e) => {
     let s; try { s = JSON.parse(e.data); } catch { return; }
@@ -25,7 +27,7 @@
   document.getElementById("log-toggle").onclick = toggleLog;
   const fsBtn = document.getElementById("fs-toggle"); if (fsBtn) fsBtn.onclick = toggleFs;
   addEventListener("keydown", (e) => {
-    if (/input|textarea/i.test(e.target.tagName) || e.metaKey || e.ctrlKey) return;
+    if (/input|textarea|select/i.test(e.target.tagName) || e.metaKey || e.ctrlKey) return;
     if (e.key === "l") toggleLog();
     if (e.key === "f") toggleFs();
   });
