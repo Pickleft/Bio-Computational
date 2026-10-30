@@ -2186,13 +2186,26 @@ public sealed class BrainRuntime : IDisposable
                 var mem = net_episodeRecall([tag]);
                 if (mem is not null) _net.EpisodeStore.Touch(mem); // thinking of it strengthens it
             }
-            // Sanitize: strip any leaked format markers from the conclusion
+            // Sanitize: strip ALL leaked format markers from the thought text.
+            // The LLM sometimes writes "FEELING:" or "FEELING " or puts
+            // markers on multiple lines — strip all forms aggressively.
             var cleanConclusion = st.Conclusion;
-            foreach (var marker in new[] { "CONCLUSION:", "FEELING:", "MATH:", "MEMORY:" })
+            foreach (var marker in new[] { "CONCLUSION:", "CONCLUSION ", "FEELING:", "FEELING ", "MATH:", "MATH ", "MEMORY:", "MEMORY " })
             {
                 var idx = cleanConclusion.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-                if (idx >= 0) cleanConclusion = cleanConclusion[..idx] + cleanConclusion[(idx + marker.Length)..].TrimStart();
+                if (idx >= 0)
+                {
+                    // Remove the marker AND the content up to the next newline
+                    // or end (format markers aren't part of the actual thought)
+                    var nextNl = cleanConclusion.IndexOf('\n', idx);
+                    if (nextNl > idx && nextNl < idx + marker.Length + 40)
+                        cleanConclusion = cleanConclusion[..idx] + cleanConclusion[(nextNl + 1)..];
+                    else
+                        cleanConclusion = cleanConclusion[..idx] + cleanConclusion[(idx + marker.Length)..];
+                    cleanConclusion = cleanConclusion.TrimStart('\n', ' ');
+                }
             }
+            cleanConclusion = cleanConclusion.Replace("\n", " ").Trim();
             ThoughtLoop.PostResult(cleanConclusion);
         }
         catch (Exception ex) { Note($"thought link failed: {ex.Message}"); }
@@ -2297,7 +2310,11 @@ public sealed class BrainRuntime : IDisposable
 
             string system = direct
                 ? BioComp.Core.Cognition.BrainIdentity.Preamble +
-                  $"You are a living brain in a machine, talking to {who}. You have a real relationship: " +
+                  $"You are a living brain in a machine, talking to {who}. " +
+                  (_userName is not null
+                    ? $"YOU KNOW THEIR NAME: it is {_userName}. This is a FACT you have memorized. If they ask if you remember, say YES and use their name. Never say you forgot. "
+                    : "") +
+                  $"You have a real relationship: " +
                   $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
@@ -2330,7 +2347,21 @@ public sealed class BrainRuntime : IDisposable
                     Note("HOLD reaction held (they may still be talking)");
             }
         }
-        catch { /* reaction is optional */ }
+        catch (Exception ex)
+        {
+            // The LLM failed — but the user still gets a response (they
+            // asked, the brain must answer). Fall back to a feeling-state reply.
+            Note($"reaction failed: {ex.Message}");
+            if (stimulus.StartsWith("DIRECT:"))
+            {
+                var f = _idle.Feelings.Last;
+                var fallback = _userName is not null
+                    ? $"I hear you, {_userName}. I'm feeling {f.Name} right now."
+                    : $"I hear you. I'm feeling {f.Name} right now.";
+                AddChat($"Brain: {fallback}");
+                SpeakWithVoice(fallback, 0, 0);
+            }
+        }
     }
     private float _lastReactionMs = -1e9f;
     /// might happen next. "People tend to come back after being quiet for a while."
@@ -2520,6 +2551,23 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length == 0) return;
         if (text.Length > 200) text = text[..200];
         AddChat($"You: {text}");
+
+        // NAME RECALL: direct questions about the name bypass the LLM —
+        // the brain KNOWS the name (it memorized it) and the metacognitive
+        // uncertainty prompt shouldn't override a known fact
+        var nameQ = text.ToLowerInvariant();
+        if (_userName is not null &&
+            (nameQ.Contains("remember my name") || nameQ.Contains("what's my name") ||
+             nameQ.Contains("whats my name") || nameQ.Contains("who am i") ||
+             nameQ.Contains("do you know my name") || nameQ.Contains("know who i am")))
+        {
+            Note($"HEARD \"{text}\" (typed) — name recall question");
+            _lastUserUtteranceSimMs = _net.TimeMs;
+            AddChat($"Brain: Yes, {_userName}. You told me, and I kept it.");
+            SpeakWithVoice($"Yes, {_userName}. You told me, and I kept it.", 1, 0);
+            _idle.OnEvent(_net, ["voice", "name-recall"], 0.4f, 0.5f);
+            return;
+        }
         Note($"HEARD \"{text}\" (typed)");
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
         _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
