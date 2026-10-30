@@ -198,21 +198,45 @@ function startTranscription() {
   rec.interimResults = true;
   rec.lang = "en-US";
   rec.onresult = (e) => {
-    let interim = "";
+    let interim = “”;
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript.trim();
       if (e.results[i].isFinal) {
-        if (fin && t) { fin.textContent = "“" + t + "”"; fin.style.color = "#6ee7a0"; }
-        if (int) int.textContent = "";
-      } else interim += t + " ";
+        if (fin && t) { fin.textContent = “\u201C” + t + “\u201D”; fin.style.color = “#6ee7a0”; }
+        if (int) int.textContent = “”;
+        // SEND TO BRAIN: final recognized speech goes directly to the chat
+        // API — this IS the conversation engine. The brain hears your words
+        // through the same path as typed messages.
+        if (t && t.length > 1) {
+          fetch(“/api/say”, {
+            method: “POST”,
+            headers: { “Content-Type”: “application/json” },
+            body: JSON.stringify({ text: t })
+          }).catch(() => {});
+        }
+      } else interim += t + “ “;
     }
-    if (int) { int.textContent = interim; int.style.color = "#8fa3ba"; }
+    if (int) { int.textContent = interim; int.style.color = “#8fa3ba”; }
   };
   rec.onerror = (e) => {
-    if (fin && e.error !== "no-speech") {
-      fin.textContent = "(transcription: " + e.error + ")";
+    const err = e.error;
+    console.error("[senses] SpeechRecognition error:", err);
+    if (fin && err !== "no-speech") {
+      const hints = {
+        "network": "VOICE INPUT OFFLINE — open this page in Chrome on your PC for voice input. On Samsung, go to Settings > Apps > Chrome > Permissions > Microphone > Allow.",
+        "not-allowed": "MIC BLOCKED — click the lock icon in the address bar, allow microphone, reload.",
+        "audio-capture": "NO MIC FOUND — check that your microphone is connected and not used by another app.",
+        "service-not-allowed": "VOICE SERVICE BLOCKED — try Chrome on PC.",
+      };
+      fin.textContent = hints[err] || "(voice input error: " + err + ")";
       fin.style.color = "#f07080";
     }
+  };
+  rec.onstart = () => {
+    const dot = document.getElementById("live-dot");
+    if (dot) { dot.classList.add("on"); dot.textContent = "●"; }
+    if (fin) { fin.textContent = "listening..."; fin.style.color = "#6ee7a0"; }
+    console.log("[senses] SpeechRecognition started");
   };
   rec.onend = () => { if (senseActive && rec) { try { rec.start(); } catch {} } };
   try { rec.start(); } catch {}

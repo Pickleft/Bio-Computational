@@ -695,6 +695,16 @@ public sealed class BrainRuntime : IDisposable
                     // still speaking: reset the end-of-speech timer
                     _lastVoiceMs = t;
                 }
+                else if (_cochlea.EnergyRms > 0.002f && !_wasVoice)
+                {
+                    // FALLBACK ONSET: even if VAD didn't confirm "voice", if
+                    // there's real audio energy, start capturing — the VAD
+                    // might be too strict for quiet speech. The transcription
+                    // API can figure out if it's actually speech.
+                    _wasVoice = true;
+                    _speechStartMs = t;
+                    _lastVoiceMs = t;
+                }
                 else if (_wasVoice && t - _lastVoiceMs > 800f && t - _speechStartMs > 500f)
                 {
                     // end of speech (0.8s of silence after at least 0.5s of speech):
