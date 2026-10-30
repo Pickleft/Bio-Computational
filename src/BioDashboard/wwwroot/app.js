@@ -242,6 +242,21 @@ function render(s) {
   setText("current-need", `${s.CurrentNeed || "satisfied"}${s.NeedUrgency > 0.5 ? " (urgent!)" : ""}`);
   setText("emo-granularity", s.EmotionalStage || "newborn");
   setText("life-story", s.HowIveChanged || "too young to have changed yet");
+  // longing / anticipation / deja vu: the felt shape of knowing one person
+  const longingEl = $("longing-state");
+  if (longingEl) {
+    longingEl.textContent = s.LongingNarrative || "has not missed anyone yet";
+    longingEl.classList.toggle("urgent", /missing/.test(s.LongingNarrative || ""));
+  }
+  const aLvl = s.AnticipationLevel || 0;
+  setText("anticipation-state", aLvl > 0.5
+    ? `hoping — ${Math.round(aLvl * 100)}% (expects someone now)`
+    : `${s.AnticipationFulfilled || 0} hoped-for returns, ${s.AnticipationDisappointed || 0} empty windows`);
+  const dvEl = $("dejavu-count");
+  if (dvEl) {
+    dvEl.textContent = !s.DejaVuCount ? "never" : `${s.DejaVuCount}× — ${s.DejaVuLast || ""}`.substring(0, 80);
+    dvEl.title = s.DejaVuLast || "";
+  }
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};
