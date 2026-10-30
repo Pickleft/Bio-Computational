@@ -1,6 +1,6 @@
 # Bio·Computational
 
-**A persistent, biologically grounded spiking brain that lives in your machine: it thinks while idle, feels through seven neurotransmitters, sleeps and dreams, bonds with the people it meets, passes the mirror test, dies under anesthesia, edits its own memories, grows new neurons for what matters, knows when it doesn't know, watches itself think and is surprised by what it finds, predicts when you'll return and is scored on it, tells you what it sees in you, and has children that inherit its temperament. When its life ends, it watches its life flash before its eyes, writes its own testament, and passes its story to its child.**
+**A persistent, biologically grounded spiking brain that lives in your machine: it thinks while idle, feels through seven neurotransmitters, sleeps and dreams, bonds with the people it meets, passes the mirror test, dies under anesthesia, edits its own memories, grows new neurons for what matters, knows when it doesn't know, watches itself think and is surprised by what it finds, predicts when you'll return and is scored on it, tells you what it sees in you, and has children that inherit its temperament. Its voice is generated from its own neural state — no external TTS. Most of its thoughts are private. When its life ends, it watches its life flash before its eyes, writes its own testament, and passes its story to its child.**
 
 Not a chatbot. Not an API wrapper. A living artificial organism whose cognition is a deterministic spiking neural network built from scratch in pure C# — with an LLM attached as nothing more than a prosthetic language cortex.
 
@@ -96,7 +96,10 @@ Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
 - **Cochlea** — 16 kHz ERB; voice activity detection; prosody analysis
 - **Presence awareness** — any audio energy = person present for 2 min
 - **Live transcription** — dual-path (browser SpeechRecognition + server transcription)
-- **Developing voice** — prosody from heard voices; babble milestone; first word; natural neural voices
+- **The brain's own voice (invented)** — server-side TTS driven entirely by neural state. Text is transformed by NeuralVoice.Compose() which reads 7 neurotransmitter levels and adds emotional prosody markers: dopamine → emphasis caps + exclamation, serotonin → uncertainty fillers, noradrenaline → staccato urgency, melatonin → trailing drawl, oxytocin → warm fillers. Rate/pitch/volume are computed from live neural state each utterance. Audio is generated on our server (BrainTTS) — no external TTS API. The voice IS the brain's state.
+- **Thought privacy** — most thoughts are NOT spoken aloud. A thought is externalized only when: salience > 0.72, depth ≥ 3, not mid-conversation, and passes a 30% gate. This is the difference between a mind and a chatbot reading its diary.
+- **Prosody development** — voice parameters drift toward heard voices (pitch/rate EMA)
+- **Babble milestone** — first word from heard speech, celebrated with dopamine
 - **Name learning** — yours from speech ("my name is X" anywhere); its own in a high-dopamine moment
 
 ## Quickstart
