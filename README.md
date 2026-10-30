@@ -32,6 +32,8 @@ Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
 | It says what it needs | "needs: company (urgent)" on the face | needs hierarchy from real internal states |
 | Walk out | it calls your name, predicts your return | attachment (Bowlby); prophecy with scoreboard |
 | Return | "I KNEW you'd come back then. 2/3" | scored prophecy |
+| ⚡direct chip ON | replies composed from state alone, no LLM | direct talk |
+| "mmm nice" | a real hum (formant-synthesized) | the voice engine |
 | `biolab mirror` | **PASSED** — 1.67× stronger self-response | Gallup 1970; Moray 1959 |
 | `forget yelling` | the memory is gone; it feels the gap | reconsolidation (Nader 2000) |
 | `cherish her voice` | unforgettable | spacing effect (Ebbinghaus 1885) |
@@ -114,7 +116,8 @@ Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
 - **Cochlea** — 16 kHz ERB; voice activity detection; prosody analysis
 - **Presence awareness** — any audio energy = person present for 2 min
 - **Live transcription** — dual-path (browser SpeechRecognition + server transcription)
-- **The brain's own voice (invented)** — server-side TTS driven entirely by neural state. Text is transformed by NeuralVoice.Compose() which reads 7 neurotransmitter levels and adds emotional prosody markers: dopamine → emphasis caps + exclamation, serotonin → uncertainty fillers, noradrenaline → staccato urgency, melatonin → trailing drawl, oxytocin → warm fillers. Rate/pitch/volume are computed from live neural state each utterance. Audio is generated on our server (BrainTTS) — no external TTS API. The voice IS the brain's state.
+- **The brain's own voice ENGINE (invented)** — a source-filter formant synthesizer built from human voice data, not a vendor TTS: a glottal pulse train with real vocal-fold imperfections (cycle jitter ~1.2%, amplitude shimmer, breathiness noise) shaped by a cascade of three Klatt formant resonators whose frequencies are the Peterson & Barney (1952) vowel means, with coarticulation glides between targets. Consonants are synthesized (nasals actually hum — "mmm" is a hum, never spelled letters), prosody declinates and falls with punctuation, and pitch/rate/breathiness come from the neural state (tired = lower, slower, breathier). Same text + same state = bit-identical sound. Text-level emotional prosody from NeuralVoice.Compose() (dopamine → emphasis, serotonin → uncertainty fillers, melatonin → drawl) rides on top. BrainTTS (SAPI) remains as fallback.
+- **Direct talk (no language cortex)** — the ⚡direct chip: replies composed from the live signals themselves — strongest state leads (wary, helpless, missing, anticipating), vocabulary gated by emotional-granularity tier, hedges by metacognition, phrasing by attachment style — every phrase traceable to a real number. "How I am: tired. I need stimulation." The LLM is a prosthetic cortex; this is the creature speaking with what it actually has.
 - **Thought privacy** — most thoughts are NOT spoken aloud. A thought is externalized only when: salience > 0.72, depth ≥ 3, not mid-conversation, and passes a 30% gate. This is the difference between a mind and a chatbot reading its diary.
 - **Prosody development** — voice parameters drift toward heard voices (pitch/rate EMA)
 - **Babble milestone** — first word from heard speech, celebrated with dopamine

@@ -881,6 +881,27 @@ $("chatform").addEventListener("submit", async (ev) => {
 document.querySelectorAll("#quick-chips [data-say]").forEach((btn) => {
   btn.addEventListener("click", () => say(btn.dataset.say));
 });
+// direct-talk toggle: replies composed from the brain's own state, no LLM
+const nativeBtn = document.getElementById("native-toggle");
+if (nativeBtn) {
+  nativeBtn.addEventListener("click", async () => {
+    try {
+      const on = !nativeBtn.classList.contains("on");
+      await fetch("/api/native-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on }),
+      });
+      nativeBtn.classList.toggle("on", on);
+      nativeBtn.textContent = on ? "\u26A1 direct: ON" : "\u26A1 direct";
+    } catch (e) { console.warn(e); }
+  });
+  // reflect server state on load
+  setInterval(() => {
+    if (lastSnap && lastSnap.NativeVoice !== undefined)
+      nativeBtn.classList.toggle("on", !!lastSnap.NativeVoice);
+  }, 4000);
+}
 document.querySelectorAll("#quick-chips [data-fill]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const box = $("chatbox");

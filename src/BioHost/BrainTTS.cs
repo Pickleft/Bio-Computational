@@ -41,6 +41,20 @@ public sealed class BrainTTS : IDisposable
     }
 
     /// <summary>
+    /// SAPI spells interjections letter by letter ("mmm" -> "M M M").
+    /// Normalize them to speakable forms.
+    /// </summary>
+    public static string NormalizeForSpeech(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+        return text
+            .Replace("mmm...", "hmm, ").Replace("mmm", "hmm")
+            .Replace("Mmm", "Hmm").Replace("MMM", "Hmmm")
+            .Replace("mm.", "hm. ").Replace(" mm ", " hm ")
+            .Replace("...", ", ");
+    }
+
+    /// <summary>
     /// Generate a WAV audio file from text with neural-state-driven prosody.
     /// The text has ALREADY been through NeuralVoice.Compose() — this method
     /// just renders it with the right voice parameters.
@@ -58,7 +72,7 @@ public sealed class BrainTTS : IDisposable
 
             using var ms = new MemoryStream();
             _synth.SetOutputToWaveStream(ms);
-            _synth.Speak(text);
+            _synth.Speak(NormalizeForSpeech(text));
             return ms.ToArray();
         }
         catch (Exception ex)

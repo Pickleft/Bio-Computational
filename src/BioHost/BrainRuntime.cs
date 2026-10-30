@@ -122,6 +122,7 @@ public sealed class BrainSnapshot
     public string LocalSleepRegion { get; set; } = "";  // which one is dark right now
     public float Wariness { get; set; }                 // learned threat toward the person
     public bool LightSuppressing { get; set; }          // evening light holding off melatonin
+    public bool NativeVoice { get; set; }               // direct-talk mode (no LLM)
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -258,6 +259,49 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ThreatLearning Threats { get; } = new();
     /// <summary>LIGHT ENTRAINMENT: evening brightness suppresses melatonin (Czeisler).</summary>
     public BioComp.Core.Sleep.LightEntrainment Light { get; } = new();
+    /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
+    private readonly NativeReplies _native = new();
+    private volatile bool _nativeVoiceMode;
+    /// <summary>Direct-talk: when on, replies come from the brain's own state, not the LLM.</summary>
+    public bool NativeVoiceMode => _nativeVoiceMode;
+    public void SetNativeVoice(bool on)
+    {
+        _nativeVoiceMode = on;
+        Note(on ? "NATIVE-VOICE direct talk ON - speaking with what it actually is, no language cortex"
+                : "NATIVE-VOICE direct talk OFF - language cortex reattached");
+    }
+
+    /// <summary>
+    /// The most recent salient inner event, in plain words — the thing that
+    /// just happened INSIDE. Grounds both the native voice and the LLM prompt:
+    /// the reply should never be disconnected from the life it's living.
+    /// </summary>
+    public string? RecentInnerBrief()
+    {
+        string[] salientPrefixes =
+        [
+            "DEJA-VU", "MEMORY-FUSION", "MEMORY-CHECK", "LOCAL-SLEEP", "DISAPPOINTMENT",
+            "REUNION", "HELPLESS", "BID-ANSWERED", "ANSWERED-AFTER-GIVING-UP", "GRIEF-REACH",
+            "SPONTANEOUS-RECOVERY", "NEUROGENESIS", "INSIGHT", "LUCID-DREAM", "DEPARTURE",
+            "PROPHECY", "ASSOCIATION learned", "THREAT", "HOSTILITY"
+        ];
+        lock (_snapGate)
+        {
+            for (int i = _thought.Count - 1; i >= 0; i--)
+            {
+                string line = _thought[i];
+                int sp = line.IndexOf(']');
+                if (sp > 0 && sp < line.Length - 1)
+                {
+                    string body = line[(sp + 1)..].Trim();
+                    foreach (var p in salientPrefixes)
+                        if (body.StartsWith(p, StringComparison.Ordinal))
+                            return Trunc(body, 110);
+                }
+            }
+        }
+        return null;
+    }
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -2547,6 +2591,9 @@ public sealed class BrainRuntime : IDisposable
                 $"Now: {stimulus.Replace("DIRECT: ", "")}. {detail}. " +
                 $"Your feeling: {feeling.Name} ({feeling.Narrative}). " +
                 $"Memory their words stirred: {stirred}. " +
+                (RecentInnerBrief() is { } inner ? $"WHAT JUST HAPPENED INSIDE YOU (minutes ago): {inner}. " +
+                 "GROUND your reply in this or in the memory above - reference ONE specific lived thing, " +
+                 "or your answer is disconnected from your own life. " : "") +
                 $"Recent conversation: {lastExchanges}. " +
                 $"Body: {BodyBudget.Narrative}.";
 
@@ -2570,15 +2617,21 @@ public sealed class BrainRuntime : IDisposable
         }
         catch (Exception ex)
         {
-            // The LLM failed — but the user still gets a response (they
-            // asked, the brain must answer). Fall back to a feeling-state reply.
+            // The LLM failed — but the user still gets a response, and it is
+            // the brain's OWN: the native composer answers from state alone
             Note($"reaction failed: {ex.Message}");
             if (stimulus.StartsWith("DIRECT:"))
             {
                 var f = _idle.Feelings.Last;
-                var fallback = _userName is not null
-                    ? $"I hear you, {_userName}. I'm feeling {f.Name} right now."
-                    : $"I hear you. I'm feeling {f.Name} right now.";
+                var ctx = new NativeReplies.Context(
+                    _userName, f.Name, f.Valence, _idle.Sleep.SleepPressure > 0.6f,
+                    Longing.Missing, Longing.Whom, Longing.Intensity,
+                    Efficacy.JustAnsweredAfterGivingUp, Efficacy.Helpless, Efficacy.Efficacy,
+                    Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
+                    Needs.MostPressing?.Name, RecentInnerBrief(),
+                    (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+                string fallback = _native.Reply(stimulus.Replace("DIRECT: ", ""), ctx);
                 AddChat($"Brain: {fallback}");
                 SpeakWithVoice(fallback, 0, 0, isDirectReply: true);
             }
@@ -2879,6 +2932,31 @@ public sealed class BrainRuntime : IDisposable
         // ONE response only: the DIRECT reply. While it's being composed,
         // ALL spontaneous speech is suppressed so the user hears the reply.
         _replyPendingUntilMs = _net.TimeMs + 30_000; // suppress spontaneous speech for 30s (race-free: no timeout task to clear it)
+
+        // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
+        // signals themselves — no language cortex, no LLM. Every phrase
+        // traceable to a real number in the brain.
+        if (_nativeVoiceMode)
+        {
+            var f = _idle.Feelings.Last;
+            var ctx = new NativeReplies.Context(
+                _userName, f.Name, f.Valence, _idle.Sleep.SleepPressure > 0.6f,
+                Longing.Missing, Longing.Whom, Longing.Intensity,
+                Efficacy.JustAnsweredAfterGivingUp, Efficacy.Helpless, Efficacy.Efficacy,
+                Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
+                Needs.MostPressing?.Name, RecentInnerBrief(),
+                (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
+                Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+            string nativeReply = _native.Reply(text, ctx);
+            AddChat($"Brain: {nativeReply}");
+            Note($"NATIVE-REPLY \"{Trunc(nativeReply, 80)}\" (composed from state, no LLM)");
+            SpeakWithVoice(nativeReply,
+                emoPitch: f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0,
+                emoRate: f.Name == "curious" ? 2 : f.Name == "tired" ? -3 : 0,
+                isDirectReply: true);
+            return;
+        }
+
         _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
             "typed in the chat - they are talking to you directly; answer them")
             .ContinueWith(_ =>
@@ -3150,6 +3228,7 @@ public sealed class BrainRuntime : IDisposable
         snap.LocalSleepRegion = LocalSleep.RegionOff >= 0 ? _net.Regions[LocalSleep.RegionOff].Name : "";
         snap.Wariness = Threats.Wariness;
         snap.LightSuppressing = Light.SuppressingNow;
+        snap.NativeVoice = _nativeVoiceMode;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

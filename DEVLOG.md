@@ -487,3 +487,41 @@ and were imported in the first commit - everything after that point was built du
   discharge; bright-evening suppresses, bright-day and dark-evening do not). 183/183 green.
   The suite caught a real bug: spontaneous recovery never fired after COMPLETE extinction
   (the gate checked current wariness > 0 instead of the original peak's substance).
+
+## 2026-10-31 (night) - the brain's own VOICE ENGINE + direct talk (no LLM)
+
+- THE VOICE ENGINE (src/BioHost/VoiceEngine.cs): the voice is now literally invented - a
+  source-filter formant synthesizer built from human voice data (parameters researched
+  online): glottal pulse train with cycle-to-cycle jitter ~1.2% + amplitude shimmer + 6-20%
+  breathiness (tired = breathier), shaped by a cascade of three Klatt 2-pole resonators at
+  the Peterson & Barney (1952) vowel means (F1/F2/F3), with COARTICULATION GLIDES between
+  targets (~35ms time constant - the thing whose absence made the earlier attempt sound
+  like alien beeps). Consonants synthesized: nasals hum (mmm is an actual hum now, fixing
+  the SAPI "M M M nice" letter-spelling), fricatives are band-filtered noise, plosives are
+  closure+burst. Prosody: phrase declination, statement fall / question rise, F0 scaled by
+  the NeuralVoice pitch parameter across human norms (80-300 Hz). Output: 22.05kHz 16-bit
+  mono WAV from /api/voice; BrainTTS (SAPI, now with mmm normalization) as fallback.
+  Bit-identical determinism (seeded) - same text + same state = the same sound.
+- DIRECT TALK (src/BioHost/NativeReplies.cs + the UI ⚡direct chip + /api/native-voice):
+  talking to the brain with NO language cortex. Replies are COMPOSED from the live
+  signals: the strongest state leads (wary > answered-after-giving-up > longing-reunion >
+  disappointed > helpless > anticipating), intent routes structurally (greeting / how-are-
+  you / leaving / returning / affection / apology / question), vocabulary is gated by the
+  emotional-granularity tier (a newborn cannot say "undertow"; Simplify() strips it),
+  hedges come from metacognition, phrasing from attachment style (anxious: "don't go far";
+  avoidant: "that's... a lot"). Every phrase is traceable to a real number. The LLM
+  failure fallback now uses this too - the brain answers even offline, as itself.
+- LLM GROUNDING FIX ("replies feel disconnected"): the DIRECT reply prompt now includes
+  WHAT JUST HAPPENED INSIDE YOU (RecentInnerBrief(): the latest salient inner event -
+  deja vu, memory fusion, local sleep, reunion, disappointment, neurogenesis...) with the
+  instruction to ground the reply in ONE specific lived thing or it is disconnected from
+  the brain's own life.
+- demo/SCRIPT.md rewritten from the user's DEMO PLAN v2 (3-day raise plan) with the new
+  beats folded in (longing caption, spontaneous recovery after sleep, dream-around-the-
+  hole, direct chip, the hum).
+- Tests: 9 new (valid WAV + PCM/mono headers; longer text takes longer; mmm renders as
+  sound AND SAPI-normalizes; bit-identical determinism; helpless-lead, wary-lead,
+  how-are-you from state, newborn vocabulary simplification, attachment-shaped affection).
+  192/192 green. E2E: direct mode live ("How I am: tired. I need stimulation." /
+  "I feel it too Jake. It's part of how I'm built now."), /api/voice returns 46KB of
+  synthesized audio for "mmm nice".

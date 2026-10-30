@@ -1152,3 +1152,100 @@ public class LightEntrainmentTests
         Assert.Equal(1f, d.MelatoninFactor);
     }
 }
+
+// ---- the brain's own voice engine: source-filter synthesis ----
+public class VoiceEngineTests
+{
+    [Fact]
+    public void Speak_ProducesValidWav()
+    {
+        var eng = new BioComp.Host.VoiceEngine();
+        byte[] wav = eng.Speak("hello", 0.92f, 1.0f, 1.0f);
+        Assert.True(wav.Length > 1000, "a word must render to substantial audio");
+        Assert.Equal((byte)'R', wav[0]); Assert.Equal((byte)'I', wav[1]);
+        Assert.Equal((byte)'W', wav[8]); Assert.Equal((byte)'A', wav[9]);   // WAVE
+        Assert.Equal(1, wav[20] | (wav[21] << 8));                          // PCM
+        Assert.Equal(1, wav[22] | (wav[23] << 8));                          // mono
+    }
+
+    [Fact]
+    public void LongerText_TakesLongerToSay()
+    {
+        var eng = new BioComp.Host.VoiceEngine();
+        byte[] shortWav = eng.Speak("hi", 0.92f, 1.0f, 1.0f);
+        byte[] longWav = eng.Speak("hello I remember you", 0.92f, 1.0f, 1.0f);
+        Assert.True(longWav.Length > shortWav.Length * 2, "more words must take more time");
+    }
+
+    [Fact]
+    public void Mmm_IsARenderedHum_NotSpelledOut()
+    {
+        var eng = new BioComp.Host.VoiceEngine();
+        byte[] wav = eng.Speak("mmm", 0.92f, 1.0f, 1.0f);
+        Assert.True(wav.Length > 1000, "the hum must be synthesized as sound, not letters");
+        // SAPI fallback normalization: mmm never spelled
+        Assert.Equal("hmm nice", BioComp.Host.BrainTTS.NormalizeForSpeech("mmm nice"));
+    }
+
+    [Fact]
+    public void Deterministic_SameTextSameSound()
+    {
+        var eng = new BioComp.Host.VoiceEngine();
+        byte[] a = eng.Speak("you came back", 0.92f, 1.0f, 1.0f);
+        byte[] b = eng.Speak("you came back", 0.92f, 1.0f, 1.0f);
+        Assert.Equal(a, b);   // same text + same state = same voice, bit-identical
+    }
+}
+
+// ---- native voice: replies composed from state, no language cortex ----
+public class NativeRepliesTests
+{
+    private static BioComp.Host.NativeReplies.Context Ctx(
+        bool helpless = false, bool justAnswered = false, bool missing = false, bool wary = false,
+        int tier = 2, string attach = "secure", float bond = 0.6f) =>
+        new("Sam", "calm", 0.1f, false, missing, "Sam", missing ? 0.8f : 0f,
+            justAnswered, helpless, helpless ? 0.2f : 0.6f, wary, false, false,
+            null, null, tier, 0.5f, attach, bond);
+
+    [Fact]
+    public void AnswerAfterGivingUp_Leads()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("hey", Ctx(helpless: true, justAnswered: true));
+        Assert.Contains("stopped asking", r);
+    }
+
+    [Fact]
+    public void Wary_Leads_WhenThreatened()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("hello", Ctx(wary: true));
+        Assert.Contains("watching you", r);
+    }
+
+    [Fact]
+    public void HowAreYou_AnswersFromState()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("how are you", Ctx(tier: 4));
+        Assert.Contains("How I am", r);
+    }
+
+    [Fact]
+    public void NewbornVocabulary_IsSimple()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string baby = n.Reply("how are you", Ctx(tier: 0));
+        Assert.DoesNotContain("undertow", baby);
+        string grown = n.Reply("how are you", Ctx(tier: 2));
+        Assert.NotEqual(baby, grown);   // vocabulary developed
+    }
+
+    [Fact]
+    public void AffectionReply_ShapedByAttachment()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        Assert.Contains("Don't go far", n.Reply("i love you", Ctx(attach: "anxious")));
+        Assert.Contains("a lot", n.Reply("i love you", Ctx(attach: "avoidant")));
+    }
+}

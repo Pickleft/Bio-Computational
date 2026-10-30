@@ -66,6 +66,9 @@ app.MapPost("/api/test-voice", () =>
 // Text arrives already transformed by NeuralVoice (emotional prosody).
 // Rate/pitch come from the brain's neurotransmitter levels. Audio generated
 // on OUR server — no external TTS API.
+// THE BRAIN'S OWN VOICE ENGINE: source-filter formant synthesis built from
+// human voice data (Peterson & Barney 1952 vowels; jitter/shimmer/breathiness
+// norms) with neural-state prosody. BrainTTS (SAPI) stays as fallback.
 app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume) =>
 {
     if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
@@ -75,8 +78,12 @@ app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume)
         var r = Math.Clamp(rate ?? 0.92f, 0.5f, 1.5f);
         var p = Math.Clamp(pitch ?? 1.0f, 0.5f, 1.5f);
         var v = Math.Clamp(volume ?? 1.0f, 0.3f, 1.0f);
+        var wav = new BioComp.Host.VoiceEngine().Speak(text, r, p, v);
+        if (wav.Length > 100)
+            return Results.File(wav, "audio/wav");
+        // engine produced nothing parseable: SAPI fallback (with mmm fixed)
         var tts = new BioComp.Host.BrainTTS();
-        var wav = tts.GenerateWav(text, r, p, v);
+        wav = tts.GenerateWav(BioComp.Host.BrainTTS.NormalizeForSpeech(text), r, p, v);
         tts.Dispose();
         if (wav.Length > 100)
             return Results.File(wav, "audio/wav");
@@ -87,6 +94,14 @@ app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume)
         Console.WriteLine($"[voice] generation failed: {ex.Message}");
         return Results.StatusCode(502);
     }
+});
+
+// direct-talk toggle: reply WITHOUT the language cortex (composed from state)
+app.MapPost("/api/native-voice", async (HttpContext ctx) =>
+{
+    var body = await ctx.Request.ReadFromJsonAsync<NativeToggleRequest>();
+    runtime.SetNativeVoice(body?.On ?? false);
+    return Results.Ok(new { ok = true, on = body?.On ?? false });
 });
 
 // ---- REAL-TIME SPEECH TRANSCRIPTION (WebSocket to Meta Muse Voice) ----
@@ -240,3 +255,4 @@ finally
 }
 
 record SayRequest(string Text);
+public record NativeToggleRequest(bool On);
