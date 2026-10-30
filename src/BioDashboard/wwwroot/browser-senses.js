@@ -90,11 +90,25 @@ async function enableBrowserSenses() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const src = audioCtx.createMediaStreamSource(micStream);
 
+    // KEEPALIVE: browsers suspend AudioContext after a period of tab
+    // inactivity or system audio policy changes. This catches the most
+    // common "it stopped hearing me after a while" bug — the context is
+    // suspended and onaudioprocess silently stops firing.
+    setInterval(() => {
+      if (!senseActive || !audioCtx) return;
+      if (audioCtx.state === "suspended") {
+        console.log("[senses] AudioContext suspended, resuming");
+        audioCtx.resume().catch(() => {});
+      }
+    }, 3000);
+
     // === METHOD 1: ScriptProcessor for raw PCM upload to server ===
     audioProc = audioCtx.createScriptProcessor(2048, 1, 1);
     let lastSend = 0;
+    let lastProcessTime = Date.now();
     audioProc.onaudioprocess = (e) => {
       if (!senseActive) return;
+      lastProcessTime = Date.now(); // track that we're still receiving audio
       const input = e.inputBuffer.getChannelData(0);
 
       // measure level for local display
@@ -141,6 +155,21 @@ async function enableBrowserSenses() {
     sink.gain.value = 0;
     audioProc.connect(sink);
     sink.connect(audioCtx.destination);
+
+    // WATCHDOG: if onaudioprocess stops firing for 5 seconds (browser
+    // throttling, tab background, Samsung power saving), disconnect and
+    // reconnect the processor to force it to resume
+    setInterval(() => {
+      if (!senseActive || !audioProc || !audioCtx) return;
+      if (Date.now() - lastProcessTime > 5000) {
+        console.log("[senses] audio processor stalled, reconnecting");
+        try {
+          audioProc.disconnect();
+          audioProc.connect(sink);
+          lastProcessTime = Date.now();
+        } catch (e) { console.log("[senses] reconnect failed:", e); }
+      }
+    }, 5000);
 
     // === METHOD 2: SpeechRecognition for live transcription (parallel, independent) ===
     startTranscription();

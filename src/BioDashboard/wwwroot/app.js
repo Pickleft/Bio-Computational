@@ -64,26 +64,20 @@ function speakBrain(s) {
   if (!("speechSynthesis" in window)) return;
   if (s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
     spokenSeq = s.SpeakSeq;
-    // HUMAN PROSODY: split into sentence/clause chunks and speak them as a
-    // sequence with natural micro-pauses - one long run-on utterance is the
-    // single biggest tell of robotic TTS. Each chunk gets a tiny organic
-    // rate/pitch wobble so no two sentences sound identical.
-    const chunks = s.SpeakText.match(/[^.!?…,]+[.!?…,]*/g) || [s.SpeakText];
-    // QUEUE, never cancel: cutting the previous sentence mid-word is what
-    // made it interrupt its own thoughts; utterances now play in order
-    let first = true;
-    for (const chunk of chunks) {
-      const text = chunk.trim();
-      if (!text) continue;
-      const u = new SpeechSynthesisUtterance(text);
-      if (pickedVoice) u.voice = pickedVoice;
-      const wobble = ((spokenSeq + text.length) % 5 - 2) * 0.015; // organic drift
-      u.rate = Math.max(0.6, Math.min(1.4, (s.SpeakRate || 1) + wobble));
-      u.pitch = Math.max(0.5, Math.min(1.7, (s.SpeakPitch || 1) + wobble * 0.8));
-      if (first) { u.onstart = () => { window.brainBrowserSpeaking = true; }; first = false; }
-      u.onend = u.onerror = () => { if (!speechSynthesis.pending) window.brainBrowserSpeaking = false; };
-      speechSynthesis.speak(u);
-    }
+    // SINGLE UTTERANCE: chunking creates robotic pauses between every
+    // sentence. One utterance with natural prosody sounds more human.
+    const text = s.SpeakText.trim();
+    if (!text) return;
+    const u = new SpeechSynthesisUtterance(text);
+    if (pickedVoice) u.voice = pickedVoice;
+    // Natural defaults: slightly slow, neutral pitch. Server provides the
+    // emotional modulation — the browser just renders it faithfully.
+    u.rate = s.SpeakRate || 0.92;
+    u.pitch = s.SpeakPitch || 1.0;
+    u.volume = 1.0;
+    u.onstart = () => { window.brainBrowserSpeaking = true; };
+    u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
+    speechSynthesis.speak(u);
   }
 }
 

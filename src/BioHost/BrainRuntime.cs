@@ -1445,28 +1445,56 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private void SpeakWithVoice(string text, int emoPitch, int emoRate)
     {
-        // POLITE TO ITSELF: a new line never cuts off the previous one.
-        // The browser TTS already queues utterances in order, so the server
-        // should only drop lines that would pile up unboundedly. A generous
-        // window (it takes ~4-6s to speak a sentence) prevents both overlap
-        // AND the mid-sentence dropping that read as self-interruption.
+        // SANITIZE: strip any structured format markers that leaked in — the
+        // brain should never say "CONCLUSION:" or "FEELING:" out loud
+        text = SanitizeSpeech(text);
+        if (text.Length == 0) return;
+
+        // POLITE: don't speak over itself or over the user
         bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 20_000;
         if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 8_000)
-            return; // too soon after its last line (still speaking it)
+            return;
         _lastSpokeSimMs = _net.TimeMs;
-        if (_speech is WindowsSpeech ws)
+
+        if (_speech is BrowserSpeech bs)
         {
-            ws.PitchBias = _voiceSelf.DevelopedPitchBias + emoPitch;
-            ws.RateBias = _voiceSelf.DevelopedRateBias + emoRate;
+            // NATURAL PROSODY: keep modulation subtle — big pitch/rate swings
+            // sound robotic. The brain's FEELING should shade the voice, not
+            // distort it. Default rate slightly slow (0.92) for warmth.
+            bs.Pitch = Math.Clamp(1f + (_voiceSelf.DevelopedPitchBias * 0.3f + emoPitch * 0.4f) * 0.03f, 0.85f, 1.15f);
+            bs.Rate = Math.Clamp(0.92f + (_voiceSelf.DevelopedRateBias * 0.3f + emoRate * 0.5f) * 0.04f, 0.80f, 1.15f);
         }
-        else if (_speech is BrowserSpeech bs)
+        else if (_speech is WindowsSpeech ws)
         {
-            // developed prosody mapped into Web Speech ranges: the voice the
-            // brain grew from heard voices, layered with the current feeling
-            bs.Pitch = Math.Clamp(1f + (_voiceSelf.DevelopedPitchBias * 0.6f + emoPitch * 0.8f) * 0.05f, 0.6f, 1.5f);
-            bs.Rate = Math.Clamp(0.97f + (_voiceSelf.DevelopedRateBias * 0.5f + emoRate * 0.7f) * 0.05f, 0.7f, 1.35f);
+            ws.PitchBias = (_voiceSelf.DevelopedPitchBias + emoPitch) * 0.5f;
+            ws.RateBias = (_voiceSelf.DevelopedRateBias + emoRate) * 0.5f;
         }
         _speech.Speak(text);
+    }
+
+    /// <summary>
+    /// Strip structured format markers and system labels from speech — the
+    /// brain speaks human sentences, not data formats.
+    /// </summary>
+    private static string SanitizeSpeech(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        // strip format line prefixes
+        string[] markers = ["CONCLUSION:", "FEELING:", "MATH:", "MEMORY:",
+            "THOUGHT-CHAIN[", "SOMATIC", "REACT", "HEARD ", "VOCALIZE",
+            "BABBLE", "THREAT", "HARSH", "DEPARTURE", "PROPHECY", "MIRROR"];
+        var lines = text.Split('\n');
+        var clean = new List<string>();
+        foreach (var line in lines)
+        {
+            string l = line.Trim();
+            bool isMarker = false;
+            foreach (var m in markers)
+                if (l.StartsWith(m, StringComparison.OrdinalIgnoreCase)) { isMarker = true; break; }
+            if (!isMarker && l.Length > 0)
+                clean.Add(l);
+        }
+        return string.Join(" ", clean);
     }
     private float _lastSpokeSimMs = -1e9f;
     private float _lastUserUtteranceSimMs = -1e9f;
