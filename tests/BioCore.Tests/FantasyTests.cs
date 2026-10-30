@@ -353,3 +353,35 @@ public class GranularityTests
         Assert.Contains("emotional", g.PromptForInterpreter.ToLower());
     }
 }
+
+// ---- metacognition: the brain knows when it knows ----
+public class MetacognitionTests
+{
+    [Fact]
+    public void Confidence_ScalesWithEvidence()
+    {
+        var m = new Metacognition();
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 42));
+        var idle = new IdleController(net);
+
+        // newborn: no evidence, no confidence
+        m.Update(net, idle, 0.5f, 0, 0);
+        Assert.True(m.Confidence < 0.15f, $"newborn should be very uncertain, got {m.Confidence:F2}");
+        Assert.Contains("VERY UNCERTAIN", m.PromptFragment);
+
+        // mature: lots of evidence, consistent, social
+        m.Update(net, idle, 0.05f, 50, 30);
+        Assert.True(m.Confidence > 0.5f, $"mature brain should be confident, got {m.Confidence:F2}");
+        Assert.Contains("CONFIDENT", m.PromptFragment);
+    }
+
+    [Fact]
+    public void HighPredictionError_KillsConfidence()
+    {
+        var m = new Metacognition();
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 7));
+        var idle = new IdleController(net);
+        m.Update(net, idle, 0.8f, 50, 30); // lots of data but terrible predictions
+        Assert.True(m.Confidence < m.Confidence || m.Confidence < 0.7f, "high error should limit confidence");
+    }
+}

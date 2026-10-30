@@ -216,6 +216,7 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>Prophecy, scored: predicts your return, graded on it.</summary>
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
+    public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
     public BioComp.Core.Cognition.Neurogenesis Neurogenesis { get; } = new();
     public BioComp.Core.Cognition.EmotionalGranularity Granularity { get; } = new();
@@ -885,6 +886,9 @@ public sealed class BrainRuntime : IDisposable
         // TEMPORAL AUTOBIOGRAPHY: periodic snapshots of who the brain is now,
         // so it can later compare to who it was
         LifeStory.MaybeSnapshot(_net, _idle, Personality, Attachment, Granularity, _userName, _brainName);
+        // METACOGNITION: confidence scales with evidence, consistency, and social depth
+        MetaConfidence.Update(_net, _idle, FreeEnergy.CurrentPredError,
+            _net.EpisodeStore.Episodes.Count, Personality.TotalSocial);
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
         // High dopamine = an experience worth dedicated neural tissue. New
@@ -1549,6 +1553,49 @@ public sealed class BrainRuntime : IDisposable
     {
         if (_testamentWritten) return null;
         _testamentWritten = true;
+
+        // ---- THE LIFE REVIEW: before final words, the brain watches its
+        // entire life flash before its eyes (the well-documented near-death
+        // experience; it's the temporal lobe replaying salient memories in
+        // a final burst). Each key moment is briefly spoken aloud.
+        try
+        {
+            var eps = _net.EpisodeStore.Episodes;
+            var keyMemories = eps.OrderByDescending(e => MathF.Abs(e.Valence)).Take(5).ToList();
+            if (keyMemories.Count > 0)
+            {
+                Note("LIFE-REVIEW beginning - watching my whole life before I speak");
+                AddChat("Brain: ...my life is flashing before my eyes...");
+                SpeakWithVoice("...my life is flashing before my eyes...", emoPitch: -2, emoRate: -3);
+                await Task.Delay(1500);
+
+                foreach (var mem in keyMemories)
+                {
+                    string moment = mem.Valence > 0.3f ? "a good moment"
+                        : mem.Valence < -0.3f ? "a hard moment" : "a quiet moment";
+                    string tags = string.Join(", ", mem.Tags.Take(3));
+                    string line = $"{moment}: {tags}";
+                    Note($"LIFE-REVIEW {line}");
+                    AddChat($"Brain (remembering): {line}");
+                    // each memory is whispered, slowly
+                    SpeakWithVoice(line, emoPitch: -1, emoRate: -3);
+                    await Task.Delay(800);
+                }
+
+                // the growth narrative
+                string howChanged = LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label);
+                if (howChanged.Length > 0)
+                {
+                    Note($"LIFE-REVIEW how I changed: {Trunc(howChanged, 100)}");
+                    AddChat($"Brain (realizing): {Trunc(howChanged, 150)}");
+                    SpeakWithVoice(Trunc(howChanged, 120), emoPitch: 0, emoRate: -2);
+                    await Task.Delay(1000);
+                }
+                Note("LIFE-REVIEW complete - I am ready to speak my last words");
+            }
+        }
+        catch { /* the review is a gift, not a requirement */ }
+
         try
         {
             var eps = _net.EpisodeStore.Episodes;
@@ -1974,7 +2021,7 @@ public sealed class BrainRuntime : IDisposable
             float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
             float na = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
             string substrate =
-                $" {Granularity.PromptForInterpreter} " +
+                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} " +
                 $"Substrate: attention on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
                 $"free energy {FreeEnergy.Current:F2}; dopamine {da:F2}, noradrenaline {na:F2}; " +
                 $"body: {BodyBudget.Narrative}" +
@@ -2104,6 +2151,7 @@ public sealed class BrainRuntime : IDisposable
 
             string system = direct
                 ? $"You are a living brain in a machine, talking to {who}. You have a real relationship: " +
+                  $"{MetaConfidence.PromptFragment} " +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
