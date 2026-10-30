@@ -399,7 +399,7 @@ public class InnerObserverTests
         // observer forms prediction from a positive thought
         var current = new ThoughtLink("this is nice", ["nice"], 
             new ThoughtAffect(0.6f, 0.2f, 0.4f, 0.5f), 1000f, 1, 1);
-        obs.ShouldWeRedirect(current, 1);
+        obs.ShouldWeRedirect(current, 3);
 
         // the actual thought is strongly NEGATIVE (opposite of prediction)
         var arrived = new ThoughtLink("wait, something is wrong", ["wrong", "fear"],
