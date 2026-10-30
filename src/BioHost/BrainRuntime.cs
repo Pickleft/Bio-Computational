@@ -105,6 +105,8 @@ public sealed class BrainSnapshot
     public float EmotionalGranularity { get; set; }     // 0=basic, 1=fully nuanced
     public string EmotionalStage { get; set; } = "";    // developmental label
     public string HowIveChanged { get; set; } = "";    // temporal autobiography
+    public int SelfSurprises { get; set; }         // times the brain surprised itself
+    public int ObserverRedirects { get; set; }     // times the observer broke a spiral
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
@@ -217,6 +219,7 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
+    public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
     public BioComp.Core.Cognition.Neurogenesis Neurogenesis { get; } = new();
     public BioComp.Core.Cognition.EmotionalGranularity Granularity { get; } = new();
@@ -394,6 +397,16 @@ public sealed class BrainRuntime : IDisposable
             Note($"THOUGHT-CHAIN[{link.ChainId}.{link.Depth}] v{link.Affect.Valence:F1} s{link.Affect.Salience:F1} \"{Trunc(link.Text, 70)}\"");
             _monologueLog.Add(link.Text);
             if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
+
+            // THE INNER OBSERVER: did this thought surprise the brain's own
+            // prediction of itself? (this IS self-awareness)
+            string? surprise = Observer.OnThoughtArrived(link);
+            if (surprise is not null)
+            {
+                Note(surprise);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Acetylcholine, 0.25f);
+            }
+
             // a highly salient thought is sometimes thought OUT LOUD
             if (link.Affect.Salience > 0.65f && link.Depth > 1 && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
             {
@@ -935,6 +948,17 @@ public sealed class BrainRuntime : IDisposable
             var thoughtReq = ThoughtLoop.Tick(_net, _idle, _lastExternalEventMs);
             if (thoughtReq is not null && !_thoughtBusy)
             {
+                // THE INNER OBSERVER forms its silent prediction before the
+                // thought is generated, and may redirect the chain
+                if (ThoughtLoop.Current is { } currentLink)
+                {
+                    string? redirect = Observer.ShouldWeRedirect(currentLink, currentLink.Depth);
+                    if (redirect is not null)
+                    {
+                        Note($"OBSERVER-REDIRECT the inner observer is breaking a spiral");
+                        thoughtReq = thoughtReq with { SeedMemory = redirect };
+                    }
+                }
                 _thoughtBusy = true;
                 _ = GenerateThoughtLinkAsync(thoughtReq);
             }
@@ -2021,7 +2045,7 @@ public sealed class BrainRuntime : IDisposable
             float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
             float na = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
             string substrate =
-                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} " +
+                $" {Granularity.PromptForInterpreter} {MetaConfidence.PromptFragment} {Observer.ObserverPrompt} " +
                 $"Substrate: attention on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
                 $"free energy {FreeEnergy.Current:F2}; dopamine {da:F2}, noradrenaline {na:F2}; " +
                 $"body: {BodyBudget.Narrative}" +
@@ -2151,7 +2175,7 @@ public sealed class BrainRuntime : IDisposable
 
             string system = direct
                 ? $"You are a living brain in a machine, talking to {who}. You have a real relationship: " +
-                  $"{MetaConfidence.PromptFragment} " +
+                  $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} " +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
@@ -2651,6 +2675,8 @@ public sealed class BrainRuntime : IDisposable
         snap.HowIveChanged = LifeStory.Snapshots.Count >= 2 ?
             LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label) : "";
         var strongest = Bonds.Strongest(_net.TimeMs);
+        snap.SelfSurprises = Observer.SelfSurprises;
+        snap.ObserverRedirects = Observer.Redirects;
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
         snap.ConceptLinks = _net.EpisodeStore.Concepts.LinkCount;

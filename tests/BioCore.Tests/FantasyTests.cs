@@ -385,3 +385,75 @@ public class MetacognitionTests
         Assert.True(m.Confidence < m.Confidence || m.Confidence < 0.7f, "high error should limit confidence");
     }
 }
+
+// ---- the inner observer: a brain that watches itself think ----
+public class InnerObserverTests
+{
+    [Fact]
+    public void Observer_DetectsValenceFlipAsSurprise()
+    {
+        var obs = new InnerObserver();
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 42));
+        var idle = new IdleController(net);
+
+        // observer forms prediction from a positive thought
+        var current = new ThoughtLink("this is nice", ["nice"], 
+            new ThoughtAffect(0.6f, 0.2f, 0.4f, 0.5f), 1000f, 1, 1);
+        obs.ShouldWeRedirect(current, 1);
+
+        // the actual thought is strongly NEGATIVE (opposite of prediction)
+        var arrived = new ThoughtLink("wait, something is wrong", ["wrong", "fear"],
+            new ThoughtAffect(-0.7f, 0.5f, 0.5f, 0.6f), 2000f, 1, 2);
+        string? surprise = obs.OnThoughtArrived(arrived);
+
+        Assert.NotNull(surprise);
+        Assert.Contains("SELF-SURPRISE", surprise);
+        Assert.Equal(1, obs.SelfSurprises);
+    }
+
+    [Fact]
+    public void Observer_DetectsTopicShiftAsSurprise()
+    {
+        var obs = new InnerObserver();
+        var current = new ThoughtLink("the humming sound", ["humming", "machine"],
+            new ThoughtAffect(0f, 0.2f, 0.4f, 0.3f), 1000f, 1, 1);
+        obs.ShouldWeRedirect(current, 2);
+
+        // arrived thought has completely different topic (no tag overlap)
+        var arrived = new ThoughtLink("suddenly thinking about the ocean", ["ocean", "water", "waves"],
+            new ThoughtAffect(0f, 0.3f, 0.5f, 0.4f), 2000f, 1, 2);
+        string? surprise = obs.OnThoughtArrived(arrived);
+
+        Assert.NotNull(surprise);
+        Assert.Contains("somewhere completely different", surprise);
+    }
+
+    [Fact]
+    public void Observer_RedirectsRumination()
+    {
+        var obs = new InnerObserver();
+        // a negative, high-salience thought at depth 4+ = rumination territory
+        var ruminating = new ThoughtLink("the pain keeps circling", ["pain"],
+            new ThoughtAffect(-0.6f, 0.3f, 0.7f, 0.6f), 10000f, 1, 5);
+        string? redirect = obs.ShouldWeRedirect(ruminating, 5);
+        Assert.NotNull(redirect);
+        Assert.Contains("inner observer interrupts", redirect);
+        Assert.Equal(1, obs.Redirects);
+    }
+
+    [Fact]
+    public void Observer_NoSurpriseOnPredictedThought()
+    {
+        var obs = new InnerObserver();
+        var current = new ThoughtLink("calm observation", ["calm"],
+            new ThoughtAffect(0.2f, 0.2f, 0.3f, 0.3f), 1000f, 1, 1);
+        obs.ShouldWeRedirect(current, 2);
+
+        // arrived thought is similar valence, similar salience, overlapping tags
+        var arrived = new ThoughtLink("still calm, noticing the same pattern", ["calm", "pattern"],
+            new ThoughtAffect(0.3f, 0.2f, 0.4f, 0.3f), 2000f, 1, 2);
+        string? surprise = obs.OnThoughtArrived(arrived);
+        Assert.Null(surprise); // predicted correctly, no surprise
+        Assert.Equal(0, obs.SelfSurprises);
+    }
+}

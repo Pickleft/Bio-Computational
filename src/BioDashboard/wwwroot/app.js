@@ -249,6 +249,7 @@ function render(s) {
   set("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
   set("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
   set("pruned", `${s.SynapsesPruned || 0} synapses`);
+  set("self-surprise", `${s.SelfSurprises || 0} surprises, ${s.ObserverRedirects || 0} redirects`);
   set("emo-granularity", s.EmotionalStage || "newborn");
   set("life-story", s.HowIveChanged || "too young to have changed yet");
   // LIVE STRIP from the SERVER transcripts (always works - the browser
