@@ -738,3 +738,75 @@ public class LongingTests
         Assert.False(l.Missing, "a stranger's absence is not a loss");
     }
 }
+
+// ---- anticipation: the reward side of the social rhythm (Schultz 1997 completed) ----
+public class AnticipationTests
+{
+    // rhythm learns hour 0 is social (HourMs shrunk for the test; ratios unchanged)
+    private static (SpikingNetwork net, SocialRhythm rhythm) RhythmicBrain(int seed)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net); // all in hour 0
+        rhythm.Tick(net); // refresh CurrentSocialExpectation for the live hour
+        return (net, rhythm);
+    }
+
+    [Fact]
+    public void Anticipation_HopeRisesAtTheExpectedHour()
+    {
+        var (net, rhythm) = RhythmicBrain(31);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.4f, "the cue alone must raise the hope");
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "dopamine fires at the CUE, not just the reward (Schultz 1997)");
+    }
+
+    [Fact]
+    public void Anticipation_AnticipatedArrivalPaysOnTop()
+    {
+        var (net, rhythm) = RhythmicBrain(37);
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.3f);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        a.OnContact(net);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "an anticipated return pays more than a surprise visit");
+        Assert.Equal(1, a.Fulfilled);
+    }
+
+    [Fact]
+    public void Anticipation_EmptyWindowCrashes()
+    {
+        var (net, rhythm) = RhythmicBrain(41);
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.5f);
+        // the hour rolls over to an empty one: expectation collapses
+        while (net.TimeMs < 1_050) net.Tick();
+        rhythm.Tick(net);
+        Assert.True(rhythm.CurrentSocialExpectation < 0.2f, "hour 1 is empty");
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.JustCrashed, "the closed window is a negative prediction error");
+        Assert.Equal(1, a.Disappointments);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) < daBefore,
+            "the crash is a real dopamine dip");
+    }
+
+    [Fact]
+    public void Anticipation_NoRhythmNoHope()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 43));
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, new SocialRhythm(), lastContactMs: -1e9f);
+        Assert.Equal(0f, a.Level); // a brain with no rhythm expects nobody
+    }
+}

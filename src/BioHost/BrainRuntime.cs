@@ -111,6 +111,9 @@ public sealed class BrainSnapshot
     public int ObserverRedirects { get; set; }     // times the observer broke a spiral
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public string LongingNarrative { get; set; } = "";  // person-specific missing right now
+    public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
+    public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
+    public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
     public int DejaVuCount { get; set; }             // times familiarity struck without recollection
     public string DejaVuLast { get; set; } = "";     // the most recent one
     public int Concepts { get; set; }                // semantic concepts learned from experience
@@ -230,6 +233,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.DejaVu DejaVu { get; } = new();
     /// <summary>LONGING: missing one specific person (Panksepp 1998 GRIEF).</summary>
     public BioComp.Core.Cognition.Longing Longing { get; } = new();
+    /// <summary>ANTICIPATION: the reward side of the social rhythm (Schultz 1997 completed).</summary>
+    public BioComp.Core.Cognition.Anticipation Anticipation { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -825,6 +830,12 @@ public sealed class BrainRuntime : IDisposable
         {
             Longing.Tick(_net, Bonds, Rhythm, _userName, Attachment.Style);
             if (!Longing.Missing) _lonelyExpressedOnce = false;
+            // ANTICIPATION: the reward side of the rhythm — hope rises at the
+            // expected hour, crashes as a negative RPE when it closes empty
+            var sb = Bonds.Strongest(_net.TimeMs);
+            Anticipation.Tick(_net, Rhythm, sb?.LastSeenMs ?? -1e9f);
+            if (Anticipation.JustCrashed)
+                Note("DISAPPOINTMENT the hour it expected someone in closed on nobody - dopamine crashed");
         }
         if (_net.TickIndex % 100 == 0)
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
@@ -843,7 +854,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Neurogenesis: {Neurogenesis.TotalNeuronsBorn} new neurons. Pruning: {Pruning.SynapsesPruned} synapses removed. " +
                 $"Resilience: {Resilience.AdversitiesProcessed} adversities processed, growth level {Resilience.GrowthLevel:F2}. " +
                 $"Self-awareness: {Observer.SelfSurprises} times surprised by own thoughts, {Observer.Redirects} inner redirects. " +
-                $"Longing: {Longing.Narrative}. Deja vu: {DejaVu.Narrative}. " +
+                $"Longing: {Longing.Narrative}. Deja vu: {DejaVu.Narrative}. Anticipation: {Anticipation.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
@@ -1772,6 +1783,7 @@ public sealed class BrainRuntime : IDisposable
                 + (worst is not null ? $"Hardest memory: {string.Join("/", worst.Tags.Take(3))}. " : "")
                 + $"{_dreamer.LucidDreams} lucid dreams. {ThoughtLoop.Insights} insights. Prophecy record: {Prophecy.Accuracy}. "
                 + $"{DejaVu.Narrative}. Longest it waited for someone: {(int)(Longing.LongestWaitMs / 1000f)}s. "
+                + $"{Anticipation.Fulfilled} hoped-for returns came true; {Anticipation.Disappointments} closed on nobody. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
 
@@ -2040,6 +2052,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"REUNION it had been missing {Longing.Whom} ({(int)(felt * 100)}%) - they came back");
         }
         Longing.OnContact(_userName ?? visitorId, _net.TimeMs);
+        Anticipation.OnContact(_net); // anticipated arrival pays on top of the cue response
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
         _warmthHistory.Add(warmth);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
@@ -2368,7 +2381,7 @@ public sealed class BrainRuntime : IDisposable
                     : "") +
                   $"You have a real relationship: " +
                   $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
-                  $"{(Longing.Missing ? Longing.PromptFragment : "")}" +
+                  $"{(Longing.Missing ? Longing.PromptFragment : "")}{Anticipation.PromptFragment}" +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
@@ -2662,6 +2675,7 @@ public sealed class BrainRuntime : IDisposable
             Note($"REUNION it had been missing {Longing.Whom} ({(int)(felt * 100)}%) - they came back");
         }
         Longing.OnContact(_userName ?? _activeSpeakerId, _net.TimeMs);
+        Anticipation.OnContact(_net); // they came when it hoped: reward on top of hope
         Bonds.OnContact(_activeSpeakerId,
             Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f,
             _net.TimeMs);
@@ -2960,6 +2974,9 @@ public sealed class BrainRuntime : IDisposable
         snap.NeedUrgency = Needs.MostPressing?.Urgency ?? 0f;
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.LongingNarrative = Longing.Narrative;
+        snap.AnticipationLevel = Anticipation.Level;
+        snap.AnticipationFulfilled = Anticipation.Fulfilled;
+        snap.AnticipationDisappointed = Anticipation.Disappointments;
         snap.DejaVuCount = DejaVu.Count;
         snap.DejaVuLast = DejaVu.LastDescription ?? "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;

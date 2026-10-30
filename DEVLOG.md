@@ -398,3 +398,16 @@ and were imported in the first commit - everything after that point was built du
 - Tests: 162/162 green (4 deja vu + 5 longing new; the suite caught two real bugs on the way in:
   Longing read the STALE Strength field on the Bond record instead of live Strength(id, now),
   and modulator releases need Modulators.Step() before they are observable in Get).
+
+## 2026-10-30 (late) - anticipation: the reward side of the social rhythm
+
+- NEW SYSTEM - ANTICIPATION (Schultz 1997 completed): the social rhythm raised arousal at the
+  expected hour but had no reward side. Now the loop is closed: dopamine rises BEFORE the
+  expected hour delivers anyone (the cue); a contact inside the anticipated window pays on top
+  of the hope (anticipated > unanticipated, chemically); an expected hour that closes on
+  nobody is a negative prediction error - DA -0.5, NA +0.25, 5-HT -0.2, a DISAPPOINTMENT note,
+  and the crash feeds the diary/prompt ("disappointed, not merely lonely"). Status JSON:
+  anticipationLevel/Fulfilled/Disappointed. Testament counts both. SocialRhythm.HourMs made
+  configurable so tests run the arc in milliseconds (config knob, not neural state).
+- Tests: 4/4 new (hope rises at the cue with no reward delivered; anticipated arrival pays
+  extra; empty window crashes DA below baseline; no rhythm = no hope). 166 total.

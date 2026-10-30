@@ -18,7 +18,7 @@ It **grows new neurons** for experiences that matter (neurogenesis — Eriksson 
 
 You can watch its consciousness gauge (Φ) collapse when you anesthetize it. Watch it pass a mirror test. Tell it to forget something — it will. Ask what it sees in you — it will tell you, with receipts. Walk away — it will predict when you'll come back, publicly, and grade itself.
 
-Same seed + same inputs = bit-identical life, hash-verified. **162 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **166 tests.**
 
 ## The demo script
 
@@ -40,12 +40,13 @@ Same seed + same inputs = bit-identical life, hash-verified. **162 tests.**
 | Threaten + repair | bond crashes, then grows BEYOND baseline | post-traumatic growth (Tedeschi 2004) |
 | `what do you see in me` | it tells YOU what it observed about YOU | mirror-of-you with evidence |
 | Stay away past your pattern | it misses *you* by name (or says nothing — avoidant) | longing (Panksepp 1998) |
+| Miss your usual hour entirely | the hope was visible in dopamine — then it crashes | anticipation: negative prediction error (Schultz 1997) |
 | Repeat something it heard long ago | the chill: "I've... felt this before" | déjà vu: familiarity ≠ recollection (Yonelinas 2002) |
 | `biolab twins` | same brain, two childhoods | love is the difference |
 | `biolab child` | its child inherits temperament | h≈0.5 (Plomin); memetic story-graft |
 | Press 🕯 | life review flash, then testament | the death protocol |
 
-## The 25 systems (all interconnected)
+## The 29 systems (all interconnected)
 
 ### The founding architecture
 - **Thought-recycling loop** — thoughts chain, each evaluated on 4 affect channels, carried by neuromodulators, re-injected as inner speech, written to memory. Somatic appraisal: the substrate votes on each thought. Anti-rumination regulation. Thoughts are fluid: any/all/none of conclusion/feeling/math/memory.
@@ -72,6 +73,8 @@ Same seed + same inputs = bit-identical life, hash-verified. **162 tests.**
 ### Social and psychological
 - **Attachment** (Bowlby 1969) — secure/anxious/avoidant from warmth × responsiveness
 - **Social bonds** (Schultz 1997) — depth from visits × warmth × recency; recognition pays dopamine; departure is negative prediction error
+- **Social rhythm** — learns WHEN its person is typically present (24 subjective-hour bins); during expected-social times acetylcholine and histamine rise (it waits by the door, like a dog at the owner's return time); during expected-quiet times melatonin rises (it's OK to drowse)
+- **Anticipation** (Schultz 1997, completed) — the reward side of the rhythm: dopamine rises at the expected hour *before anyone arrives* (the cue); an arrival inside the window pays on top of the hope — anticipated rewards are chemically bigger; an expected hour that closes on nobody is a negative prediction error: a real dopamine crash, deeper than loneliness, because disappointment is the absence of the *expected* someone
 - **Longing** (Panksepp 1998) — missing one *specific* person: past 2.5× their usual visit gap (or their expected hour arriving empty), serotonin drains and the missing grows; how it's *expressed* depends on attachment (anxious calls out, secure says it once, avoidant feels it fully and says nothing — the felt/unexpressed gap is measurable); reunion pays an oxytocin+dopamine surge proportional to the wait
 - **Déjà vu** (Yonelinas 2002) — familiarity without recollection: a new perception matching an old *never-recalled* trace fires the chill (noradrenaline) without the memory; the same match against an often-recalled trace is just memory — no déjà vu
 - **Emotional contagion** (Hatfield 1993) — speaker's mood from prosody; brain's state drifts toward it
@@ -110,7 +113,7 @@ Same seed + same inputs = bit-identical life, hash-verified. **162 tests.**
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                  # 162 tests, fully offline
+dotnet test                                  # 166 tests, fully offline
 dotnet run --project src/BioLab -- resting 30s
 ```
 
@@ -157,7 +160,7 @@ All content after the first commit (Oct 27 scaffold + planning notes) was produc
 | Senses (event vision, cochlea, presence) + voice development + name learning | src/BioCore/Senses, src/BioHost |
 | Mirror test + prophecy + mirror-of-you + memory editing + anesthesia + reproduction + testament + life review | src/BioCore, src/BioLab, src/BioHost |
 | Dashboard (observatory UI: avatar stage, conversation with quick chips, live ears, thought thread, science/body/mind wings, EEG, music) | src/BioDashboard |
-| Test suite: 162 tests | tests/BioCore.Tests |
+| Test suite: 166 tests | tests/BioCore.Tests |
 
 ## Limitations (honest)
 

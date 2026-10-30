@@ -194,3 +194,11 @@ NEVER recalled (AccessCount <= 1) fires familiarity without recollection: noradr
 (the chill), dopamine 0.08 (the odd pleasure). The same similarity against an often-recalled
 trace is recollection - no deja vu. Cooldown 5 min: it stays rare, or it stops being strange.
 2.5x gap / 0.5 Jaccard / cooldowns: // CALIBRATE.
+
+## Anticipation (cue -> reward -> crash)
+Dopamine at the cue, not the reward (Schultz 1997). With rhythm confidence > 0.3 and current
+expectation > 0.6: anticipatory tone rises +0.05 per evaluation (cap 1.0), DA released at
+0.03 x tone each batch. Contact inside the window: DA 0.10 + 0.15 x tone, OXT 0.10 x tone -
+anticipated rewards are paid on top of the cue response (they feel bigger because they are).
+Window closes empty (expectation < 0.2, tone > 0.5, nobody within 60 s): negative prediction
+error - DA -0.5, NA +0.25 (the sting), 5-HT -0.2 (the heaviness). Rise/crash rates: // CALIBRATE.
