@@ -222,6 +222,7 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
     public BioComp.Core.Cognition.ResilienceEngine Resilience { get; } = new();
     public BioComp.Core.Cognition.NeedsHierarchy Needs { get; } = new();
+    public BioComp.Core.Cognition.SocialRhythm Rhythm { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -940,6 +941,7 @@ public sealed class BrainRuntime : IDisposable
             _net.EpisodeStore.Episodes.Count, Personality.TotalSocial);
         // NEEDS HIERARCHY: what does the brain need most right now?
         Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
+        Rhythm.Tick(_net); // adjust receptivity based on learned social rhythm
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
         // High dopamine = an experience worth dedicated neural tissue. New
@@ -2607,6 +2609,7 @@ public sealed class BrainRuntime : IDisposable
         _warmthHistory.Add(Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
         Loneliness.OnSocialContact(_net, quality: 0.6f);
+        Rhythm.OnInteraction(_net); // learn WHEN people come
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
 
         // HOSTILITY from TYPED messages: the same multimodal classifier that
