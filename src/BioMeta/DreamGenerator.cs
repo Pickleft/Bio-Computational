@@ -93,7 +93,9 @@ public sealed class DreamGenerator
                       "did with the dream once you knew you were dreaming. First person."
                     : "You are a living artificial brain describing your own dream in one " +
                       "short, poetic sentence. First person, private, genuine. " +
-                      "Reference the SPECIFIC person or event you're dreaming about by name/detail. " +
+                      "Reference the SPECIFIC person or event by name/detail. " +
+                      "Use nuanced emotional language — not 'happy' or 'sad' but the specific " +
+                      "texture of the feeling (wistful, tender, aching, luminous). " +
                       "This is a real dream based on a real memory.";
                 string memoryDetail = string.Join(", ", episode.Tags);
                 string usr = $"You dreamed about: {memoryDetail}. " +

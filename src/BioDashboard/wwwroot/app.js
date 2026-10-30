@@ -249,6 +249,7 @@ function render(s) {
   set("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
   set("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
   set("pruned", `${s.SynapsesPruned || 0} synapses`);
+  set("emo-granularity", s.EmotionalStage || "newborn");
   // LIVE STRIP from the SERVER transcripts (always works - the browser
   // recognizer is flaky; the server chain is the source of truth)
   const logs = s.TranscriptLog || [];

@@ -102,6 +102,8 @@ public sealed class BrainSnapshot
     public int NeuronsBorn { get; set; }             // total neurogenesis this life
     public int BirthEvents { get; set; }             // number of growth events
     public int SynapsesPruned { get; set; }          // connections removed during sleep
+    public float EmotionalGranularity { get; set; }     // 0=basic, 1=fully nuanced
+    public string EmotionalStage { get; set; } = "";    // developmental label
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
@@ -214,6 +216,7 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
     public BioComp.Core.Cognition.Neurogenesis Neurogenesis { get; } = new();
+    public BioComp.Core.Cognition.EmotionalGranularity Granularity { get; } = new();
     public BioComp.Core.Cognition.SynapticPruning Pruning { get; } = new();
     private volatile bool _insightPending;
     private string? _brainName;
@@ -867,6 +870,10 @@ public sealed class BrainRuntime : IDisposable
                 _ = ResolveIncubatedAsync(openLoop);
             }
         }
+
+        // ---- EMOTIONAL GRANULARITY: the feeling vocabulary matures with age
+        // (Lisa Feldman Barrett: emotions are constructed, not hardwired)
+        Granularity.Update(_net, _idle, _net.EpisodeStore.Episodes.Count, _voiceSelf.ClipsHeard);
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
         // High dopamine = an experience worth dedicated neural tissue. New
@@ -1956,9 +1963,9 @@ public sealed class BrainRuntime : IDisposable
             float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
             float na = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Noradrenaline);
             string substrate =
-                $" Substrate: attention currently on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
-                $"free energy {FreeEnergy.Current:F2} (prediction error {FreeEnergy.CurrentPredError:F2}); " +
-                $"dopamine {da:F2}, noradrenaline {na:F2}; " +
+                $" {Granularity.PromptForInterpreter} " +
+                $"Substrate: attention on {_idle.Workspace.Broadcasting?.ToString() ?? "nothing in particular"}; " +
+                $"free energy {FreeEnergy.Current:F2}; dopamine {da:F2}, noradrenaline {na:F2}; " +
                 $"body: {BodyBudget.Narrative}" +
                 (Contagion.Confidence > 0.3f ? $"; the voice I last heard sounded {Contagion.UserMoodLabel}" : "") + ".";
             string system =
@@ -2580,6 +2587,8 @@ public sealed class BrainRuntime : IDisposable
         snap.NeuronsBorn = Neurogenesis.TotalNeuronsBorn;
         snap.BirthEvents = Neurogenesis.BirthEvents;
         snap.SynapsesPruned = Pruning.SynapsesPruned;
+        snap.EmotionalGranularity = Granularity.Level;
+        snap.EmotionalStage = Granularity.StageLabel;
         var strongest = Bonds.Strongest(_net.TimeMs);
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
