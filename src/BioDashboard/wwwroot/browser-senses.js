@@ -67,14 +67,22 @@ async function enableBrowserSenses() {
     // send frames at 5 fps (not 10 — saves phone battery)
     frameTimer = setInterval(sendFrame, 200);
 
-    // wait for video to have actual dimensions before first frame
+    // wait for video to have actual dimensions; if it never loads (Samsung
+    // sometimes needs a retry), pause+play to force the stream to start
+    let retries = 0;
     const waitReady = setInterval(() => {
       if (videoEl.videoWidth > 0) {
         clearInterval(waitReady);
         console.log("[senses] camera ready:", videoEl.videoWidth + "x" + videoEl.videoHeight);
+      } else if (++retries > 25) { // 5 seconds with no dimensions
+        clearInterval(waitReady);
+        console.log("[senses] camera stuck, retrying play()");
+        videoEl.pause();
+        videoEl.play().then(() => {
+          console.log("[senses] camera retry OK:", videoEl.videoWidth + "x" + videoEl.videoHeight);
+        }).catch(() => {});
       }
     }, 200);
-    setTimeout(() => clearInterval(waitReady), 5000);
   }
 
   // === AUDIO SETUP ===
@@ -104,7 +112,7 @@ async function enableBrowserSenses() {
 
       // send to server at most every 100ms (not every 43ms — saves data)
       const now = Date.now();
-      if (now - lastSend > 100 && rms > 0.003) {
+      if (now - lastSend > 50 && rms > 0.0008) {
         lastSend = now;
         // resample to 16 kHz
         const ratio = audioCtx.sampleRate / 16000;

@@ -1301,13 +1301,13 @@ public sealed class BrainRuntime : IDisposable
 
             string emotionalTone = rms > 0.15 ? "loud/aggressive"
                 : rms > 0.08 ? "energetic"
-                : rms < 0.015 ? "very quiet/whispered"
+                : rms < 0.008 ? "very quiet/whispered"
                 : "normal conversational";
 
             // ANTI-HALLUCINATION: transcription models invent filler words
             // ("hey", "yeah", "hello") from near-silent room noise. Do not
             // even transcribe clips without real speech energy...
-            if (rms < 0.010) // phone audio arrives quieter after browser processing
+            if (rms < 0.005) // phone audio arrives much quieter after processing
             {
                 Note($"AUDIO near-silence filtered (rms {rms:F3}) - not worth listening to ghosts");
                 return;
@@ -1316,7 +1316,7 @@ public sealed class BrainRuntime : IDisposable
             // ...and reject a lone filler word unless the voice was clearly real
             string trimmed = tr.Transcript?.Trim().TrimEnd('.', '!', '?', ',', ' ') ?? "";
             bool loneFiller = GhostWords.Contains(trimmed.ToLowerInvariant());
-            if (loneFiller && rms < 0.03)
+            if (loneFiller && rms < 0.015)
             {
                 Note($"GHOST-FILTERED \"{trimmed}\" from quiet noise (rms {rms:F3}) - nobody said that");
                 return;
@@ -1450,8 +1450,8 @@ public sealed class BrainRuntime : IDisposable
         // should only drop lines that would pile up unboundedly. A generous
         // window (it takes ~4-6s to speak a sentence) prevents both overlap
         // AND the mid-sentence dropping that read as self-interruption.
-        bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 15_000;
-        if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 6_000)
+        bool replyingToUser = _net.TimeMs - _lastUserUtteranceSimMs < 20_000;
+        if (!replyingToUser && _net.TimeMs - _lastSpokeSimMs < 8_000)
             return; // too soon after its last line (still speaking it)
         _lastSpokeSimMs = _net.TimeMs;
         if (_speech is WindowsSpeech ws)

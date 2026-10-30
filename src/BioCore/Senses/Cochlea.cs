@@ -31,8 +31,8 @@ public sealed class Cochlea
 
     public float OnsetSensitivity { get; set; } = 2.5f; // x sigma above mean flux // CALIBRATE
     public int MinInterOnsetBlocks { get; set; } = 4;   // ~128 ms refractory at 32 ms blocks
-    public float VoiceFloorRms { get; set; } = 0.003f;  // balanced: catches speech, ignores fans
-    public int VoiceMinBlocks { get; set; } = 16;        // 0.5s of sustained speech
+    public float VoiceFloorRms { get; set; } = 0.001f;  // balanced: catches speech, ignores fans
+    public int VoiceMinBlocks { get; set; } = 8;        // 0.5s of sustained speech
     public float AbsFluxFloor { get; set; } = 0.003f;   // silence guard: flux must clear this too
 
     public Cochlea(float sampleRate = 16_000f)
