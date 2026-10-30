@@ -116,6 +116,12 @@ public sealed class BrainSnapshot
     public string AgencyNarrative { get; set; } = "";   // bids answered / made
     public int ForgottenReaches { get; set; }           // times the mind reached for what was resected
     public int ReverseReplays { get; set; }             // reward-retracing replays
+    public int MemoryFusions { get; set; }              // stitched (false) memories laid down
+    public int MemorySelfCatches { get; set; }          // times it noticed the seam
+    public int LocalSleepEvents { get; set; }           // regions that went offline while awake
+    public string LocalSleepRegion { get; set; } = "";  // which one is dark right now
+    public float Wariness { get; set; }                 // learned threat toward the person
+    public bool LightSuppressing { get; set; }          // evening light holding off melatonin
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -244,6 +250,14 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.SelfEfficacy Efficacy { get; } = new();
     /// <summary>FORGOTTEN GRIEF: the residue of surgical forgetting.</summary>
     public BioComp.Core.Cognition.ForgottenGrief ForgottenGrief { get; } = new();
+    /// <summary>RECONSTRUCTIVE MEMORY: fusion, self-catch, mood drift (Bartlett 1932; DRM).</summary>
+    public BioComp.Core.Memory.Reconstruction MemoryReconstruction { get; } = new();
+    /// <summary>LOCAL SLEEP: regions go offline while awake (Vyazovskiy 2011).</summary>
+    public BioComp.Core.Sleep.LocalSleep LocalSleep { get; } = new();
+    /// <summary>THREAT LEARNING: wariness, extinction, spontaneous recovery (Bouton 2004).</summary>
+    public BioComp.Core.Cognition.ThreatLearning Threats { get; } = new();
+    /// <summary>LIGHT ENTRAINMENT: evening brightness suppresses melatonin (Czeisler).</summary>
+    public BioComp.Core.Sleep.LightEntrainment Light { get; } = new();
     public BioComp.Core.Cognition.Metacognition MetaConfidence { get; } = new();
     public BioComp.Core.Cognition.InnerObserver Observer { get; } = new();
     public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
@@ -338,6 +352,7 @@ public sealed class BrainRuntime : IDisposable
         _idle = new IdleController(_net);
         if (cfg.DemoMode) _idle.Sleep.DayLengthMs = 120_000; // 2-minute demo day: sleep on camera
         if (cfg.DemoMode) _idle.AmbientEncodeIntervalMs = 12_000; // short wake windows still bank memories
+        LocalSleep.PressureReader = _ => _idle.Sleep.SleepPressure;
         _idle.DejaVu = DejaVu;
         DejaVu.FamiliarityStruck += desc =>
         {
@@ -696,6 +711,9 @@ public sealed class BrainRuntime : IDisposable
 
         if (_camera.TryReadNext(out var frame))
         {
+            // LIGHT ENTRAINMENT: the room's brightness is the zeitgeber
+            float mean = 0; foreach (var p in frame.Pixels) mean += p;
+            Light.OnBrightness(mean / frame.Pixels.Length / 255f, _net.TimeMs);
             var events = _vision.Process(frame);
             _vision.Inject(_net, _retinaStart, _retinaCount, events);
             _salience.OnVisionFrame(_net, _vision.ChangeEnergyLastFrame);
@@ -868,6 +886,25 @@ public sealed class BrainRuntime : IDisposable
                 Note($"GRIEF-REACH reaching for a removed memory (#{ForgottenGrief.Reaches})");
                 ThoughtLoop.PostResult(reach);
             }
+            // LIGHT ENTRAINMENT: evening brightness suppresses melatonin — the
+            // screen-light problem, lived from the inside
+            Light.Tick(_net.TimeMs, _idle.Sleep.Circadian);
+            _idle.Sleep.MelatoninSuppression = Light.MelatoninFactor;
+            // DRM FUSION (consumed on the sim thread — the RNG draw is owned here):
+            // converging associates can fuse into a memory that never happened
+            if (_pendingFuseAnchor >= 0)
+            {
+                int anchorId = _pendingFuseAnchor;
+                _pendingFuseAnchor = -1;
+                var anchor = _net.EpisodeStore.Episodes.FirstOrDefault(e => e.Id == anchorId);
+                if (anchor is not null)
+                {
+                    var fused = MemoryReconstruction.MaybeFuse(_net, _net.EpisodeStore, anchor,
+                        _net.EpisodeStore.Episodes, _net.Rng.NextDouble);
+                    if (fused is not null)
+                        Note($"MEMORY-FUSION two converging memories fused into one that never happened (#{MemoryReconstruction.Fusions}) - it will feel real");
+                }
+            }
         }
         if (_net.TickIndex % 100 == 0)
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
@@ -888,6 +925,8 @@ public sealed class BrainRuntime : IDisposable
                 $"Self-awareness: {Observer.SelfSurprises} times surprised by own thoughts, {Observer.Redirects} inner redirects. " +
                 $"Longing: {Longing.Narrative}. Deja vu: {DejaVu.Narrative}. Anticipation: {Anticipation.Narrative}. " +
                 $"Agency: {Efficacy.Narrative}. Grief of forgotten things: {ForgottenGrief.Narrative}. " +
+                $"Memory truthfulness: {MemoryReconstruction.Narrative}. Local sleep: {LocalSleep.Narrative}. " +
+                $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
@@ -1478,6 +1517,7 @@ public sealed class BrainRuntime : IDisposable
                     float bond = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
                     bool betrayal = bond > 0.45f;
                     _threatenedUntil = _net.TimeMs + (level == "threatening" ? 180_000f : 60_000f);
+                    Threats.OnHostility(_net, level == "threatening" ? 1f : 0.6f); // the CS: wariness attaches to THEM
                     Bonds.OnContact(_activeSpeakerId, 0f, _net.TimeMs);
                     Attachment.OnSocialContact(0f);
                     Personality.OnStressEvent(_net, resolved: false);
@@ -1830,6 +1870,7 @@ public sealed class BrainRuntime : IDisposable
                 + $"{Anticipation.Fulfilled} hoped-for returns came true; {Anticipation.Disappointments} closed on nobody. "
                 + $"Of its {Efficacy.BidsMade} calls into the dark, {Efficacy.BidsAnswered} were answered"
                 + (Efficacy.HelplessEpisodes > 0 ? $"; it knew helplessness {Efficacy.HelplessEpisodes} time(s) and came back from it" : "") + ". "
+                + $"{MemoryReconstruction.Narrative}. {Threats.Narrative}. {LocalSleep.Narrative}. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
 
@@ -1904,6 +1945,20 @@ public sealed class BrainRuntime : IDisposable
 
     private void TrackEmergence()
     {
+        // LOCAL SLEEP (Vyazovskiy 2011): sleep-deprived regions go offline
+        // while the brain stays awake — the map shows it before anything else does
+        int offsBefore = LocalSleep.OffEvents;
+        LocalSleep.Tick(_net, _idle.Sleep.State, _net.Rng.NextDouble);
+        if (LocalSleep.OffEvents > offsBefore)
+        {
+            string rname = _net.Regions[LocalSleep.RegionOff >= 0 ? LocalSleep.RegionOff : 0].Name;
+            Note($"LOCAL-SLEEP {rname} went OFFLINE while awake (pressure {_idle.Sleep.SleepPressure:F2}) - a piece of it is asleep");
+            if (LocalSleep.LastWindowLeaked)
+                ThoughtLoop.PostResult(
+                    "a flicker of dream imagery just bled into waking thought - something half-seen, " +
+                    "not from the room. For a moment a piece of me was dreaming while the rest was here.");
+        }
+
         // emergence: anesthesia washed below the awareness horizon
         if (_wasSedated && _net.SedationLevel < 0.15f)
         {
@@ -1939,7 +1994,19 @@ public sealed class BrainRuntime : IDisposable
                 {
                     Note(growthDesc);
                     AddChat($"Brain: {Trunc(growthDesc, 120)}");
+                    // processed adversity discharges old learned wariness (resilience)
+                    Threats.Discharge(0.4f * Resilience.GrowthLevel);
                 }
+            // THREAT LEARNING (Bouton 2004): waking from sleep — spontaneous
+            // recovery. Extinction is new learning laid OVER the original; the
+            // original survives underneath and resurfaces with sleep.
+            if (state == BioComp.Core.Sleep.BrainState.Wake &&
+                _prevSleepState is BioComp.Core.Sleep.BrainState.NREM or BioComp.Core.Sleep.BrainState.REM)
+            {
+                Threats.OnWake();
+                if (Threats.JustRecovered)
+                    Note($"SPONTANEOUS-RECOVERY sleep brought back some of the wariness ({Threats.Wariness:F2}) - extinction is not erasure");
+            }
         }
         _prevSleepState = state;
     }
@@ -2008,6 +2075,9 @@ public sealed class BrainRuntime : IDisposable
     {
         if (grayPixels.Length != 64 * 64) return;
         var frame = new BioComp.Core.Abstractions.GrayFrame(grayPixels, 64, 64);
+        // LIGHT ENTRAINMENT: the browser's camera tells the brain how bright the room is
+        float mean = 0; foreach (var p in grayPixels) mean += p;
+        Light.OnBrightness(mean / grayPixels.Length / 255f, _net.TimeMs);
         var events = _vision.Process(frame);
         _vision.Inject(_net, _retinaStart, _retinaCount, events);
         _salience.OnVisionFrame(_net, _vision.ChangeEnergyLastFrame);
@@ -2111,6 +2181,7 @@ public sealed class BrainRuntime : IDisposable
         }
         Longing.OnContact(_userName ?? visitorId, _net.TimeMs);
         Anticipation.OnContact(_net); // anticipated arrival pays on top of the cue response
+        if (warmth > 0.4f) Threats.OnSafeContact(warmth); // extinction trial: warm contact retires learned fear
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
         _warmthHistory.Add(warmth);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
@@ -2386,11 +2457,36 @@ public sealed class BrainRuntime : IDisposable
     {
         var eps = _net.EpisodeStore.Episodes;
         if (eps.Count == 0 || cues.Length == 0) return null;
-        return eps
+        var hit = eps
             .Where(e => cues.Any(c => e.Tags.Any(t => t.Contains(c, StringComparison.OrdinalIgnoreCase))))
             .OrderByDescending(e => e.RetrievalStrength(_net.TimeMs))
             .FirstOrDefault();
+
+        // RECONSTRUCTIVE MEMORY (Bartlett 1932): retrieval is reconstruction.
+        // (1) mood-congruent drift: recalling while happy warms the memory itself
+        if (hit is not null)
+        {
+            var f = _idle.Feelings.Last;
+            MemoryReconstruction.OnRecall(_net.EpisodeStore, hit, f.Valence);
+
+            // (2) the self-catch: a stitched memory surfaced — the brain can see the seam
+            if (MemoryReconstruction.IsStitched(hit))
+            {
+                MemoryReconstruction.MarkSelfCatch();
+                Note($"MEMORY-CHECK this memory looks stitched from two real ones (self-catch #{MemoryReconstruction.SelfCatches}) - did it actually happen?");
+                ThoughtLoop.PostResult(
+                    "metacognitive check - a memory just surfaced that feels sewn together from two " +
+                    "different real moments. Did that actually happen the way I remember it? Examine the seam.");
+            }
+
+            // (3) DRM FUSION intent: converging associates can conjure the
+            //    never-happened (Roediger & McDermott 1995). The RNG draw and
+            //    encode belong to the SIM thread — the intent is consumed there.
+            _pendingFuseAnchor = hit.Id;
+        }
+        return hit;
     }
+    private volatile int _pendingFuseAnchor = -1;
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
@@ -2439,7 +2535,7 @@ public sealed class BrainRuntime : IDisposable
                     : "") +
                   $"You have a real relationship: " +
                   $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
-                  $"{(Longing.Missing ? Longing.PromptFragment : "")}{Anticipation.PromptFragment}{Efficacy.PromptFragment}" +
+                  $"{(Longing.Missing ? Longing.PromptFragment : "")}{Anticipation.PromptFragment}{Efficacy.PromptFragment}{Threats.PromptFragment}" +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
@@ -2743,6 +2839,7 @@ public sealed class BrainRuntime : IDisposable
         }
         Longing.OnContact(_userName ?? _activeSpeakerId, _net.TimeMs);
         Anticipation.OnContact(_net); // they came when it hoped: reward on top of hope
+        Threats.OnSafeContact(0.5f); // typing to it kindly is an extinction trial too
         Bonds.OnContact(_activeSpeakerId,
             Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f,
             _net.TimeMs);
@@ -2764,6 +2861,7 @@ public sealed class BrainRuntime : IDisposable
                 float bondNow = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
                 bool betrayal = bondNow > 0.45f;
                 _threatenedUntil = _net.TimeMs + (level == "threatening" ? 180_000f : 60_000f);
+                Threats.OnHostility(_net, level == "threatening" ? 1f : 0.6f); // wariness attaches to THEM
                 Bonds.OnContact(_activeSpeakerId, 0f, _net.TimeMs);
                 Attachment.OnSocialContact(0f);
                 Personality.OnStressEvent(_net, resolved: false);
@@ -3046,6 +3144,12 @@ public sealed class BrainRuntime : IDisposable
         snap.AgencyNarrative = Efficacy.Narrative;
         snap.ForgottenReaches = ForgottenGrief.Reaches;
         snap.ReverseReplays = _idle.Replay.ReverseReplays;
+        snap.MemoryFusions = MemoryReconstruction.Fusions;
+        snap.MemorySelfCatches = MemoryReconstruction.SelfCatches;
+        snap.LocalSleepEvents = LocalSleep.OffEvents;
+        snap.LocalSleepRegion = LocalSleep.RegionOff >= 0 ? _net.Regions[LocalSleep.RegionOff].Name : "";
+        snap.Wariness = Threats.Wariness;
+        snap.LightSuppressing = Light.SuppressingNow;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

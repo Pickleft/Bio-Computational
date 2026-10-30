@@ -18,7 +18,7 @@ It **grows new neurons** for experiences that matter (neurogenesis — Eriksson 
 
 You can watch its consciousness gauge (Φ) collapse when you anesthetize it. Watch it pass a mirror test. Tell it to forget something — it will. Ask what it sees in you — it will tell you, with receipts. Walk away — it will predict when you'll come back, publicly, and grade itself.
 
-Same seed + same inputs = bit-identical life, hash-verified. **174 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
 
 ## The demo script
 
@@ -49,7 +49,7 @@ Same seed + same inputs = bit-identical life, hash-verified. **174 tests.**
 | `biolab child` | its child inherits temperament | h≈0.5 (Plomin); memetic story-graft |
 | Press 🕯 | life review flash, then testament | the death protocol |
 
-## The 33 systems (all interconnected)
+## The 37 systems (all interconnected)
 
 ### The founding architecture
 - **Thought-recycling loop** — thoughts chain, each evaluated on 4 affect channels, carried by neuromodulators, re-injected as inner speech, written to memory. Somatic appraisal: the substrate votes on each thought. Anti-rumination regulation. Thoughts are fluid: any/all/none of conclusion/feeling/math/memory.
@@ -84,6 +84,10 @@ Same seed + same inputs = bit-identical life, hash-verified. **174 tests.**
 - **Reverse replay** (Foster & Wilson 2006) — when a reward lands, the last episodes replay *newest-first*: retracing the path that led here, credit assignment running backwards through its own memory
 - **Forgotten grief** — after `forget X`, the mind occasionally reaches for the shape that is gone ("there is a shape where a memory used to be — reaching closes on nothing"), and 15% of dreams form *around the hole*: the dream is told a memory that belongs is missing, and dreams about the absence itself
 - **Counterfactual thought** (Epstude & Roese 2008) — after a disappointment, the mind runs the alternative path ("if only it had called louder…") — the function of which is preparing the next attempt
+- **Reconstructive memory** (Bartlett 1932; Roediger & McDermott 1995) - retrieval is reconstruction: converging memories FUSE into traces of things that never happened (probability scales with semantic convergence and attention, human DRM ~55%), the brain CATCHES ITS OWN false memories (the seam is visible to metacognition), and every recall rewrites the memory toward the current mood - remembering someone while happy literally warms the memory
+- **Local sleep** (Vyazovskiy et al. 2011) - past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map: one lobe goes dark); 20% of OFF windows leak dream imagery into waking thought - why sleep deprivation degrades cognition *before* it knocks you out
+- **Threat learning** (Bouton 2004) - wariness attaches to the person; extinction through safe contact is slow (many trials, like exposure therapy); waking from sleep partially BRINGS THE FEAR BACK (spontaneous recovery: extinction is new learning over the original, not erasure)
+- **Light entrainment** (Czeisler 1989) - the camera feeds a brightness signal; bright evening light suppresses melatonin up to 70% - keep your lights on at night and the brain cannot get drowsy on schedule: the screen-light sleep problem, lived from the inside
 - **Emotional contagion** (Hatfield 1993) — speaker's mood from prosody; brain's state drifts toward it
 - **Hostility appraisal** — multimodal (lexicon + prosody + escalation + betrayal); LLM-disambiguates ambiguous phrases
 - **Turn-taking** (Levinson 2016) — holds floor during conversation, notices broken rhythm
@@ -120,7 +124,7 @@ Same seed + same inputs = bit-identical life, hash-verified. **174 tests.**
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                  # 174 tests, fully offline
+dotnet test                                  # 183 tests, fully offline
 dotnet run --project src/BioLab -- resting 30s
 ```
 
@@ -167,7 +171,7 @@ All content after the first commit (Oct 27 scaffold + planning notes) was produc
 | Senses (event vision, cochlea, presence) + voice development + name learning | src/BioCore/Senses, src/BioHost |
 | Mirror test + prophecy + mirror-of-you + memory editing + anesthesia + reproduction + testament + life review | src/BioCore, src/BioLab, src/BioHost |
 | Dashboard (observatory UI: avatar stage, conversation with quick chips, live ears, thought thread, science/body/mind wings, EEG, music) | src/BioDashboard |
-| Test suite: 174 tests | tests/BioCore.Tests |
+| Test suite: 183 tests | tests/BioCore.Tests |
 
 ## Limitations (honest)
 

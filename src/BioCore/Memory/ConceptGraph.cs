@@ -57,6 +57,13 @@ public sealed class ConceptGraph
     }
 
     /// <summary>
+    /// <summary>Read the directed link strength a→b, if wired (read-only query).</summary>
+    public bool TryGetLink(string a, string b, out float strength)
+    {
+        strength = 0f;
+        return _edges.TryGetValue(a, out var row) && row.TryGetValue(b, out strength);
+    }
+
     /// Spread activation one hop from the seed concepts: the associates most
     /// strongly linked to what the brain is currently thinking. Returned in
     /// descending activation; associates inherit the strongest incoming link

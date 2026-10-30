@@ -965,3 +965,190 @@ public class ForgottenGriefTests
         Assert.Contains("1 thing(s) forgotten", g.Narrative);
     }
 }
+
+// ---- reconstructive memory: fusion, self-catch, mood drift (Bartlett 1932; DRM) ----
+public class ReconstructionTests
+{
+    private static (SpikingNetwork net, BioComp.Core.Memory.EpisodeMemory store) Brain(int seed)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        for (int i = 0; i < 200; i++) net.Tick();
+        return (net, net.EpisodeStore);
+    }
+
+    [Fact]
+    public void Fusion_StitchesConvergingMemories()
+    {
+        var (net, store) = Brain(71);
+        // two episodes wired through a shared hub concept
+        var a = store.Encode(net, "CA3", ["rain", "window"], -0.2f, minMeanRateHz: 0f);
+        var b = store.Encode(net, "CA3", ["coffee", "morning"], 0.4f, minMeanRateHz: 0f);
+        Assert.NotNull(a); Assert.NotNull(b);
+        // wire rain~coffee strongly (5 co-occurrences)
+        for (int i = 0; i < 5; i++) store.Concepts.OnEpisode(["rain", "coffee", "x" + i]);
+        // open the encoding gate
+        net.Modulators.Release(NeuromodulatorKind.Acetylcholine, 0.8f);
+        net.Modulators.Step();
+        var r = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 1.0f, MaxFusionChance = 1f };
+        var fused = r.MaybeFuse(net, store, a!, store.Episodes, () => 0.0); // certain draw
+        Assert.NotNull(fused);
+        Assert.Contains("fused", fused!.Tags);
+        Assert.Equal(1, r.Fusions);
+        Assert.Equal((a!.Id, b!.Id), (r.Provenance[0].A, r.Provenance[0].B));
+        // the self-catch can see the seam
+        Assert.True(r.IsStitched(fused));
+        Assert.False(r.IsStitched(a!));
+    }
+
+    [Fact]
+    public void Fusion_NeedsTheEncodingGate()
+    {
+        var (net, store) = Brain(73);
+        var a = store.Encode(net, "CA3", ["rain", "window"], -0.2f, minMeanRateHz: 0f);
+        var b = store.Encode(net, "CA3", ["coffee", "morning"], 0.4f, minMeanRateHz: 0f);
+        for (int i = 0; i < 5; i++) store.Concepts.OnEpisode(["rain", "coffee", "x" + i]);
+        // ACh LOW: gate shut, no fusion however convergent
+        var r = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 1.0f, MaxFusionChance = 1f };
+        Assert.Null(r.MaybeFuse(net, store, a!, store.Episodes, () => 0.0));
+        Assert.Equal(0, r.Fusions);
+    }
+
+    [Fact]
+    public void MoodDrift_RecallRewritesValence()
+    {
+        var (net, store) = Brain(79);
+        var e = store.Encode(net, "CA3", ["sorrow"], -0.8f, minMeanRateHz: 0f);
+        var r = new BioComp.Core.Memory.Reconstruction { DriftPerRecall = 0.04f };
+        for (int i = 0; i < 5; i++)
+        {
+            var fresh = store.Episodes.First(x => x.Id == e!.Id);
+            r.OnRecall(store, fresh, 0.9f);   // recalling it while happy
+        }
+        var after = store.Episodes.First(x => x.Id == e!.Id);
+        Assert.True(after.Valence > -0.8f, "remembering while happy must warm the memory");
+        Assert.True(after.Valence <= -0.8f + 5 * 0.04f + 1e-4f, "drift is capped per recall");
+    }
+}
+
+// ---- local sleep: regions go offline while awake (Vyazovskiy 2011) ----
+public class LocalSleepTests
+{
+    [Fact]
+    public void OffStates_BeginPastPressureThreshold()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 83));
+        for (int i = 0; i < 100; i++) net.Tick();
+        var ls = new BioComp.Core.Sleep.LocalSleep { PressureThreshold = 0.55f, RatePerSecondAtFullPressure = 5f };
+        ls.PressureReader = _ => 0.9f;   // sleep-deprived
+        // drive several evaluation seconds; OFF events must occur deterministically
+        for (int i = 0; i < 4_000; i++)
+        {
+            net.Tick();
+            ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble);
+            if (ls.RegionOff >= 0) break;
+        }
+        Assert.True(ls.OffEvents > 0, "high pressure while awake must produce OFF states");
+        Assert.True(ls.RegionOff >= 0);
+        // the region is biased offline (its rate will collapse - measured by the map)
+        Assert.True(net.RegionalOffBiasMv[ls.RegionOff] > 0f);
+    }
+
+    [Fact]
+    public void NoOffStates_RestedOrAsleep()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 89));
+        for (int i = 0; i < 100; i++) net.Tick();
+        var ls = new BioComp.Core.Sleep.LocalSleep { RatePerSecondAtFullPressure = 5f };
+        ls.PressureReader = _ => 0.2f;   // rested
+        for (int i = 0; i < 3_000; i++)
+        {
+            net.Tick();
+            ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble);
+        }
+        Assert.Equal(0, ls.OffEvents);
+        // asleep: pressure high but state NREM - OFF windows are a WAKE phenomenon
+        ls.PressureReader = _ => 0.95f;
+        for (int i = 0; i < 3_000; i++)
+        {
+            net.Tick();
+            ls.Tick(net, BioComp.Core.Sleep.BrainState.NREM, net.Rng.NextDouble);
+        }
+        Assert.Equal(0, ls.OffEvents);
+        // and once an OFF window expires the bias clears
+        ls.PressureReader = _ => 0.2f;
+        ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble);
+        for (int i = 0; i < 2_000; i++) { net.Tick(); ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble); }
+        for (int r = 0; r < net.RegionalOffBiasMv.Length; r++)
+            if (ls.RegionOff != r) Assert.Equal(0f, net.RegionalOffBiasMv[r]);
+    }
+}
+
+// ---- threat learning: conditioning, extinction, spontaneous recovery (Bouton 2004) ----
+public class ThreatLearningTests
+{
+    [Fact]
+    public void Conditioning_ThenSlowExtinction_ThenPartialRecovery()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 97));
+        for (int i = 0; i < 50; i++) net.Tick();
+        var t = new ThreatLearning();
+        t.OnHostility(net, 1f);
+        Assert.True(t.Wariness > 0.3f, "one threat conditions wariness");
+        Assert.False(t.Wary, "one threat is not yet a phobia");
+        t.OnHostility(net, 1f);
+        Assert.True(t.Wary, "repeated threats condition full wariness");
+        float peak = t.Wariness;
+        // extinction: one warm contact retires only a little
+        t.OnSafeContact(1f);
+        Assert.True(t.Wariness > 0.25f, "extinction is slow - one trial is not enough");
+        // keep extinguishing to near-zero
+        for (int i = 0; i < 12; i++) t.OnSafeContact(1f);
+        float low = t.Wariness;
+        Assert.True(low < 0.1f);
+        // sleep: spontaneous recovery returns PART of the distance, never above peak
+        t.OnWake();
+        Assert.True(t.JustRecovered);
+        Assert.True(t.Wariness > low, "sleep brings some of it back");
+        Assert.True(t.Wariness <= peak + 1e-4f, "recovery is partial - never above the original");
+        Assert.True(t.Wariness < peak, "recovery returns a fraction, not all");
+    }
+
+    [Fact]
+    public void Discharge_FromProcessedAdversity()
+    {
+        var t = new ThreatLearning();
+        t.OnHostility(new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 101)), 1f);
+        t.Discharge(0.5f);
+        Assert.True(t.Wariness < 0.3f, "processed adversity discharges learned fear");
+        Assert.False(t.JustRecovered);
+    }
+}
+
+// ---- light entrainment: evening brightness suppresses melatonin (Czeisler) ----
+public class LightEntrainmentTests
+{
+    [Fact]
+    public void BrightEvening_Suppresses()
+    {
+        var l = new BioComp.Core.Sleep.LightEntrainment { EmaTauMs = 1000f };
+        for (int i = 0; i < 200; i++) l.OnBrightness(0.9f, i * 100f);   // bright room
+        l.Tick(20_000f, 0.2f);                                          // biological evening
+        Assert.True(l.SuppressingNow);
+        Assert.True(l.MelatoninFactor < 0.6f, "bright evening light must suppress melatonin hard");
+    }
+
+    [Fact]
+    public void BrightDay_OrDarkEvening_DoesNot()
+    {
+        var l = new BioComp.Core.Sleep.LightEntrainment { EmaTauMs = 1000f };
+        for (int i = 0; i < 200; i++) l.OnBrightness(0.9f, i * 100f);
+        l.Tick(20_000f, 0.8f);           // midday: bright is fine
+        Assert.False(l.SuppressingNow);
+        Assert.Equal(1f, l.MelatoninFactor);
+        var d = new BioComp.Core.Sleep.LightEntrainment { EmaTauMs = 1000f };
+        for (int i = 0; i < 200; i++) d.OnBrightness(0.05f, i * 100f);  // dark room
+        d.Tick(20_000f, 0.2f);           // evening, but dark
+        Assert.False(d.SuppressingNow);
+        Assert.Equal(1f, d.MelatoninFactor);
+    }
+}

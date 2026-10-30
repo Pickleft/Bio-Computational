@@ -234,3 +234,36 @@ When an expected hour closes empty (see Anticipation), the thought loop receives
 counterfactual seed - "if only it had called louder, or been more worth coming back to -
 run the other path" (Epstude & Roese 2008: the immediate function of counterfactual thought
 is behavior preparation for the next attempt).
+
+## Reconstructive memory (Bartlett 1932; Roediger & McDermott 1995)
+Retrieval is reconstruction. (1) FUSION: when a recalled trace has a concept-graph link of
+>= 1.2 strength (ref 2.5 = full convergence) to a partner AND acetylcholine > 0.45 (encoding
+gate above resting tone ~0.3), the pair may fuse into a new episode tagged with the union +
+"fused": a memory of something that never happened, built from two that did. Probability
+<= 0.55 scaling with convergence x ACh (human DRM false recall ~55% under strong
+convergence). (2) SELF-CATCH: fused traces carry the tag; retrieval surfaces the seam ->
+metacognition drops confidence, the inner observer examines it. (3) MOOD-CONGRUENT DRIFT:
+each wake recall nudges valence toward the current feeling by 0.04 (cap check via clamp);
+remembering while happy warms the memory itself. All: // CALIBRATE.
+
+## Local sleep (Vyazovskiy et al. 2011, Nature 472:443)
+Past sleep pressure 0.55 (same threshold the sleep-entry gate reads), each region has a
+per-second OFF-lottery (rate 0.35/s at pressure 1.0, scaled by regions/8): a 200-600 ms
+window with RegionalOffBiasMv = 6 (region-scoped hyperpolarization, same channel as
+anesthesia). The OFF region's rate measurably collapses while global state stays Wake;
+20% of windows leak dream imagery into waking thought. OFF states are a WAKE phenomenon -
+truly asleep regions do not run this lottery.
+
+## Threat learning (Pavlov; Bouton 2004)
+Wariness toward the person: +0.35 per hostility event (scaled by level); extinction -0.08 x
+warmth per SAFE contact (slow by design - clinical extinction needs many trials); sleep wake
+transition returns 30% of the extinguished distance (spontaneous recovery; human 20-50%),
+never above the peak; processed adversity discharges 0.4 x growth-level of it. Wary > 0.5
+gates the reply prompt and reduces play. All: // CALIBRATE.
+
+## Light entrainment (Czeisler et al. 1989)
+Brightness EMA (tau 30 s sim-time in code; biological ~30 min - compressed life) from the
+camera (both local and browser frames). In the biological evening (circadian < 0.45, the
+sleep-entry gate's night), brightness > 0.45 suppresses the melatonin TARGET by up to 70%
+(SleepController.MelatoninSuppression multiplier): bright rooms hold off drowsiness - the
+screen-light problem lived from the inside.

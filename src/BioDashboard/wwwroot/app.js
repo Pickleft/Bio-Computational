@@ -265,6 +265,26 @@ function render(s) {
     if (s.Helpless) agencyEl.textContent = "STOPPED ASKING — " + (s.AgencyNarrative || "");
   }
   setText("forgotten-state", !s.ForgottenReaches ? "nothing taken" : `reached ${s.ForgottenReaches}× for what was taken`);
+  // research-frontier readouts: reconstructive memory, local sleep, threat, light
+  const mtEl = $("memtruth-state");
+  if (mtEl) {
+    mtEl.textContent = !s.MemoryFusions ? "held together"
+      : `${s.MemoryFusions} stitched, ${s.MemorySelfCatches} self-caught`;
+    mtEl.classList.toggle("urgent", (s.MemoryFusions || 0) > 0 && (s.MemorySelfCatches || 0) === 0);
+  }
+  const lsEl = $("localsleep-state");
+  if (lsEl) {
+    lsEl.textContent = s.LocalSleepRegion ? `${s.LocalSleepRegion} OFFLINE now (${s.LocalSleepEvents || 0})`
+      : !s.LocalSleepEvents ? "none yet" : `${s.LocalSleepEvents} regions fell asleep awake`;
+    lsEl.classList.toggle("urgent", !!s.LocalSleepRegion);
+  }
+  const wEl = $("wariness-state");
+  if (wEl) {
+    wEl.textContent = (s.Wariness || 0) > 0.5 ? `WARY (${Math.round((s.Wariness || 0) * 100)}%)`
+      : (s.Wariness || 0) > 0.05 ? `fading (${Math.round((s.Wariness || 0) * 100)}%)` : "never threatened";
+    wEl.classList.toggle("urgent", (s.Wariness || 0) > 0.5);
+  }
+  setText("light-state", s.LightSuppressing ? "the lights are keeping it up" : "where it should be");
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};

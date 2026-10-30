@@ -155,6 +155,15 @@ public sealed class EpisodeMemory
         _episodes[i] = softened;
     }
 
+    /// <summary>Reconstructive drift (Bartlett 1932): move an episode's valence
+    /// by a signed delta, clamped to [-1, 1]. Recall rewrites the memory.</summary>
+    public void NudgeValence(Episode e, float delta)
+    {
+        int i = _episodes.IndexOf(e);
+        if (i < 0) return;
+        _episodes[i] = _episodes[i] with { Valence = Math.Clamp(_episodes[i].Valence + delta, -1f, 1f) };
+    }
+
     /// <summary>
     /// The region's CURRENT sparse code: top-K rate neurons since the last
     /// snapshot. Read-only query with no encode side effects - used to cue

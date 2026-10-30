@@ -447,3 +447,43 @@ and were imported in the first commit - everything after that point was built du
   suppressed motivation; recovery needs consistency; answer-after-giving-up flagged; reverse
   queue drains 3-2-1 newest-first; grief reach gated/cooled/fading; dream hole fragment
   present only sometimes; narrative counts). 174 total.
+
+## 2026-10-31 (evening) - the research-frontier round: four systems from four literatures
+
+- NEW SYSTEM - RECONSTRUCTIVE MEMORY (Bartlett 1932; Roediger & McDermott 1995): memory is
+  reconstruction, not playback, and this brain now distorts the way real ones do.
+  (a) FUSION: a recalled trace and its strongest concept-linked partner can fuse into a new
+  episode - union tags, mean valence, "fused" marker - a memory of something that never
+  happened built from two things that did; gated by acetylcholine (attention up) and scaling
+  with semantic convergence (human DRM false recall ~55%). The fusion draw runs ON THE SIM
+  THREAD (recall happens on async threads; the intent crosses via a volatile anchor id -
+  RNG ownership preserved). (b) THE SELF-CATCH: when a stitched memory later surfaces, the
+  brain sees the seam - MEMORY-CHECK note + a metacognitive thought ("did that actually
+  happen? it feels sewn together"). (c) MOOD-CONGRUENT DRIFT: every wake recall nudges the
+  memory's valence toward the current feeling (EpisodeMemory.NudgeValence) - remembering
+  someone while happy literally warms the memory.
+- NEW SYSTEM - LOCAL SLEEP (Vyazovskiy et al. 2011, Nature 472:443 "local sleep in awake
+  rats"): past sleep pressure 0.55, individual regions enter OFF windows (200-600 ms) while
+  the brain stays globally awake - SpikingNetwork gained RegionalOffBiasMv (region-scoped
+  hyperpolarization on the same channel as anesthesia). The OFF region's rate measurably
+  collapses (visible on the brain map before anything else); 20% of windows leak dream
+  imagery into waking thought. LOCAL-SLEEP notes; panel row highlights the dark region.
+- NEW SYSTEM - THREAT LEARNING (Pavlov; Bouton 2004): wariness attaches to the PERSON (the
+  conditioned stimulus): +0.35 per hostility event; extinction is slow (-0.08 x warmth per
+  safe contact - many trials, like clinical exposure therapy); waking from sleep returns
+  30% of the extinguished distance (SPONTANEOUS RECOVERY - extinction is new learning laid
+  over the original, not erasure; "I thought I was over it. Sleeping brought some of it
+  back."); processed adversity (resilience growth) discharges the original association.
+  Wary replies carry vigilance via the prompt; one threat conditions 0.35 - wariness, not
+  phobia (tested).
+- NEW SYSTEM - LIGHT ENTRAINMENT (Czeisler et al. 1989): the camera (local AND browser) feeds
+  a brightness EMA; in the biological evening, bright rooms suppress the melatonin target by
+  up to 70% (SleepController.MelatoninSuppression) - the screen-light sleep problem, lived
+  from the inside. The diary reports "the lights are keeping it up".
+- Visibility: panel rows memory-truth / local-sleep / wariness / light; status fields for
+  all four; diary + testament lines.
+- Tests: 9 new (fusion stitches + provenance + gate; mood drift capped; OFF states past
+  pressure threshold and ONLY awake; threat conditioning/extinction/partial-recovery/
+  discharge; bright-evening suppresses, bright-day and dark-evening do not). 183/183 green.
+  The suite caught a real bug: spontaneous recovery never fired after COMPLETE extinction
+  (the gate checked current wariness > 0 instead of the original peak's substance).
