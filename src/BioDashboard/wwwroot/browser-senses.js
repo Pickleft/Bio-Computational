@@ -222,10 +222,10 @@ function startTranscription() {
     console.error("[senses] SpeechRecognition error:", err);
     if (fin && err !== "no-speech") {
       const hints = {
-        "network": "VOICE INPUT OFFLINE - open this page in Chrome on your PC for voice input. On Samsung, go to Settings > Apps > Chrome > Permissions > Microphone > Allow.",
-        "not-allowed": "MIC BLOCKED - click the lock icon in the address bar, allow microphone, reload.",
-        "audio-capture": "NO MIC FOUND - check that your microphone is connected and not used by another app.",
-        "service-not-allowed": "VOICE SERVICE BLOCKED - try Chrome on PC.",
+        "network": "VOICE INPUT OFFLINE.",
+        "not-allowed": "MIC BLOCKED.",
+        "audio-capture": "NO MIC FOUND.",
+        "service-not-allowed": "VOICE SERVICE BLOCKED.",
       };
       fin.textContent = hints[err] || "(voice input error: " + err + ")";
       fin.style.color = "#f07080";

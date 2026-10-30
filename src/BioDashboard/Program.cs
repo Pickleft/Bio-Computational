@@ -72,7 +72,7 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     if (!opts.HasKey)
     {
         // No API key: fall back to browser-only mode (SpeechRecognition)
-        await browserWs.CloseAsync(System.Net.WebSockets.WebSocketCloseCode.NormalClosure, "no-api-key", CancellationToken.None);
+        await browserWs.CloseAsync((System.Net.WebSockets.WebSocketCloseCode)1000, "no-api-key", CancellationToken.None);
         return;
     }
 
@@ -80,7 +80,7 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     bool connected = await proxy.ConnectAsync(opts.ApiKey);
     if (!connected)
     {
-        await browserWs.CloseAsync(System.Net.WebSockets.WebSocketCloseCode.NormalClosure, "meta-connect-failed", CancellationToken.None);
+        await browserWs.CloseAsync((System.Net.WebSockets.WebSocketCloseCode)1000, "meta-connect-failed", CancellationToken.None);
         return;
     }
     Console.WriteLine("[transcribe] Meta real-time ASR connected");
@@ -125,7 +125,7 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     }, cts.Token);
 
     await Task.WhenAll(audioLoop, transcriptLoop);
-    try { await browserWs.CloseAsync(System.Net.WebSockets.WebSocketCloseCode.NormalClosure, "done", CancellationToken.None); } catch { }
+    try { await browserWs.CloseAsync((System.Net.WebSockets.WebSocketCloseCode)1000, "done", CancellationToken.None); } catch { }
     Console.WriteLine("[transcribe] session closed");
 });
 
