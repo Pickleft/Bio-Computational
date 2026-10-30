@@ -114,10 +114,6 @@ async function speakBrain(s) {
         retry.play().catch(() => fallbackToSpeechSynthesis(text, s));
       }, 1000);
     };
-        window.brainBrowserSpeaking = true;
-        speechSynthesis.speak(u);
-      }
-    };
     await currentAudio.play();
     console.log("[voice] neural TTS playing:", text.slice(0, 50));
     return;
