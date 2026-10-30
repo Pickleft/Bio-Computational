@@ -642,6 +642,12 @@ public sealed class BrainRuntime : IDisposable
                 _cochlea.Process(block);
                 _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
                 RecordAudioTelemetry(_cochlea.EnergyRms, _cochlea.VoiceLikely, "local mic");
+                // local mic hearing anything = someone is present
+                if (_cochlea.EnergyRms > 0.001f)
+                {
+                    _personPresentUntil = _net.TimeMs + 120_000;
+                    _personWasPresent = true;
+                }
                 if (_cochlea.VoiceLikely) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
                 else if (_cochlea.OnsetThisBlock) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 0.7f);
 
@@ -824,6 +830,8 @@ public sealed class BrainRuntime : IDisposable
         // ---- DEPARTURE (social prediction error) ----
         // a bonded person was present and now is not: dopamine dips below
         // baseline - the negative half of reward prediction (Schultz 1997)
+        // NOTE: this ONLY fires after 2 min of zero audio, zero camera motion,
+        // and zero chat. While any signal is arriving, presence is extended.
         if (_net.TimeMs > _personPresentUntil && _personWasPresent)
         {
             _personWasPresent = false;
@@ -1635,6 +1643,16 @@ public sealed class BrainRuntime : IDisposable
         _cochlea.Process(block);
         _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
         RecordAudioTelemetry(_cochlea.EnergyRms, _cochlea.VoiceLikely, "browser");
+        // ANY sound = someone is here. Even if VAD says "not voice" and even
+        // if no transcript ever completes, the browser is SENDING AUDIO which
+        // means a device with a mic is active and pointed at a person. This
+        // is the strongest possible presence signal — never say "alone" while
+        // audio blocks are literally arriving.
+        if (_cochlea.EnergyRms > 0.001f)
+        {
+            _personPresentUntil = _net.TimeMs + 120_000;
+            _personWasPresent = true;
+        }
         if (_cochlea.VoiceLikely) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
         else if (_cochlea.OnsetThisBlock) _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 0.7f);
         _audioBuffer.AddRange(pcm);

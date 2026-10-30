@@ -28,7 +28,7 @@ async function enableBrowserSenses() {
   let haveCam = false, haveMic = false;
   try {
     senseStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 320, height: 320, facingMode: "environment" },
+      video: { width: 320, height: 320, facingMode: "user" },
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
     haveCam = haveMic = true;
@@ -42,7 +42,7 @@ async function enableBrowserSenses() {
     } catch (micFailed) {
       try {
         camStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 320, height: 320, facingMode: "environment" }
+          video: { width: 320, height: 320, facingMode: "user" }
         });
         haveCam = true;
         console.log("[senses] no microphone available - running on camera only");
@@ -216,15 +216,18 @@ function sendVideoFrame() {
   if (eyes) {
     const ectx = eyes.getContext("2d");
     const out = ectx.createImageData(64, 64);
-    // auto-brightness: measure average, stretch so even a dim front
-    // camera in a lit room shows properly (fixed gain isn't enough)
-    let sum = 0;
-    for (let j = 0; j < gray.length; j++) sum += gray[j];
-    const avg = sum / gray.length;
-    const gain = avg < 30 ? 2.8 : avg < 60 ? 2.2 : avg < 100 ? 1.6 : 1.0;
-    const lift = avg < 30 ? 25 : avg < 60 ? 15 : 8;
+    // HISTOGRAM STRETCH: find the actual min/max of THIS frame, remap to
+    // full 0-255 range. Works regardless of how dim the camera is — even
+    // a near-black feed from a bad webcam gets full contrast.
+    let min = 255, max = 0;
     for (let j = 0; j < gray.length; j++) {
-      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] = Math.min(255, gray[j] * gain + lift);
+      if (gray[j] < min) min = gray[j];
+      if (gray[j] > max) max = gray[j];
+    }
+    const range = Math.max(1, max - min);
+    for (let j = 0; j < gray.length; j++) {
+      out.data[j * 4] = out.data[j * 4 + 1] = out.data[j * 4 + 2] =
+        Math.min(255, Math.round(((gray[j] - min) / range) * 255 * 0.9));
       out.data[j * 4 + 3] = 255;
     }
     ectx.putImageData(out, 0, 0);
