@@ -62,6 +62,73 @@ app.MapPost("/api/test-voice", () =>
     return Results.Ok(new { ok = true });
 });
 
+// ---- REAL-TIME SPEECH TRANSCRIPTION (WebSocket to Meta Muse Voice) ----
+app.Map("/ws/transcribe", async (HttpContext ctx) =>
+{
+    if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
+    var browserWs = await ctx.WebSockets.AcceptWebSocketAsync();
+
+    var opts = BioComp.Meta.MetaOptions.Load();
+    if (!opts.HasKey)
+    {
+        // No API key: fall back to browser-only mode (SpeechRecognition)
+        await browserWs.CloseAsync(System.Net.WebSockets.WebSocketCloseCode.NormalClosure, "no-api-key", CancellationToken.None);
+        return;
+    }
+
+    using var proxy = new BioComp.Host.MuseTranscribeProxy();
+    bool connected = await proxy.ConnectAsync(opts.ApiKey);
+    if (!connected)
+    {
+        await browserWs.CloseAsync(System.Net.WebSockets.WebSocketCloseCode.NormalClosure, "meta-connect-failed", CancellationToken.None);
+        return;
+    }
+    Console.WriteLine("[transcribe] Meta real-time ASR connected");
+
+    var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+    var buffer = new byte[16384];
+
+    // TWO PARALLEL LOOPS:
+    // 1. Browser → Meta (audio chunks)
+    // 2. Meta → Browser (transcript events)
+    var audioLoop = Task.Run(async () =>
+    {
+        try
+        {
+            while (!cts.Token.IsCancellationRequested && browserWs.State == WebSocketState.Open)
+            {
+                var result = await browserWs.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+                if (result.MessageType == WebSocketMessageType.Close) break;
+                if (result.Count > 0)
+                    await proxy.SendAudioAsync(buffer[..result.Count], cts.Token);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { }
+    }, cts.Token);
+
+    var transcriptLoop = Task.Run(async () =>
+    {
+        try
+        {
+            while (!cts.Token.IsCancellationRequested && browserWs.State == WebSocketState.Open)
+            {
+                var evt = await proxy.ReceiveAsync(cts.Token);
+                if (evt is null) break;
+                var json = System.Text.Json.JsonSerializer.Serialize(new { type = evt.Type, text = evt.Text, isFinal = evt.IsFinal });
+                var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+                await browserWs.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cts.Token);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { }
+    }, cts.Token);
+
+    await Task.WhenAll(audioLoop, transcriptLoop);
+    try { await browserWs.CloseAsync(System.Net.WebSockets.WebSocketCloseCode.NormalClosure, "done", CancellationToken.None); } catch { }
+    Console.WriteLine("[transcribe] session closed");
+});
+
 // ---- ANESTHESIA: watch consciousness chemically fade (Phi follows) ----
 app.MapGet("/api/testament", async () => Results.Text(await runtime.WriteTestamentAsync() ?? "already written", "text/plain"));
 app.MapPost("/api/sedate", () =>
