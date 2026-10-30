@@ -92,9 +92,7 @@ async function speakBrain(s) {
   if (!text) return;
   window.brainBrowserSpeaking = true;
 
-  // PRIMARY: StreamElements TTS — free neural voices (Amazon Polly), no key
-  // needed. Browser fetches directly (no server proxy = no encoding issues).
-  // Spaces must be + not %20 for this API.
+  // PRIMARY: StreamElements TTS — free neural voices (Amazon Polly)
   try {
     if (currentAudio) { try { currentAudio.pause(); } catch {} }
     const encoded = text.slice(0, 300).split(" ").join("+");
@@ -103,14 +101,19 @@ async function speakBrain(s) {
     currentAudio.volume = 1.0;
     currentAudio.onended = () => { window.brainBrowserSpeaking = false; };
     currentAudio.onerror = () => {
-      console.log("[voice] StreamElements failed, trying speechSynthesis");
-      window.brainBrowserSpeaking = false;
-      // FALLBACK: browser speechSynthesis
-      if ("speechSynthesis" in window) {
-        const u = new SpeechSynthesisUtterance(text);
-        if (pickedVoice) u.voice = pickedVoice;
-        u.rate = s.SpeakRate || 0.92;
-        u.onend = () => { window.brainBrowserSpeaking = false; };
+      console.log("[voice] StreamElements failed, retrying once...");
+      // RETRY once after a short delay (transient network errors are common)
+      setTimeout(() => {
+        const retry = new Audio(audioUrl);
+        retry.volume = 1.0;
+        retry.onended = () => { window.brainBrowserSpeaking = false; };
+        retry.onerror = () => {
+          console.log("[voice] retry also failed, using speechSynthesis");
+          fallbackToSpeechSynthesis(text, s);
+        };
+        retry.play().catch(() => fallbackToSpeechSynthesis(text, s));
+      }, 1000);
+    };
         window.brainBrowserSpeaking = true;
         speechSynthesis.speak(u);
       }
@@ -120,16 +123,19 @@ async function speakBrain(s) {
     return;
   } catch (e) {
     console.log("[voice] play failed:", e);
-    window.brainBrowserSpeaking = false;
+    fallbackToSpeechSynthesis(text, s);
   }
+}
 
-  // FALLBACK: browser speechSynthesis
+function fallbackToSpeechSynthesis(text, s) {
+  window.brainBrowserSpeaking = false;
   if ("speechSynthesis" in window) {
     const u = new SpeechSynthesisUtterance(text);
     if (pickedVoice) u.voice = pickedVoice;
-    u.rate = s.SpeakRate || 0.92;
-    u.pitch = s.SpeakPitch || 1.0;
+    u.rate = s ? (s.SpeakRate || 0.92) : 0.92;
+    u.pitch = s ? (s.SpeakPitch || 1.0) : 1.0;
     u.onend = u.onerror = () => { window.brainBrowserSpeaking = false; };
+    window.brainBrowserSpeaking = true;
     speechSynthesis.speak(u);
   } else {
     window.brainBrowserSpeaking = false;

@@ -232,18 +232,28 @@ function startTranscription() {
     setStatus("LISTENING - speak now", "#3ddbb8");
     if (dot) { dot.classList.add("on"); dot.style.color = "#3ddbb8"; }
   };
+  let lastErrorTime = 0;
   rec.onerror = (e) => {
     const err = e.error;
     console.error("[senses] SpeechRecognition error:", err);
-    if (fin && err !== "no-speech") {
-      const hints = {
-        "network": "\u26A0 VOICE OFFLINE - open in Chrome on PC, or check Samsung mic permissions (Settings > Apps > Chrome > Permissions > Microphone > Allow)",
-        "not-allowed": "\u26A0 MIC BLOCKED - click the lock icon in the address bar, allow microphone, reload",
-        "audio-capture": "\u26A0 NO MIC FOUND - check microphone connection",
-        "service-not-allowed": "\u26A0 VOICE SERVICE BLOCKED - try Chrome on PC",
-      };
+    if (err === "no-speech") return; // normal pause, not an error
+
+    // Don't overwrite errors too fast — keep each one visible for 5 seconds
+    const now = Date.now();
+    if (now - lastErrorTime < 5000 && fin && fin.dataset.persisting === "1") return;
+    lastErrorTime = now;
+    if (fin) fin.dataset.persisting = "1";
+
+    const hints = {
+      "network": "\u26A0 VOICE RECOGNITION OFFLINE - server transcription is still working, just slower. Try Chrome on PC for instant voice.",
+      "not-allowed": "\u26A0 MIC BLOCKED - click the lock icon in the address bar, allow microphone, then reload",
+      "audio-capture": "\u26A0 NO MIC FOUND - check microphone connection",
+      "service-not-allowed": "\u26A0 VOICE SERVICE BLOCKED - try Chrome on PC",
+    };
       setStatus(hints[err] || "(voice error: " + err + ")", "#f07080");
       if (dot) { dot.style.color = "#f07080"; dot.classList.remove("on"); }
+      // clear the persisting flag after 5s so new errors can show
+      setTimeout(() => { if (fin) fin.dataset.persisting = "0"; }, 5000);
     }
   };
   rec.onend = () => {

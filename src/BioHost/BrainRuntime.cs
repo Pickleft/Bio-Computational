@@ -2495,6 +2495,11 @@ public sealed class BrainRuntime : IDisposable
         _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
         _personPresentUntil = _net.TimeMs + 120_000; // typing = present
         _personWasPresent = true;
+        // DEDUPLICATION: browser SpeechRecognition sends the same speech here
+        // instantly; the server-side clip (from the same audio, delayed by
+        // VAD + API) would be a DUPLICATE. Suppress server clips for 8s.
+        _voiceCooldownUntil = _net.TickIndex + 8_000;
+        _wasVoice = false; // cancel any in-progress clip assembly
         if (_firstUserMessage.Length == 0) _firstUserMessage = Trunc(text, 80);
         var lowMirror = text.ToLowerInvariant();
         if (lowMirror.Contains("what do you see in me") || lowMirror.Contains("mirror me") || lowMirror == "mirror")
