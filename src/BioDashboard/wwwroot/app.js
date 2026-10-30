@@ -250,6 +250,7 @@ function render(s) {
   set("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
   set("pruned", `${s.SynapsesPruned || 0} synapses`);
   set("emo-granularity", s.EmotionalStage || "newborn");
+  set("life-story", s.HowIveChanged || "too young to have changed yet");
   // LIVE STRIP from the SERVER transcripts (always works - the browser
   // recognizer is flaky; the server chain is the source of truth)
   const logs = s.TranscriptLog || [];

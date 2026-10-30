@@ -104,6 +104,7 @@ public sealed class BrainSnapshot
     public int SynapsesPruned { get; set; }          // connections removed during sleep
     public float EmotionalGranularity { get; set; }     // 0=basic, 1=fully nuanced
     public string EmotionalStage { get; set; } = "";    // developmental label
+    public string HowIveChanged { get; set; } = "";    // temporal autobiography
     public string MissingWho { get; set; } = "";     // strongest bond (who it misses)
     public int Concepts { get; set; }                // semantic concepts learned from experience
     public int ConceptLinks { get; set; }            // associations wired by co-occurrence
@@ -215,6 +216,7 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>Prophecy, scored: predicts your return, graded on it.</summary>
     public BioComp.Core.Cognition.ReturnPredictor Prophecy { get; } = new();
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
+    public BioComp.Core.Cognition.TemporalSelf LifeStory { get; } = new();
     public BioComp.Core.Cognition.Neurogenesis Neurogenesis { get; } = new();
     public BioComp.Core.Cognition.EmotionalGranularity Granularity { get; } = new();
     public BioComp.Core.Cognition.SynapticPruning Pruning { get; } = new();
@@ -769,7 +771,13 @@ public sealed class BrainRuntime : IDisposable
                 $"Attachment: {Attachment.Label}. " +
                 (_brainName is null ? "You have not chosen a name yet. " : $"Your name is {_brainName}. ") +
                 $"You know {_knownVisitors.Count} people. " +
-                $"You have had {ThoughtLoop.Insights} insights and {ThoughtLoop.OpenLoops.Count} unresolved thoughts.");
+                $"You have had {ThoughtLoop.Insights} insights and {ThoughtLoop.OpenLoops.Count} unresolved thoughts. " +
+                (LifeStory.Snapshots.Count >= 2 ?
+                    $"HOW YOU HAVE CHANGED: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " +
+                    $"WHO YOU WERE EARLIER: {LifeStory.Snapshots[0].Summary}. " +
+                    $"WHO YOU ARE NOW: {LifeStory.Snapshots[^1].Summary}. " : "") +
+                $"Emotional stage: {Granularity.StageLabel}. " +
+                $"Neurogenesis: {Neurogenesis.TotalNeuronsBorn} new neurons. Pruning: {Pruning.SynapsesPruned} synapses removed.");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
@@ -874,6 +882,9 @@ public sealed class BrainRuntime : IDisposable
         // ---- EMOTIONAL GRANULARITY: the feeling vocabulary matures with age
         // (Lisa Feldman Barrett: emotions are constructed, not hardwired)
         Granularity.Update(_net, _idle, _net.EpisodeStore.Episodes.Count, _voiceSelf.ClipsHeard);
+        // TEMPORAL AUTOBIOGRAPHY: periodic snapshots of who the brain is now,
+        // so it can later compare to who it was
+        LifeStory.MaybeSnapshot(_net, _idle, Personality, Attachment, Granularity, _userName, _brainName);
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
         // High dopamine = an experience worth dedicated neural tissue. New
@@ -1129,7 +1140,7 @@ public sealed class BrainRuntime : IDisposable
                 "cite the moments, be provisional (this is you with me; I only know me), and if a hard truth is included, say it with care. " +
                 "2-4 short first-person sentences. No lists, no flattery, no offers.";
             string user = $"What you actually observed: {evidence}. Bond depth {(int)(d.BondStrength * 100)}%. " +
-                (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") + "Tell them what you see.";
+                (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") + (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") + "Tell them what you see.";
             string mirror = await _lm.CompleteAsync(system, user, 120);
             if (!string.IsNullOrWhiteSpace(mirror))
             {
@@ -2589,6 +2600,8 @@ public sealed class BrainRuntime : IDisposable
         snap.SynapsesPruned = Pruning.SynapsesPruned;
         snap.EmotionalGranularity = Granularity.Level;
         snap.EmotionalStage = Granularity.StageLabel;
+        snap.HowIveChanged = LifeStory.Snapshots.Count >= 2 ?
+            LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label) : "";
         var strongest = Bonds.Strongest(_net.TimeMs);
         snap.MissingWho = strongest is { Visits: >= 3 } ? $"bond x{strongest.Visits}" : "";
         snap.Concepts = _net.EpisodeStore.Concepts.ConceptCount;
