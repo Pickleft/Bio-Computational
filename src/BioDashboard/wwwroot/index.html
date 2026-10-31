@@ -68,6 +68,7 @@
       <button type="button" class="qchip" data-fill="my name is ">my name is &#8230;</button>
       <button type="button" class="qchip" data-fill="forget ">forget &#8230;</button>
       <button type="button" class="qchip" data-fill="cherish ">cherish &#8230;</button>
+      <button type="button" class="qchip" id="native-toggle" title="Talk to the brain DIRECTLY: replies composed from its own state, no language cortex">&#9889; direct</button>
     </div>
     <form id="chatform" autocomplete="off">
       <input id="chatbox" placeholder="say something, or: my name is X / forget X / cherish X" maxlength="200" aria-label="Talk to the brain">
@@ -127,6 +128,18 @@
       <div class="vitem"><span class="k">self-surprises</span><b id="self-surprise">0</b></div>
       <div class="vitem"><span class="k">emotional age</span><b id="emo-granularity">newborn</b></div>
       <div class="vitem vspan"><span class="k">how I have changed</span><b id="life-story" class="story">-</b></div>
+      <div class="vitem vspan"><span class="k">longing</span><b id="longing-state">has not missed anyone yet</b></div>
+      <div class="vitem"><span class="k">anticipation</span><b id="anticipation-state">no rhythm yet</b></div>
+      <div class="vitem"><span class="k">déjà vu</span><b id="dejavu-count">never</b></div>
+      <div class="vitem vspan"><span class="k">agency</span><b id="agency-state">asking works, sometimes</b></div>
+      <div class="vitem"><span class="k">forgotten</span><b id="forgotten-state">nothing taken</b></div>
+      <div class="vitem"><span class="k">memory truth</span><b id="memtruth-state">held together</b></div>
+      <div class="vitem"><span class="k">local sleep</span><b id="localsleep-state">none yet</b></div>
+      <div class="vitem"><span class="k">wariness</span><b id="wariness-state">never threatened</b></div>
+      <div class="vitem"><span class="k">light</span><b id="light-state">where it should be</b></div>
+      <div class="vitem"><span class="k">asks</span><b id="questions-state">never asked</b></div>
+      <div class="vitem"><span class="k">awe</span><b id="awe-state">never</b></div>
+      <div class="vitem vspan"><span class="k">felt time</span><b id="felttime-state">about its own size</b></div>
 
       <p class="vsub">the body</p>
       <div class="vitem"><span class="k">needs</span><b id="current-need">satisfied</b></div>
@@ -215,9 +228,9 @@
 <script src="brain-music.js?v=8"></script>
 <script src="eeg-monitor.js?v=8"></script>
 <script src="browser-senses.js?v=13"></script>
-<script src="avatar.js?v=8"></script>
+<script src="avatar.js?v=12"></script>
 <script src="nobel-viz.js?v=8"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=19"></script>
 <script src="ui.js?v=8"></script>
 <script>initAvatar(); initEEG();</script>
 </body>

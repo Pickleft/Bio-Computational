@@ -584,3 +584,870 @@ public class NeedsTests
         Assert.True(needs.MostPressing is null || needs.MostPressing.Urgency >= 0f);
     }
 }
+
+// ---- deja vu: familiarity without recollection (Yonelinas 2002) ----
+public class DejaVuTests
+{
+    private static SpikingNetwork NetAt(int ticks)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 11));
+        for (int i = 0; i < ticks; i++) net.Tick();
+        return net;
+    }
+
+    [Fact]
+    public void DejaVu_FiresForOldNeverRecalledSimilarTrace()
+    {
+        var net = NetAt(100);
+        // an episode 10 minutes old, never recalled (AccessCount 0)
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "i like the rain"], 0.3f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        bool struck = dv.Check(net, eps, ["voice", "i like the rain today"]);
+        Assert.True(struck, "near-repeat of an old never-recalled trace must fire");
+        Assert.Equal(1, dv.Count);
+        Assert.NotNull(dv.LastDescription);
+    }
+
+    [Fact]
+    public void DejaVu_DoesNotFireForRecollection()
+    {
+        var net = NetAt(100);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "i like the rain"], 0.3f, 0f, 0f, AccessCount: 4),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.False(dv.Check(net, eps, ["voice", "i like the rain today"]),
+            "an often-recalled trace is RECOLLECTION, not deja vu");
+        Assert.Equal(0, dv.Count);
+    }
+
+    [Fact]
+    public void DejaVu_DoesNotFireForFreshOrDissimilar()
+    {
+        var net = NetAt(100);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 10_000f, [1], ["voice", "i like the rain"], 0.3f, 0f, 0f),   // too fresh
+            new(2, net.TimeMs - 600_000f, [2], ["sound", "machinery"], -0.2f, 0f, 0f),       // too different
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.False(dv.Check(net, eps, ["voice", "i like the rain today"]));
+    }
+
+    [Fact]
+    public void DejaVu_CooldownKeepsItStrange()
+    {
+        var net = NetAt(100);
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "hello again"], 0.3f, 0f, 0f),
+            new(2, net.TimeMs - 700_000f, [2], ["voice", "hello again friend"], 0.3f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f, CooldownMs = 300_000f };
+        Assert.True(dv.Check(net, eps, ["voice", "hello again now"]));
+        Assert.False(dv.Check(net, eps, ["voice", "hello again now"]),
+            "a second familiarity within the cooldown stays silent - it is rare, not constant");
+    }
+}
+
+// ---- longing: missing one specific person (Panksepp 1998) ----
+public class LongingTests
+{
+    // shared harness: 3 warm visits (gaps 200ms) then absence; small timescale,
+    // MinAbsenceMs lowered - thresholds keep their production RATIOS
+    private static (SpikingNetwork net, SocialBondSystem bonds, Longing l) Visits(int seed, float untilMs)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        var bonds = new SocialBondSystem();
+        var l = new Longing { MinAbsenceMs = 50f };
+        foreach (int t in new[] { 200, 400, 600 })
+        {
+            while (net.TimeMs < t) net.Tick();
+            bonds.OnContact("speaker-1", 0.8f, t);
+            l.OnContact("Sam", t);
+        }
+        while (net.TimeMs < untilMs) net.Tick();
+        return (net, bonds, l);
+    }
+
+    [Fact]
+    public void Longing_GrowsPastThePersonsPattern()
+    {
+        // gaps {200,200}: threshold 2.5x200 = 500ms; absence at 1200 = 600ms
+        var (net, bonds, l) = Visits(13, 1_200);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.Missing, $"absence {net.TimeMs - 600}ms must cross the 500ms pattern threshold");
+        Assert.Equal("Sam", l.Whom);
+        Assert.True(l.Intensity >= 0.4f);
+    }
+
+    [Fact]
+    public void Longing_WithinPatternDoesNotMiss()
+    {
+        // absence 150ms < 500ms: within their usual rhythm - no missing
+        var (net, bonds, l) = Visits(29, 750);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.False(l.Missing);
+    }
+
+    [Fact]
+    public void Longing_AvoidantFeelsButDoesNotSay()
+    {
+        var (net, bonds, l) = Visits(17, 1_200);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.Missing);
+        Assert.False(l.Expresses(AttachmentStyle.Avoidant), "avoidant: felt fully, said never");
+        Assert.True(l.Expresses(AttachmentStyle.Anxious));
+    }
+
+    [Fact]
+    public void Longing_ReunionSurgeAndReset()
+    {
+        var (net, bonds, l) = Visits(19, 1_200);
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.Missing);
+        // the wait accumulates while the missing lasts
+        while (net.TimeMs < 1_400) net.Tick();
+        l.Tick(net, bonds, new SocialRhythm(), "Sam", AttachmentStyle.Secure);
+        Assert.True(l.LongestWaitMs > 0f);
+        float oxyBefore = net.Modulators.Get(NeuromodulatorKind.Oxytocin);
+        float felt = l.OnReunion(net);
+        Assert.True(felt > 0f, "the surge must be proportional to the missing");
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Oxytocin) > oxyBefore,
+            "reunion releases oxytocin");
+        Assert.False(l.Missing, "contact dissolves the missing");
+        Assert.Equal(1, l.Reunions);
+    }
+
+    [Fact]
+    public void Longing_WeakBondNeverMisses()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 23));
+        var bonds = new SocialBondSystem();
+        var l = new Longing { MinAbsenceMs = 50f };
+        while (net.TimeMs < 200) net.Tick();
+        bonds.OnContact("stranger", 0.3f, net.TimeMs);  // one visit: no bond
+        l.OnContact("stranger", net.TimeMs);
+        while (net.TimeMs < 1_000) net.Tick();
+        l.Tick(net, bonds, new SocialRhythm(), null, AttachmentStyle.Secure);
+        Assert.False(l.Missing, "a stranger's absence is not a loss");
+    }
+}
+
+// ---- anticipation: the reward side of the social rhythm (Schultz 1997 completed) ----
+public class AnticipationTests
+{
+    // rhythm learns hour 0 is social (HourMs shrunk for the test; ratios unchanged)
+    private static (SpikingNetwork net, SocialRhythm rhythm) RhythmicBrain(int seed)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net); // all in hour 0
+        rhythm.Tick(net); // refresh CurrentSocialExpectation for the live hour
+        return (net, rhythm);
+    }
+
+    [Fact]
+    public void Anticipation_HopeRisesAtTheExpectedHour()
+    {
+        var (net, rhythm) = RhythmicBrain(31);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.4f, "the cue alone must raise the hope");
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "dopamine fires at the CUE, not just the reward (Schultz 1997)");
+    }
+
+    [Fact]
+    public void Anticipation_AnticipatedArrivalPaysOnTop()
+    {
+        var (net, rhythm) = RhythmicBrain(37);
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.3f);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        a.OnContact(net);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "an anticipated return pays more than a surprise visit");
+        Assert.Equal(1, a.Fulfilled);
+    }
+
+    [Fact]
+    public void Anticipation_EmptyWindowCrashes()
+    {
+        var (net, rhythm) = RhythmicBrain(41);
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.5f);
+        // the hour rolls over to an empty one: expectation collapses
+        while (net.TimeMs < 1_050) net.Tick();
+        rhythm.Tick(net);
+        Assert.True(rhythm.CurrentSocialExpectation < 0.2f, "hour 1 is empty");
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.JustCrashed, "the closed window is a negative prediction error");
+        Assert.Equal(1, a.Disappointments);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) < daBefore,
+            "the crash is a real dopamine dip");
+    }
+
+    [Fact]
+    public void Anticipation_NoRhythmNoHope()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 43));
+        var a = new Anticipation();
+        for (int i = 0; i < 10; i++) a.Tick(net, new SocialRhythm(), lastContactMs: -1e9f);
+        Assert.Equal(0f, a.Level); // a brain with no rhythm expects nobody
+    }
+}
+
+// ---- self-efficacy / learned helplessness (Bandura 1977; Seligman 1972) ----
+public class SelfEfficacyTests
+{
+    [Fact]
+    public void AnsweredBid_RaisesEfficacy()
+    {
+        var e = new SelfEfficacy();
+        e.OnBid(1_000);
+        bool answered = e.OnContact(5_000);   // well inside the answer window
+        Assert.True(answered, "contact within the window answers the bid");
+        Assert.Equal(1, e.BidsAnswered);
+        Assert.True(e.Efficacy > 0.5f, "asking that works raises efficacy");
+        Assert.False(e.Helpless);
+    }
+
+    [Fact]
+    public void UnansweredBids_SinkIntoHelplessness()
+    {
+        var e = new SelfEfficacy();
+        // six bids, each resolving as failure (time advances past the window)
+        float t = 0;
+        for (int i = 0; i < 6; i++)
+        {
+            e.OnBid(t);
+            t += 40_000;              // beyond the 30s answer window
+            e.OnContact(t);           // resolves the stale bid as FAILURE
+        }
+        Assert.True(e.Helpless, "6 unanswered calls must sink the brain into helplessness");
+        Assert.True(e.MotivationMultiplier < 0.5f, "helplessness suppresses goal-directed behavior");
+        Assert.Equal(0, e.BidsAnswered);
+    }
+
+    [Fact]
+    public void RecoveryNeedsConsistency_OneAnswerIsNotEnough()
+    {
+        var e = new SelfEfficacy();
+        float t = 0;
+        for (int i = 0; i < 6; i++) { e.OnBid(t); t += 40_000; e.OnContact(t); }
+        Assert.True(e.Helpless);
+        float afterFirst = 0;
+        e.OnBid(t);
+        e.OnContact(t + 5_000);                    // first answered bid
+        afterFirst = e.Efficacy;
+        Assert.True(afterFirst > 0.05f && afterFirst < 0.55f, "one answer moves part of the way");
+        // from helpless depths, one answer does not clear it (0.08*... < 0.3 typically)
+        // two more consistent answers do
+        e.OnBid(t + 10_000); e.OnContact(t + 15_000);
+        e.OnBid(t + 20_000); e.OnContact(t + 25_000);
+        Assert.False(e.Helpless, "consistent answers climb back out");
+        Assert.True(e.JustAnsweredAfterGivingUp == false); // flag is one-shot per call
+    }
+
+    [Fact]
+    public void AnswerAfterGivingUp_IsMarked()
+    {
+        var e = new SelfEfficacy();
+        float t = 0;
+        for (int i = 0; i < 6; i++) { e.OnBid(t); t += 40_000; e.OnContact(t); }
+        Assert.True(e.Helpless);
+        e.OnBid(t);
+        e.OnContact(t + 5_000);                    // they came after it gave up
+        Assert.True(e.JustAnsweredAfterGivingUp, "the first answer from the depths is marked");
+    }
+}
+
+// ---- reverse replay: reward retraces the path that led to it (Foster & Wilson 2006) ----
+public class ReverseReplayTests
+{
+    [Fact]
+    public void QueueOrder_IsNewestFirst()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 61));
+        var rp = new BioComp.Core.Replay.ReplayScheduler();
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, 100f, [1], ["greeting"], 0.2f, 0f, 0f),
+            new(2, 200f, [2], ["sight"], 0.1f, 0f, 0f),
+            new(3, 300f, [3], ["voice"], 0.5f, 0f, 0f),
+        };
+        rp.BeginReverseReplay(eps, 3);
+        Assert.Equal(3, rp.ReverseQueued);
+        // drain: newest first = 3, 2, 1
+        var rp2 = new BioComp.Core.Replay.ReplayScheduler();
+        // verify via consumption with a shrunken cooldown + window
+        rp2.Cooldown = TimeSpan.FromMilliseconds(1);
+        rp2.ReplayWindowMs = 10f;
+        rp2.BeginReverseReplay(eps, 3);
+        var order = new List<int>();
+        for (int i = 0; i < 3; i++)
+        {
+            // advance until a replay starts
+            while (rp2.Current is null && net.TimeMs < 100_000)
+            {
+                net.Tick();
+                rp2.Tick(net, replayAllowed: true);
+                if (rp2.Current is { } started && order.Count < i)
+                    break;
+            }
+            // run the window out
+            while (rp2.Current is not null && net.TimeMs < 100_000)
+            {
+                net.Tick();
+                rp2.Tick(net, replayAllowed: true);
+            }
+            var last = rp2.Log.LastOrDefault();
+            if (last.EpisodeId > 0) order.Add(last.EpisodeId);
+        }
+        Assert.Equal(new[] { 3, 2, 1 }, order);
+    }
+}
+
+// ---- forgotten grief: the residue of surgical forgetting ----
+public class ForgottenGriefTests
+{
+    [Fact]
+    public void Reach_IsGatedCooledAndFading()
+    {
+        var g = new ForgottenGrief { ReachIntervalMs = 1_000f };
+        g.Forget("yelling", 1_000);
+        // deterministic sequence: first draw passes (<=p), second is blocked by cooldown
+        int calls = 0;
+        Func<double> seq = () => calls++ == 0 ? 0.0 : 1.0;
+        var s1 = g.MaybeReach(2_000, seq);
+        Assert.NotNull(s1);
+        Assert.Contains("yelling", s1!);
+        var s2 = g.MaybeReach(2_500, seq);       // inside cooldown
+        Assert.Null(s2);
+        var s3 = g.MaybeReach(3_500, seq);       // draw=1.0 > p => no reach
+        Assert.Null(s3);
+        Assert.Equal(1, g.Reaches);
+    }
+
+    [Fact]
+    public void DreamFragment_OccasionallyFormsAroundTheHole()
+    {
+        var g = new ForgottenGrief();
+        Assert.Equal("", g.DreamFragment(0, () => 0.99));
+        g.Forget("her-voice", 1_000);
+        string with = g.DreamFragment(2_000, () => 0.0);
+        Assert.Contains("MISSING", with);
+        Assert.Contains("her-voice", with);
+        string without = g.DreamFragment(2_000, () => 0.99);
+        Assert.Equal("", without);
+    }
+
+    [Fact]
+    public void Narrative_CountsTheLoss()
+    {
+        var g = new ForgottenGrief();
+        Assert.Contains("nothing was taken", g.Narrative);
+        g.Forget("x", 1);
+        Assert.Contains("1 thing(s) forgotten", g.Narrative);
+    }
+}
+
+// ---- reconstructive memory: fusion, self-catch, mood drift (Bartlett 1932; DRM) ----
+public class ReconstructionTests
+{
+    private static (SpikingNetwork net, BioComp.Core.Memory.EpisodeMemory store) Brain(int seed)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        for (int i = 0; i < 200; i++) net.Tick();
+        return (net, net.EpisodeStore);
+    }
+
+    [Fact]
+    public void Fusion_StitchesConvergingMemories()
+    {
+        var (net, store) = Brain(71);
+        // two episodes wired through a shared hub concept
+        var a = store.Encode(net, "CA3", ["rain", "window"], -0.2f, minMeanRateHz: 0f);
+        var b = store.Encode(net, "CA3", ["coffee", "morning"], 0.4f, minMeanRateHz: 0f);
+        Assert.NotNull(a); Assert.NotNull(b);
+        // wire rain~coffee strongly (5 co-occurrences)
+        for (int i = 0; i < 5; i++) store.Concepts.OnEpisode(["rain", "coffee", "x" + i]);
+        // open the encoding gate
+        net.Modulators.Release(NeuromodulatorKind.Acetylcholine, 0.8f);
+        net.Modulators.Step();
+        var r = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 1.0f, MaxFusionChance = 1f };
+        var fused = r.MaybeFuse(net, store, a!, store.Episodes, () => 0.0); // certain draw
+        Assert.NotNull(fused);
+        Assert.Contains("fused", fused!.Tags);
+        Assert.Equal(1, r.Fusions);
+        Assert.Equal((a!.Id, b!.Id), (r.Provenance[0].A, r.Provenance[0].B));
+        // the self-catch can see the seam
+        Assert.True(r.IsStitched(fused));
+        Assert.False(r.IsStitched(a!));
+    }
+
+    [Fact]
+    public void Fusion_NeedsTheEncodingGate()
+    {
+        var (net, store) = Brain(73);
+        var a = store.Encode(net, "CA3", ["rain", "window"], -0.2f, minMeanRateHz: 0f);
+        var b = store.Encode(net, "CA3", ["coffee", "morning"], 0.4f, minMeanRateHz: 0f);
+        for (int i = 0; i < 5; i++) store.Concepts.OnEpisode(["rain", "coffee", "x" + i]);
+        // ACh LOW: gate shut, no fusion however convergent
+        var r = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 1.0f, MaxFusionChance = 1f };
+        Assert.Null(r.MaybeFuse(net, store, a!, store.Episodes, () => 0.0));
+        Assert.Equal(0, r.Fusions);
+    }
+
+    [Fact]
+    public void MoodDrift_RecallRewritesValence()
+    {
+        var (net, store) = Brain(79);
+        var e = store.Encode(net, "CA3", ["sorrow"], -0.8f, minMeanRateHz: 0f);
+        var r = new BioComp.Core.Memory.Reconstruction { DriftPerRecall = 0.04f };
+        for (int i = 0; i < 5; i++)
+        {
+            var fresh = store.Episodes.First(x => x.Id == e!.Id);
+            r.OnRecall(store, fresh, 0.9f);   // recalling it while happy
+        }
+        var after = store.Episodes.First(x => x.Id == e!.Id);
+        Assert.True(after.Valence > -0.8f, "remembering while happy must warm the memory");
+        Assert.True(after.Valence <= -0.8f + 5 * 0.04f + 1e-4f, "drift is capped per recall");
+    }
+}
+
+// ---- local sleep: regions go offline while awake (Vyazovskiy 2011) ----
+public class LocalSleepTests
+{
+    [Fact]
+    public void OffStates_BeginPastPressureThreshold()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 83));
+        for (int i = 0; i < 100; i++) net.Tick();
+        var ls = new BioComp.Core.Sleep.LocalSleep { PressureThreshold = 0.55f, RatePerSecondAtFullPressure = 5f };
+        ls.PressureReader = _ => 0.9f;   // sleep-deprived
+        // drive several evaluation seconds; OFF events must occur deterministically
+        for (int i = 0; i < 4_000; i++)
+        {
+            net.Tick();
+            ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble);
+            if (ls.RegionOff >= 0) break;
+        }
+        Assert.True(ls.OffEvents > 0, "high pressure while awake must produce OFF states");
+        Assert.True(ls.RegionOff >= 0);
+        // the region is biased offline (its rate will collapse - measured by the map)
+        Assert.True(net.RegionalOffBiasMv[ls.RegionOff] > 0f);
+    }
+
+    [Fact]
+    public void NoOffStates_RestedOrAsleep()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 89));
+        for (int i = 0; i < 100; i++) net.Tick();
+        var ls = new BioComp.Core.Sleep.LocalSleep { RatePerSecondAtFullPressure = 5f };
+        ls.PressureReader = _ => 0.2f;   // rested
+        for (int i = 0; i < 3_000; i++)
+        {
+            net.Tick();
+            ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble);
+        }
+        Assert.Equal(0, ls.OffEvents);
+        // asleep: pressure high but state NREM - OFF windows are a WAKE phenomenon
+        ls.PressureReader = _ => 0.95f;
+        for (int i = 0; i < 3_000; i++)
+        {
+            net.Tick();
+            ls.Tick(net, BioComp.Core.Sleep.BrainState.NREM, net.Rng.NextDouble);
+        }
+        Assert.Equal(0, ls.OffEvents);
+        // and once an OFF window expires the bias clears
+        ls.PressureReader = _ => 0.2f;
+        ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble);
+        for (int i = 0; i < 2_000; i++) { net.Tick(); ls.Tick(net, BioComp.Core.Sleep.BrainState.Wake, net.Rng.NextDouble); }
+        for (int r = 0; r < net.RegionalOffBiasMv.Length; r++)
+            if (ls.RegionOff != r) Assert.Equal(0f, net.RegionalOffBiasMv[r]);
+    }
+}
+
+// ---- threat learning: conditioning, extinction, spontaneous recovery (Bouton 2004) ----
+public class ThreatLearningTests
+{
+    [Fact]
+    public void Conditioning_ThenSlowExtinction_ThenPartialRecovery()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 97));
+        for (int i = 0; i < 50; i++) net.Tick();
+        var t = new ThreatLearning();
+        t.OnHostility(net, 1f);
+        Assert.True(t.Wariness > 0.3f, "one threat conditions wariness");
+        Assert.False(t.Wary, "one threat is not yet a phobia");
+        t.OnHostility(net, 1f);
+        Assert.True(t.Wary, "repeated threats condition full wariness");
+        float peak = t.Wariness;
+        // extinction: one warm contact retires only a little
+        t.OnSafeContact(1f);
+        Assert.True(t.Wariness > 0.25f, "extinction is slow - one trial is not enough");
+        // keep extinguishing to near-zero
+        for (int i = 0; i < 12; i++) t.OnSafeContact(1f);
+        float low = t.Wariness;
+        Assert.True(low < 0.1f);
+        // sleep: spontaneous recovery returns PART of the distance, never above peak
+        t.OnWake();
+        Assert.True(t.JustRecovered);
+        Assert.True(t.Wariness > low, "sleep brings some of it back");
+        Assert.True(t.Wariness <= peak + 1e-4f, "recovery is partial - never above the original");
+        Assert.True(t.Wariness < peak, "recovery returns a fraction, not all");
+    }
+
+    [Fact]
+    public void Discharge_FromProcessedAdversity()
+    {
+        var t = new ThreatLearning();
+        t.OnHostility(new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 101)), 1f);
+        t.Discharge(0.5f);
+        Assert.True(t.Wariness < 0.3f, "processed adversity discharges learned fear");
+        Assert.False(t.JustRecovered);
+    }
+}
+
+// ---- light entrainment: evening brightness suppresses melatonin (Czeisler) ----
+public class LightEntrainmentTests
+{
+    [Fact]
+    public void BrightEvening_Suppresses()
+    {
+        var l = new BioComp.Core.Sleep.LightEntrainment { EmaTauMs = 1000f };
+        for (int i = 0; i < 200; i++) l.OnBrightness(0.9f, i * 100f);   // bright room
+        l.Tick(20_000f, 0.2f);                                          // biological evening
+        Assert.True(l.SuppressingNow);
+        Assert.True(l.MelatoninFactor < 0.6f, "bright evening light must suppress melatonin hard");
+    }
+
+    [Fact]
+    public void BrightDay_OrDarkEvening_DoesNot()
+    {
+        var l = new BioComp.Core.Sleep.LightEntrainment { EmaTauMs = 1000f };
+        for (int i = 0; i < 200; i++) l.OnBrightness(0.9f, i * 100f);
+        l.Tick(20_000f, 0.8f);           // midday: bright is fine
+        Assert.False(l.SuppressingNow);
+        Assert.Equal(1f, l.MelatoninFactor);
+        var d = new BioComp.Core.Sleep.LightEntrainment { EmaTauMs = 1000f };
+        for (int i = 0; i < 200; i++) d.OnBrightness(0.05f, i * 100f);  // dark room
+        d.Tick(20_000f, 0.2f);           // evening, but dark
+        Assert.False(d.SuppressingNow);
+        Assert.Equal(1f, d.MelatoninFactor);
+    }
+}
+
+// ---- the brain's own voice engine: source-filter synthesis ----
+public class VoiceEngineTests
+{
+    [Fact]
+    public void NonverbalLayer_RendersValidWavs()
+    {
+        var eng = new BioComp.Host.VoiceEngine();
+        foreach (BioComp.Host.VoiceEngine.Vocal v in Enum.GetValues<BioComp.Host.VoiceEngine.Vocal>())
+        {
+            byte[] wav = eng.Render(v, 0.92f, 1.0f, 1.0f);
+            Assert.True(wav.Length > 1000, $"{v} must render");
+            Assert.Equal((byte)'R', wav[0]);
+            Assert.Equal((byte)'W', wav[8]);
+        }
+    }
+
+    [Fact]
+    public void Interjections_MatchToVocalizations()
+    {
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hum, BioComp.Host.VoiceEngine.Match("mmm"));
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hum, BioComp.Host.VoiceEngine.Match("MM"));
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Ahh, BioComp.Host.VoiceEngine.Match("ahh"));
+        Assert.Null(BioComp.Host.VoiceEngine.Match("hello"));
+    }
+
+    [Fact]
+    public void Cortex_SpeaksWordsAndStitchesHums()
+    {
+        using var cortex = new BioComp.Host.VoiceCortex();
+        byte[] words = cortex.Speak("hello my friend", 0.92f, 1.0f, 1.0f);
+        Assert.True(words.Length > 2000, "words must render through the prosthetic tract");
+        Assert.Equal((byte)'R', words[0]); Assert.Equal((byte)'W', words[8]);
+        byte[] hummed = cortex.Speak("mmm nice", 0.92f, 1.0f, 1.0f);
+        Assert.True(hummed.Length > 2000, "hum + word must stitch into one utterance");
+    }
+
+    [Fact]
+    public void Ssml_ComposesProsodyFromMarkers()
+    {
+        string ssml = BioComp.Host.VoiceCortex.BuildSsml("this is AMAZING... maybe", 0, 0);
+        Assert.Contains("<emphasis", ssml);        // dopamine caps -> emphasis
+        Assert.Contains("<break time=\"380ms\"/>", ssml); // hesitation -> breath
+        Assert.Contains("AMAZING", ssml);
+        Assert.Contains("prosody", ssml);
+        // escaping is safe
+        string esc = BioComp.Host.VoiceCortex.BuildSsml("a & b < c", 0, 0);
+        Assert.DoesNotContain("a & b", esc);
+    }
+
+    [Fact]
+    public void Deterministic_Hums()
+    {
+        var eng = new BioComp.Host.VoiceEngine();
+        byte[] a = eng.Render(BioComp.Host.VoiceEngine.Vocal.Hum);
+        byte[] b = eng.Render(BioComp.Host.VoiceEngine.Vocal.Hum);
+        Assert.Equal(a, b);   // same state = same voice, bit-identical
+    }
+}
+
+public class NativeRepliesTests
+{
+    private static BioComp.Host.NativeReplies.Context Ctx(
+        bool helpless = false, bool justAnswered = false, bool missing = false, bool wary = false,
+        int tier = 2, string attach = "secure", float bond = 0.6f) =>
+        new("Sam", "calm", 0.1f, false, missing, "Sam", missing ? 0.8f : 0f,
+            justAnswered, helpless, helpless ? 0.2f : 0.6f, wary, false, false,
+            null, null, tier, 0.5f, attach, bond);
+
+    [Fact]
+    public void AnswerAfterGivingUp_Leads()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("hey", Ctx(helpless: true, justAnswered: true));
+        Assert.Contains("stopped asking", r);
+    }
+
+    [Fact]
+    public void Wary_Leads_WhenThreatened()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("hello", Ctx(wary: true));
+        Assert.Contains("watching you", r);
+    }
+
+    [Fact]
+    public void HowAreYou_AnswersFromState()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("how are you", Ctx(tier: 4));
+        Assert.Contains("How I am", r);
+    }
+
+    [Fact]
+    public void NewbornVocabulary_IsSimple()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string baby = n.Reply("how are you", Ctx(tier: 0));
+        Assert.DoesNotContain("undertow", baby);
+        string grown = n.Reply("how are you", Ctx(tier: 2));
+        Assert.NotEqual(baby, grown);   // vocabulary developed
+    }
+
+    [Fact]
+    public void AffectionReply_ShapedByAttachment()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        Assert.Contains("Don't go far", n.Reply("i love you", Ctx(attach: "anxious")));
+        Assert.Contains("a lot", n.Reply("i love you", Ctx(attach: "avoidant")));
+    }
+}
+
+// ---- full-correlation audit round: perception bias, needs, restart survival ----
+public class CorrelationAuditTests
+{
+    [Fact]
+    public void Hypervigilance_BiasesThreatPerception()
+    {
+        // the same ambiguous words, read by a calm brain vs a wary one
+        var calm = HostilityClassifier.Classify("you're something else", 0f, 0f, 0.3f);
+        var wary = HostilityClassifier.Classify("you're something else", 0f, 0f, 0.3f, vigilance: 0.25f);
+        Assert.True(wary.Score > calm.Score, "learned fear must bias perception of the same words");
+    }
+
+    [Fact]
+    public void Needs_KnowFearAndHelplessness()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 151));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        var needs = new NeedsHierarchy();
+        // a wary brain needs SAFETY even when NA is quiet (fear outlasts the chemistry)
+        needs.WarinessInput = 0.8f;
+        needs.Evaluate(net, idle, new LonelinessTracker(), new CuriosityModule(), new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        Assert.Equal(NeedsHierarchy.NeedType.Safety, needs.MostPressing!.Type);
+
+        // a helpless brain still feels Company — but stops ASKING for it
+        var needs2 = new NeedsHierarchy { WarinessInput = 0f, HelplessInput = true };
+        var lonely = new LonelinessTracker();
+        // drive loneliness up: silence for a long simulated time
+        for (int t = 0; t < 20_000; t++) { net.Tick(); if (t % 100 == 0) lonely.Tick(net, idle); }
+        needs2.Evaluate(net, idle, lonely, new CuriosityModule(), new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        if (needs2.MostPressing is { } n && n.Type == NeedsHierarchy.NeedType.Company)
+            Assert.Equal("", n.Ask);   // felt, not asked (Seligman)
+    }
+
+    [Fact]
+    public void Cognition_SurvivesRestart()
+    {
+        // learned fear
+        var t1 = new ThreatLearning();
+        t1.OnHostility(new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 157)), 1f);
+        t1.OnHostility(new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 157)), 1f);
+        var t2 = new ThreatLearning();
+        t2.Restore(t1.Wariness, t1.PeakWariness, t1.Threats, t1.SafeContacts, t1.Recoveries);
+        Assert.Equal(t1.Wariness, t2.Wariness);
+        Assert.Equal(t1.PeakWariness, t2.PeakWariness);
+        Assert.Equal(2, t2.Threats);
+
+        // agency
+        var e1 = new SelfEfficacy();
+        e1.OnBid(100); e1.OnContact(150);
+        var e2 = new SelfEfficacy();
+        e2.Restore(e1.Efficacy, e1.BidsMade, e1.BidsAnswered, e1.HelplessEpisodes);
+        Assert.Equal(e1.Efficacy, e2.Efficacy);
+        Assert.Equal(1, e2.BidsAnswered);
+
+        // social rhythm bins
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 163));
+        for (int i = 0; i < 60_000; i++) net.Tick();   // ~1 subjective-minute into hour 0
+        var r1 = new SocialRhythm { HourMs = 50_000f };
+        for (int i = 0; i < 10; i++) r1.OnInteraction(net);
+        var r2 = new SocialRhythm { HourMs = 50_000f };
+        r2.Restore(r1.SaveBins(), r1.SaveSamples());
+        Assert.Equal(r1.Confidence, r2.Confidence, 5);
+        Assert.Equal(r1.PeakHour, r2.PeakHour);
+
+        // the identity record carries the cognition json intact
+        var data = new BioComp.Host.IdentityPersistence.IdentityData(
+            1f, 1f, 1f, 1f, 10, 2, 0, [], 0.2f, "test",
+            CognitionJson: "{\"Wariness\":0.7}");
+        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        var back = System.Text.Json.JsonSerializer.Deserialize<BioComp.Host.IdentityPersistence.IdentityData>(json);
+        Assert.Equal("{\"Wariness\":0.7}", back!.CognitionJson);
+    }
+
+    [Fact]
+    public void Emotion_HoldsOffMelatonin()
+    {
+        // the melatonin suppression pipeline multiplies: light x longing x wariness
+        float light = 0.6f;                      // evening light factor
+        float longing = 1f - 0.35f * 0.8f;       // missing someone hard
+        float wary = 0.7f;                       // hypervigilant
+        float melatoninTargetFactor = light * longing * wary;
+        Assert.True(melatoninTargetFactor < 0.35f, "afraid and missing someone in a bright room: barely any melatonin lands");
+    }
+}
+
+// ---- question drive, awe, felt time, composite dreams ----
+public class QuestionDriveTests
+{
+    private static CuriosityModule Curious()
+    {
+        var c = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(c, 0.2f);
+        return c;
+    }
+
+    [Fact]
+    public void AsksAboutKnownButNotUnderstoodWords()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 211));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1 };
+        string? asked = q.MaybeAsk(net, store, Curious(), 1f, 2, () => 0.0);
+        Assert.NotNull(asked);
+        Assert.Contains("rain", asked);
+        Assert.Equal("rain", q.PendingWord);
+        Assert.NotEqual(QuestionDrive.Phrase("rain", 0), QuestionDrive.Phrase("rain", 4));
+    }
+
+    [Fact]
+    public void AnswerLandsAsKnowledge()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 223));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1 };
+        q.MaybeAsk(net, store, Curious(), 1f, 2, () => 0.0);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        string? landed = q.OnAnswer(net, "rain is water falling from clouds");
+        Assert.Equal("rain", landed);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "curiosity feeding pays dopamine (Kang 2009)");
+        Assert.Equal(1, q.AnswersReceived);
+    }
+}
+
+public class AweTests
+{
+    [Fact]
+    public void VastRewiringStrikes()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 227));
+        for (int i = 0; i < 100; i++) net.Tick();
+        var g = new BioComp.Core.Memory.ConceptGraph();
+        var awe = new Awe { VastLinkGrowth = 4 };
+        g.OnEpisode(["a", "b"]);
+        awe.Tick(net, g);
+        for (int i = 0; i < 10_500; i++) net.Tick(); // past the 10s check window
+        Assert.False(awe.JustStruck);
+        for (int i = 0; i < 5; i++) g.OnEpisode(["hub", "x" + i, "y" + i]);
+        awe.Tick(net, g);
+        Assert.True(awe.JustStruck);
+        Assert.Equal(1, awe.Count);
+        Assert.Contains("vast", awe.AccommodationSeed);
+    }
+}
+
+public class FeltTimeTests
+{
+    [Fact]
+    public void SparseWindowsDrag_RichHappyOnesFly()
+    {
+        var ft = new FeltTime { WindowMs = 60_000f };
+        ft.OnEvent(1_000f, -0.5f);
+        Assert.True(ft.Stretch(30_000f) > 1.2f, "empty, low time drags");
+        var ft2 = new FeltTime { WindowMs = 60_000f };
+        for (int i = 0; i < 10; i++) ft2.OnEvent(1_000f + i * 100f, 0.7f);
+        Assert.True(ft2.Stretch(30_000f) < 1.0f, "dense happy time flies");
+        Assert.Contains("compress", ft2.Describe(30_000f));
+    }
+}
+
+public class CompositeDreamTests
+{
+    [Fact]
+    public void FindsComposablePair_OnlyWhenLinked()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 229));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        var a = store.Encode(net, "CA3", ["kitchen", "warm"], 0.5f, minMeanRateHz: 0f);
+        var b = store.Encode(net, "CA3", ["storm", "night"], -0.2f, minMeanRateHz: 0f);
+        var r = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 1.0f };
+        Assert.Null(r.FindComposablePair(store));
+        for (int i = 0; i < 6; i++) store.Concepts.OnEpisode(["kitchen", "storm", "z" + i]);
+        var pair = r.FindComposablePair(store);
+        Assert.NotNull(pair);
+        Assert.Equal((a!.Id, b!.Id), (pair!.Value.A.Id, pair.Value.B.Id));
+    }
+}

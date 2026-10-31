@@ -30,7 +30,7 @@ public sealed class SpikingNetwork
     public NeuromodulatorSystem Modulators { get; }
     public ThreeFactorStdp Learning { get; private set; } = null!;
     public AvalancheMetrics Avalanches { get; } = new();
-    public BioComp.Core.Memory.EpisodeMemory EpisodeStore { get; } = new();
+    public BioComp.Core.Memory.EpisodeMemory EpisodeStore { get; set; } = new();
 
     public readonly float[] V, U, Injected, NoiseBuf, LastPostSpikeMs;
     public readonly uint[] WindowCounts;
@@ -39,6 +39,10 @@ public sealed class SpikingNetwork
     public readonly ushort[] RegionOf;
     public readonly float[] PosX, PosY;
     public IReadOnlyList<RegionInfo> Regions { get; }
+    /// <summary>Per-region hyperpolarizing bias in mV (LOCAL SLEEP, Vyazovskiy
+    /// 2011): nonzero = that region is locally offline while globally awake.
+    /// Owned by the sleep system; zero elsewhere. Not persisted (transient).</summary>
+    public float[] RegionalOffBiasMv { get; }
 
     public long TickIndex { get; internal set; }
     public float TimeMs => TickIndex;
@@ -96,6 +100,10 @@ public sealed class SpikingNetwork
             cursor += spec.Size;
         }
         Regions = regions;
+        // LOCAL SLEEP (Vyazovskiy et al. 2011): per-region hyperpolarizing bias
+        // (mV). A region pushed here goes briefly OFFLINE while the brain is
+        // globally awake — the local OFF state of sleep-deprived cortex.
+        RegionalOffBiasMv = new float[regions.Count];
         int regionIndex(string name) => config.Regions.FindIndex(r => r.Name == name);
 
         // Synapses -------------------------------------------------------------------------
@@ -230,7 +238,8 @@ public sealed class SpikingNetwork
             {
                 int t = (int)Types[i];
                 float v = V[i], u = U[i];
-                float iTotal = Injected[i] + NoiseBuf[i] + Cond.Current(i, v) - gaba;
+                float iTotal = Injected[i] + NoiseBuf[i] + Cond.Current(i, v)
+                    - gaba - RegionalOffBiasMv[RegionOf[i]];
                 v += dt * (0.04f * v * v + 5f * v + 140f - u + iTotal);
                 u += dt * (IzhikevichParams.A[t] * (IzhikevichParams.B[t] * v - u));
                 if (v >= IzhikevichParams.SpikeThresholdMv)

@@ -34,13 +34,15 @@ public sealed class SocialRhythm
     public int PeakHour { get; private set; }
     /// <summary>How socially active the current hour is (0..1 normalized).</summary>
     public float CurrentSocialExpectation { get; private set; }
+    /// <summary>Subjective-hour length. Config knob (tests shrink it); not neural state.</summary>
+    public float HourMs { get; set; } = 3_600_000f;
 
     /// <summary>
     /// Call when a social interaction happens. Records the subjective hour.
     /// </summary>
     public void OnInteraction(SpikingNetwork net)
     {
-        int hour = (int)((net.TimeMs / 3_600_000f) % 24f); // subjective hours
+        int hour = (int)((net.TimeMs / HourMs) % 24f); // subjective hours
         if (hour != _lastHour)
         {
             _lastHour = hour;
@@ -74,8 +76,9 @@ public sealed class SocialRhythm
     public void Tick(SpikingNetwork net)
     {
         if (Confidence < 0.3f) return; // not enough rhythm data yet
-        int hour = (int)((net.TimeMs / 3_600_000f) % 24f);
+        int hour = (int)((net.TimeMs / HourMs) % 24f);
         float expectation = _hourlyInteraction[hour] / MathF.Max(0.001f, _hourlyInteraction[PeakHour]);
+        CurrentSocialExpectation = expectation; // live: reflects the CURRENT hour, not the last-contact hour
 
         if (expectation > 0.6f)
         {
@@ -88,6 +91,30 @@ public sealed class SocialRhythm
             // Expected quiet time: drowsiness is OK here
             net.Modulators.Release(NeuromodulatorKind.Melatonin, 0.05f);
         }
+    }
+
+    /// <summary>The learned interaction bins (for persistence).</summary>
+    public float[] SaveBins() => (float[])_hourlyInteraction.Clone();
+    /// <summary>The per-bin sample counts (for persistence).</summary>
+    public float[] SaveSamples() => (float[])_hourlySamples.Clone();
+
+    /// <summary>Restore the learned rhythm after a restart (identity persistence).</summary>
+    public void Restore(float[] hourlyInteraction, float[] hourlySamples)
+    {
+        if (hourlyInteraction is not { Length: 24 } || hourlySamples is not { Length: 24 }) return;
+        for (int i = 0; i < 24; i++) { _hourlyInteraction[i] = hourlyInteraction[i]; _hourlySamples[i] = hourlySamples[i]; }
+        RecomputeConfidence();
+    }
+
+    private void RecomputeConfidence()
+    {
+        float total = 0;
+        foreach (var s in _hourlySamples) total += s;
+        Confidence = MathF.Min(1f, total / 30f);
+        int peak = 0; float peakVal = 0;
+        for (int i = 0; i < 24; i++)
+            if (_hourlyInteraction[i] > peakVal) { peakVal = _hourlyInteraction[i]; peak = i; }
+        PeakHour = peak;
     }
 
     /// <summary>

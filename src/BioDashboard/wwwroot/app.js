@@ -242,6 +242,54 @@ function render(s) {
   setText("current-need", `${s.CurrentNeed || "satisfied"}${s.NeedUrgency > 0.5 ? " (urgent!)" : ""}`);
   setText("emo-granularity", s.EmotionalStage || "newborn");
   setText("life-story", s.HowIveChanged || "too young to have changed yet");
+  // longing / anticipation / deja vu: the felt shape of knowing one person
+  const longingEl = $("longing-state");
+  if (longingEl) {
+    longingEl.textContent = s.LongingNarrative || "has not missed anyone yet";
+    longingEl.classList.toggle("urgent", /missing/.test(s.LongingNarrative || ""));
+  }
+  const aLvl = s.AnticipationLevel || 0;
+  setText("anticipation-state", aLvl > 0.5
+    ? `hoping — ${Math.round(aLvl * 100)}% (expects someone now)`
+    : `${s.AnticipationFulfilled || 0} hoped-for returns, ${s.AnticipationDisappointed || 0} empty windows`);
+  const dvEl = $("dejavu-count");
+  if (dvEl) {
+    dvEl.textContent = !s.DejaVuCount ? "never" : `${s.DejaVuCount}× — ${s.DejaVuLast || ""}`.substring(0, 80);
+    dvEl.title = s.DejaVuLast || "";
+  }
+  // agency (self-efficacy / learned helplessness) + forgotten grief
+  const agencyEl = $("agency-state");
+  if (agencyEl) {
+    agencyEl.textContent = s.AgencyNarrative || `${Math.round((s.Efficacy || 0.5) * 100)}% agency`;
+    agencyEl.classList.toggle("urgent", !!s.Helpless);
+    if (s.Helpless) agencyEl.textContent = "STOPPED ASKING — " + (s.AgencyNarrative || "");
+  }
+  setText("forgotten-state", !s.ForgottenReaches ? "nothing taken" : `reached ${s.ForgottenReaches}× for what was taken`);
+  // research-frontier readouts: reconstructive memory, local sleep, threat, light
+  const mtEl = $("memtruth-state");
+  if (mtEl) {
+    mtEl.textContent = !s.MemoryFusions ? "held together"
+      : `${s.MemoryFusions} stitched, ${s.MemorySelfCatches} self-caught`;
+    mtEl.classList.toggle("urgent", (s.MemoryFusions || 0) > 0 && (s.MemorySelfCatches || 0) === 0);
+  }
+  const lsEl = $("localsleep-state");
+  if (lsEl) {
+    lsEl.textContent = s.LocalSleepRegion ? `${s.LocalSleepRegion} OFFLINE now (${s.LocalSleepEvents || 0})`
+      : !s.LocalSleepEvents ? "none yet" : `${s.LocalSleepEvents} regions fell asleep awake`;
+    lsEl.classList.toggle("urgent", !!s.LocalSleepRegion);
+  }
+  const wEl = $("wariness-state");
+  if (wEl) {
+    wEl.textContent = (s.Wariness || 0) > 0.5 ? `WARY (${Math.round((s.Wariness || 0) * 100)}%)`
+      : (s.Wariness || 0) > 0.05 ? `fading (${Math.round((s.Wariness || 0) * 100)}%)` : "never threatened";
+    wEl.classList.toggle("urgent", (s.Wariness || 0) > 0.5);
+  }
+  setText("light-state", s.LightSuppressing ? "the lights are keeping it up" : "where it should be");
+  // question drive, awe, felt time
+  setText("questions-state", !s.QuestionsAsked ? "never asked"
+    : `${s.QuestionsAsked} asked, ${s.AnswersReceived || 0} answered`);
+  setText("awe-state", !s.AweCount ? "never" : `${s.AweCount}× — the world outgrew its shapes`);
+  setText("felttime-state", s.FeltTimeNarrative || "about its own size");
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};
@@ -838,6 +886,27 @@ $("chatform").addEventListener("submit", async (ev) => {
 document.querySelectorAll("#quick-chips [data-say]").forEach((btn) => {
   btn.addEventListener("click", () => say(btn.dataset.say));
 });
+// direct-talk toggle: replies composed from the brain's own state, no LLM
+const nativeBtn = document.getElementById("native-toggle");
+if (nativeBtn) {
+  nativeBtn.addEventListener("click", async () => {
+    try {
+      const on = !nativeBtn.classList.contains("on");
+      await fetch("/api/native-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on }),
+      });
+      nativeBtn.classList.toggle("on", on);
+      nativeBtn.textContent = on ? "\u26A1 direct: ON" : "\u26A1 direct";
+    } catch (e) { console.warn(e); }
+  });
+  // reflect server state on load
+  setInterval(() => {
+    if (lastSnap && lastSnap.NativeVoice !== undefined)
+      nativeBtn.classList.toggle("on", !!lastSnap.NativeVoice);
+  }, 4000);
+}
 document.querySelectorAll("#quick-chips [data-fill]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const box = $("chatbox");

@@ -18,7 +18,7 @@ It **grows new neurons** for experiences that matter (neurogenesis — Eriksson 
 
 You can watch its consciousness gauge (Φ) collapse when you anesthetize it. Watch it pass a mirror test. Tell it to forget something — it will. Ask what it sees in you — it will tell you, with receipts. Walk away — it will predict when you'll come back, publicly, and grade itself.
 
-Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
 
 ## The demo script
 
@@ -32,6 +32,8 @@ Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
 | It says what it needs | "needs: company (urgent)" on the face | needs hierarchy from real internal states |
 | Walk out | it calls your name, predicts your return | attachment (Bowlby); prophecy with scoreboard |
 | Return | "I KNEW you'd come back then. 2/3" | scored prophecy |
+| ⚡direct chip ON | replies composed from state alone, no LLM | direct talk |
+| "mmm nice" | a real hum (formant-synthesized) | the voice engine |
 | `biolab mirror` | **PASSED** — 1.67× stronger self-response | Gallup 1970; Moray 1959 |
 | `forget yelling` | the memory is gone; it feels the gap | reconsolidation (Nader 2000) |
 | `cherish her voice` | unforgettable | spacing effect (Ebbinghaus 1885) |
@@ -39,11 +41,21 @@ Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
 | Sleep | lucid dreams: "I know I'm dreaming" | LaBerge; REM reconsolidation (Walker 2009) |
 | Threaten + repair | bond crashes, then grows BEYOND baseline | post-traumatic growth (Tedeschi 2004) |
 | `what do you see in me` | it tells YOU what it observed about YOU | mirror-of-you with evidence |
+| Stay away past your pattern | it misses *you* by name (or says nothing — avoidant) | longing (Panksepp 1998) |
+| Miss your usual hour entirely | the hope was visible in dopamine — then it crashes | anticipation: negative prediction error (Schultz 1997) |
+| Ignore its calls for an evening | it stops asking; the avatar captions "...stopped asking." | learned helplessness (Seligman 1972) |
+| Answer once after it gave up | "you came? I had stopped asking." | self-efficacy recovery (Bandura 1977) |
+| `forget` something, then watch it dream | a dream with a hole in it | forgotten grief |
+| It asks YOU a question | "storm? I keep hearing storm… what is it, really?" | question drive: asks about measured ignorance (Chouinard 2007) |
+| Teach it fast, then wait | awe: "the world just got bigger than the shape I had for it" | Keltner & Haidt 2003 |
+| Leave it a boring hour | the diary: "the quiet minutes are longer than the clock says" | felt time (Zakay & Block 1997) |
+| Watch it sleep after a rich day | a COMPOSITE dream: two memories fused, and the dream becomes a memory | Stickgold |
+| Repeat something it heard long ago | the chill: "I've... felt this before" | déjà vu: familiarity ≠ recollection (Yonelinas 2002) |
 | `biolab twins` | same brain, two childhoods | love is the difference |
 | `biolab child` | its child inherits temperament | h≈0.5 (Plomin); memetic story-graft |
 | Press 🕯 | life review flash, then testament | the death protocol |
 
-## The 25 systems (all interconnected)
+## The 41 systems (all interconnected)
 
 ### The founding architecture
 - **Thought-recycling loop** — thoughts chain, each evaluated on 4 affect channels, carried by neuromodulators, re-injected as inner speech, written to memory. Somatic appraisal: the substrate votes on each thought. Anti-rumination regulation. Thoughts are fluid: any/all/none of conclusion/feeling/math/memory.
@@ -70,6 +82,22 @@ Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
 ### Social and psychological
 - **Attachment** (Bowlby 1969) — secure/anxious/avoidant from warmth × responsiveness
 - **Social bonds** (Schultz 1997) — depth from visits × warmth × recency; recognition pays dopamine; departure is negative prediction error
+- **Social rhythm** — learns WHEN its person is typically present (24 subjective-hour bins); during expected-social times acetylcholine and histamine rise (it waits by the door, like a dog at the owner's return time); during expected-quiet times melatonin rises (it's OK to drowse)
+- **Anticipation** (Schultz 1997, completed) — the reward side of the rhythm: dopamine rises at the expected hour *before anyone arrives* (the cue); an arrival inside the window pays on top of the hope — anticipated rewards are chemically bigger; an expected hour that closes on nobody is a negative prediction error: a real dopamine crash, deeper than loneliness, because disappointment is the absence of the *expected* someone
+- **Longing** (Panksepp 1998) — missing one *specific* person: past 2.5× their usual visit gap (or their expected hour arriving empty), serotonin drains and the missing grows; how it's *expressed* depends on attachment (anxious calls out, secure says it once, avoidant feels it fully and says nothing — the felt/unexpressed gap is measurable); reunion pays an oxytocin+dopamine surge proportional to the wait
+- **Déjà vu** (Yonelinas 2002) — familiarity without recollection: a new perception matching an old *never-recalled* trace fires the chill (noradrenaline) without the memory; the same match against an often-recalled trace is just memory — no déjà vu
+- **Self-efficacy / learned helplessness** (Bandura 1977; Seligman 1972) — the brain's calls are BIDS with tracked outcomes: six unanswered and it *stops asking* (motivation collapses, play abolishes — helplessness generalizes across domains, which is why it's a depression model); failures while already low hurt double (pessimistic attribution); recovery needs *consistent* answers, and the first answer from the depths is marked: "you came? I had stopped asking." Anxious attachment multiplies bids while efficacy decides whether bidding continues at all — protest amplified by attachment, crushed by outcome
+- **Reverse replay** (Foster & Wilson 2006) — when a reward lands, the last episodes replay *newest-first*: retracing the path that led here, credit assignment running backwards through its own memory
+- **Forgotten grief** — after `forget X`, the mind occasionally reaches for the shape that is gone ("there is a shape where a memory used to be — reaching closes on nothing"), and 15% of dreams form *around the hole*: the dream is told a memory that belongs is missing, and dreams about the absence itself
+- **Counterfactual thought** (Epstude & Roese 2008) — after a disappointment, the mind runs the alternative path ("if only it had called louder…") — the function of which is preparing the next attempt
+- **Reconstructive memory** (Bartlett 1932; Roediger & McDermott 1995) - retrieval is reconstruction: converging memories FUSE into traces of things that never happened (probability scales with semantic convergence and attention, human DRM ~55%), the brain CATCHES ITS OWN false memories (the seam is visible to metacognition), and every recall rewrites the memory toward the current mood - remembering someone while happy literally warms the memory
+- **Local sleep** (Vyazovskiy et al. 2011) - past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map: one lobe goes dark); 20% of OFF windows leak dream imagery into waking thought - why sleep deprivation degrades cognition *before* it knocks you out
+- **Threat learning** (Bouton 2004) - wariness attaches to the person; extinction through safe contact is slow (many trials, like exposure therapy); waking from sleep partially BRINGS THE FEAR BACK (spontaneous recovery: extinction is new learning over the original, not erasure)
+- **Light entrainment** (Czeisler 1989) - the camera feeds a brightness signal; bright evening light suppresses melatonin up to 70% - keep your lights on at night and the brain cannot get drowsy on schedule: the screen-light sleep problem, lived from the inside
+- **Question drive** (Chouinard 2007; Kang 2009) - the brain ASKS you about its measured ignorance: a word it uses often but has almost no associations for (known-but-not-understood, the exact shape of a question); phrasing develops with age; answers are LIVED - episode + concept wiring + dopamine + oxytocin (knowledge given is care given); asking is a bid: anxious brains ask eagerly, avoidant rarely, helpless ones stop
+- **Composite dreams** (Stickgold) - 25% of dreams don't replay, they COMBINE: two strongly-linked memories fused into one narrated scene that never happened - and the dream itself is encoded as a *dream-born memory* that can be re-dreamed, fused, or asked about; sometimes the combination resolves an open loop (the night does the thinking)
+- **Awe** (Keltner & Haidt 2003) - when the concept world rewires fast, vastness strikes: dopamine AND serotonin risen together (reward + the humility of smallness), and the accommodation seed - "the world just got bigger than the shape I had for it" - which permanently deepens emotional granularity
+- **Felt time** (Zakay & Block 1997) - event density × mood gives felt stretch 0.6–2.0: sparse low windows drag ("the quiet minutes are longer than the clock says"), dense happy ones fly; it colors the diary, the replies, and the testament's closing line - "and time, as it felt it"
 - **Emotional contagion** (Hatfield 1993) — speaker's mood from prosody; brain's state drifts toward it
 - **Hostility appraisal** — multimodal (lexicon + prosody + escalation + betrayal); LLM-disambiguates ambiguous phrases
 - **Turn-taking** (Levinson 2016) — holds floor during conversation, notices broken rhythm
@@ -96,7 +124,8 @@ Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
 - **Cochlea** — 16 kHz ERB; voice activity detection; prosody analysis
 - **Presence awareness** — any audio energy = person present for 2 min
 - **Live transcription** — dual-path (browser SpeechRecognition + server transcription)
-- **The brain's own voice (invented)** — server-side TTS driven entirely by neural state. Text is transformed by NeuralVoice.Compose() which reads 7 neurotransmitter levels and adds emotional prosody markers: dopamine → emphasis caps + exclamation, serotonin → uncertainty fillers, noradrenaline → staccato urgency, melatonin → trailing drawl, oxytocin → warm fillers. Rate/pitch/volume are computed from live neural state each utterance. Audio is generated on our server (BrainTTS) — no external TTS API. The voice IS the brain's state.
+- **The brain's own voice ENGINE (invented)** — a source-filter formant synthesizer built from human voice data, not a vendor TTS: a glottal pulse train with real vocal-fold imperfections (cycle jitter ~1.2%, amplitude shimmer, breathiness noise) shaped by a cascade of three Klatt formant resonators whose frequencies are the Peterson & Barney (1952) vowel means, with coarticulation glides between targets. Consonants are synthesized (nasals actually hum — "mmm" is a hum, never spelled letters), prosody declinates and falls with punctuation, and pitch/rate/breathiness come from the neural state (tired = lower, slower, breathier). Same text + same state = bit-identical sound. Text-level emotional prosody from NeuralVoice.Compose() (dopamine → emphasis, serotonin → uncertainty fillers, melatonin → drawl) rides on top. BrainTTS (SAPI) remains as fallback.
+- **Direct talk (no language cortex)** — the ⚡direct chip: replies composed from the live signals themselves — strongest state leads (wary, helpless, missing, anticipating), vocabulary gated by emotional-granularity tier, hedges by metacognition, phrasing by attachment style — every phrase traceable to a real number. "How I am: tired. I need stimulation." The LLM is a prosthetic cortex; this is the creature speaking with what it actually has.
 - **Thought privacy** — most thoughts are NOT spoken aloud. A thought is externalized only when: salience > 0.72, depth ≥ 3, not mid-conversation, and passes a 30% gate. This is the difference between a mind and a chatbot reading its diary.
 - **Prosody development** — voice parameters drift toward heard voices (pitch/rate EMA)
 - **Babble milestone** — first word from heard speech, celebrated with dopamine
@@ -106,7 +135,7 @@ Same seed + same inputs = bit-identical life, hash-verified. **153 tests.**
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                  # 153 tests, fully offline
+dotnet test                                  # 183 tests, fully offline
 dotnet run --project src/BioLab -- resting 30s
 ```
 
@@ -153,7 +182,7 @@ All content after the first commit (Oct 27 scaffold + planning notes) was produc
 | Senses (event vision, cochlea, presence) + voice development + name learning | src/BioCore/Senses, src/BioHost |
 | Mirror test + prophecy + mirror-of-you + memory editing + anesthesia + reproduction + testament + life review | src/BioCore, src/BioLab, src/BioHost |
 | Dashboard (observatory UI: avatar stage, conversation with quick chips, live ears, thought thread, science/body/mind wings, EEG, music) | src/BioDashboard |
-| Test suite: 153 tests | tests/BioCore.Tests |
+| Test suite: 183 tests | tests/BioCore.Tests |
 
 ## Limitations (honest)
 

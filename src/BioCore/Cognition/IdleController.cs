@@ -34,6 +34,11 @@ public sealed class IdleController
     /// <summary>Simulated-time interval between ambient episode encodes while awake.</summary>
     public float AmbientEncodeIntervalMs { get; set; } = 30_000f;
 
+    /// <summary>Deja vu monitor: checked against the episodic store as each
+    /// perception is encoded (familiarity without recollection, Yonelinas 2002).
+    /// Owned by the host so its event surfaces in notes and the diary.</summary>
+    public DejaVu? DejaVu { get; set; }
+
     private float _nextAmbientEncodeMs;
     private long _nextCorrelationSample;
     private readonly uint[] _regionWindow;
@@ -87,6 +92,9 @@ public sealed class IdleController
         // Ambient episodic encoding while awake, plus any pending event encode.
         if (_pendingEvent is { } pending && net.TimeMs >= pending.DueMs)
         {
+            // DEJA VU: does this perception's shape match an old trace that
+            // was never recalled? Familiarity without recollection (Yonelinas 2002).
+            DejaVu?.Check(net, net.EpisodeStore.Episodes, pending.Tags);
             net.EpisodeStore.Encode(net, "CA3", pending.Tags, pending.Valence, minMeanRateHz: 0.005f);
             _pendingEvent = null;
         }

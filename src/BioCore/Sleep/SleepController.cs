@@ -22,6 +22,9 @@ public sealed class SleepController
     /// <summary>Simulated day length; default real 24 h, tests use minutes.</summary>
     public double DayLengthMs { get; set; } = 86_400_000.0;
     public double CircadianPeakHour { get; set; } = 14.0;
+    /// <summary>Multiplier on the melatonin target (LightEntrainment, Czeisler):
+    /// 1 = dark evening; down to ~0.3 under bright evening light. Host-owned.</summary>
+    public float MelatoninSuppression { get; set; } = 1f;
 
     public bool ReplayAllowed => State is BrainState.Drowsy or BrainState.NREM or BrainState.REM;
 
@@ -119,8 +122,9 @@ public sealed class SleepController
         else if (histCurrent > histTarget + 0.05f)
             m.Release(NeuromodulatorKind.Histamine, -0.1f);
 
-        // melatonin: inverse of circadian (high when circadian is low = biological night)
-        float melTarget = (1f - Circadian) * 0.8f;
+        // melatonin: inverse of circadian (high when circadian is low = biological night),
+        // scaled by evening-light suppression (Czeisler: bright screens hold it off)
+        float melTarget = (1f - Circadian) * 0.8f * MelatoninSuppression;
         float melCurrent = m.Get(NeuromodulatorKind.Melatonin);
         if (melCurrent < melTarget - 0.05f)
             m.Release(NeuromodulatorKind.Melatonin, 0.05f);

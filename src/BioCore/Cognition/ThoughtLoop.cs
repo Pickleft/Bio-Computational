@@ -405,6 +405,10 @@ public sealed class ThoughtLoop
         return best;
     }
 
+    /// <summary>Resolve a specific open loop outside incubation — e.g. a
+    /// composite dream that combined the right material (dreamwork solving).</summary>
+    public bool ResolveLoop(ThoughtLink link) => _openLoops.Remove(link);
+
     /// <summary>Minimum simmering time before an open loop can resolve. CALIBRATE.</summary>
     public float IncubationMs { get; set; } = 60_000f;
 

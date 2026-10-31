@@ -27,6 +27,25 @@ public sealed class ReplayScheduler
     private float _windowStart = -1;
     private int _nextIdx;
     private long _cooldownUntil;
+    private bool _currentIsReverse;
+
+    /// <summary>
+    /// REVERSE REPLAY (Foster &amp; Wilson 2006): after a reward the hippocampus
+    /// reactivates the recent past in REVERSE temporal order — retracing the
+    /// path that LED to the reward, assigning credit backwards. Call this on
+    /// dopamine spikes (reunions, insights, recognition); the queue drains
+    /// newest-first before normal replay resumes.
+    /// </summary>
+    private readonly Queue<Episode> _reverseQueue = new();
+    public int ReverseQueued => _reverseQueue.Count;
+    public int ReverseReplays { get; private set; }
+
+    public void BeginReverseReplay(IReadOnlyList<Episode> recent, int count)
+    {
+        // newest first: the episode closest to the reward leads the retracing
+        for (int i = recent.Count - 1; i >= Math.Max(0, recent.Count - count); i--)
+            _reverseQueue.Enqueue(recent[i]);
+    }
 
     /// <summary>Called every network tick; starts and advances replays when allowed.</summary>
     public void Tick(SpikingNetwork net, bool replayAllowed)
@@ -57,6 +76,7 @@ public sealed class ReplayScheduler
                 float na = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
                 var touched = net.EpisodeStore.Touch(Current);
                 net.EpisodeStore.SoftenValence(touched, EmotionalSoftening * MathF.Max(0f, 1f - na / 1.2f));
+                if (_currentIsReverse) ReverseReplays++;
                 Current = null;
                 _cooldownUntil = net.TickIndex + (long)Cooldown.TotalMilliseconds;
                 ReplayCount++;
@@ -66,8 +86,12 @@ public sealed class ReplayScheduler
 
         if (!replayAllowed) return;
         if (net.TickIndex < _cooldownUntil) return;
-        var episode = net.EpisodeStore.PickForReplay(net.Rng.NextInt);
+        bool fromReverse = _reverseQueue.Count > 0;
+        Episode? episode = fromReverse
+            ? _reverseQueue.Dequeue()
+            : net.EpisodeStore.PickForReplay(net.Rng.NextInt);
         if (episode is null) return;
+        _currentIsReverse = fromReverse;
         Current = episode;
         _windowStart = net.TimeMs;
         _nextIdx = 0;

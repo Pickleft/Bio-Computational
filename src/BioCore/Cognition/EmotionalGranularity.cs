@@ -57,8 +57,11 @@ public sealed class EmotionalGranularity
 
     /// <summary>
     /// Update granularity from lived experience. Called periodically.
+    /// accommodationBoost: awe's contribution — vastness forces bigger
+    /// feeling-shapes (Piagetian accommodation, paid forward).
     /// </summary>
-    public void Update(SpikingNetwork net, IdleController idle, int episodesHeard, int voicesHeard)
+    public void Update(SpikingNetwork net, IdleController idle, int episodesHeard, int voicesHeard,
+        float accommodationBoost = 0f)
     {
         float ageMin = net.TimeMs / 60_000f;
         float ageFactor = MathF.Min(1f, ageMin / 30f);       // saturates at 30 sim-minutes
@@ -72,7 +75,7 @@ public sealed class EmotionalGranularity
             episodeFactor * 0.25f +
             voiceFactor * 0.25f +
             socialFactor * 0.2f, 1.2f);
-        Level = Math.Clamp(Level, 0f, 1f);
+        Level = Math.Clamp(Level + accommodationBoost, 0f, 1f);
     }
 
     // Vocabulary tiers — each more nuanced than the last

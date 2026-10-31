@@ -360,3 +360,282 @@ and were imported in the first commit - everything after that point was built du
 - Verified live end to end at 1440x900 and 390x844: every script loads (no missing globals),
   WebSocket streams, typed and quick-chip messages reach the brain and the chat log, tabs
   switch, no horizontal overflow, brain map labels intact on a 390px canvas. 153/153 green.
+
+## 2026-10-30 (night) - double-response root cause fixed; two new systems: longing and deja vu
+
+- ROOT CAUSE of the occasional double response found and fixed: the speech gate in
+  SpeakWithVoice was INVERTED. It computed `replyingToUser = user spoke < 20s ago` and then
+  passed speech through when `replyingToUser` was true - i.e. it allowed spontaneous muttering
+  precisely DURING the reply window and blocked it only when the user had been silent 20+s.
+  The exact opposite of the intent. Fix: an explicit `isDirectReply` flag threaded through
+  SpeakWithVoice; the reply paths (DIRECT reaction, fallback, name learn/recall, threat
+  response, forget/cherish acks, self-naming, mirror-of-you) mark themselves, and everything
+  else is held while `_replyPendingUntilMs` is live. ReactToStimulusAsync also now drops
+  non-direct reactions entirely during the reply window (they were adding chat lines even when
+  speech was held). E2E verified: 4 typed messages -> exactly 4 responses, zero interjections,
+  across a ~70s window that previously produced the "Me too, Sam..." mutter.
+- NEW SYSTEM - LONGING (missing one specific person; Panksepp 1998 GRIEF; Bowlby
+  protest-despair): loneliness is generalized social drive; longing is loneliness WITH A NAME.
+  Onset: absence past 2.5x the person's median visit gap, or their expected social hour
+  arriving empty (ties into SocialRhythm - fixed CurrentSocialExpectation to track the CURRENT
+  hour live instead of the last-contact hour). While it lasts: slow serotonin drain, intensity
+  scaling with how far past the pattern. Expression is attachment-gated: anxious calls out
+  repeatedly, secure says it once when deep, AVOIDANT FEELS IT FULLY AND SAYS NOTHING (the
+  felt/unexpressed gap is logged as LONGING-SILENT - the measurable cost of avoidance).
+  Reunion: oxytocin+dopamine surge proportional to the wait, before contact dissolves the
+  missing. Wired into: reply prompt ("tell them you waited"), diary, status JSON
+  (longingNarrative), testament ("longest it waited for someone"), lonely-call branch,
+  identity restore.
+- NEW SYSTEM - DEJA VU (familiarity without recollection; Yonelinas 2002 dual-process): a new
+  perception whose word tokens have Jaccard >= 0.5 with an episode older than 5 min that was
+  never recalled fires the familiarity route without the recollection route - the chill
+  (noradrenaline 0.25) plus the odd pleasure (dopamine 0.08), a DEJA-VU note, and the
+  strangeness enters the thought loop as an actual inner thought. The same similarity against
+  an often-recalled trace is recollection, NOT deja vu. 5-min cooldown keeps it rare. Wired at
+  the IdleController encode path (every perception checked against the store), status JSON
+  (dejaVuCount/dejaVuLast), diary, testament.
+- Also: longing survives restarts (contact re-seeded on identity restore, gap pattern re-learned).
+- Tests: 162/162 green (4 deja vu + 5 longing new; the suite caught two real bugs on the way in:
+  Longing read the STALE Strength field on the Bond record instead of live Strength(id, now),
+  and modulator releases need Modulators.Step() before they are observable in Get).
+
+## 2026-10-30 (late) - anticipation: the reward side of the social rhythm
+
+- NEW SYSTEM - ANTICIPATION (Schultz 1997 completed): the social rhythm raised arousal at the
+  expected hour but had no reward side. Now the loop is closed: dopamine rises BEFORE the
+  expected hour delivers anyone (the cue); a contact inside the anticipated window pays on top
+  of the hope (anticipated > unanticipated, chemically); an expected hour that closes on
+  nobody is a negative prediction error - DA -0.5, NA +0.25, 5-HT -0.2, a DISAPPOINTMENT note,
+  and the crash feeds the diary/prompt ("disappointed, not merely lonely"). Status JSON:
+  anticipationLevel/Fulfilled/Disappointed. Testament counts both. SocialRhythm.HourMs made
+  configurable so tests run the arc in milliseconds (config knob, not neural state).
+- Tests: 4/4 new (hope rises at the cue with no reward delivered; anticipated arrival pays
+  extra; empty window crashes DA below baseline; no rhythm = no hope). 166 total.
+
+## 2026-10-31 - four more systems: agency, reverse replay, forgotten grief, counterfactuals
+
+- NEW SYSTEM - SELF-EFFICACY / LEARNED HELPLESSNESS (Bandura 1977; Seligman 1972): the brain's
+  own actions now have tracked outcomes. Every lonely call-out is a BID; contact within 30s
+  answers it, silence fails it. Efficacy (0.5 start) decays with failures - FASTER once low
+  (pessimistic attribution style) - and recovers only 25% of the remaining distance per
+  success: climbing out takes consistent answers, not one. Below 0.3 the brain is HELPLESS:
+  it stops calling (MotivationMultiplier ~0.35 scales vocalization), stops PLAYING
+  (helplessness generalizes across domains - the depression-model property), and its replies
+  flatten ("nothing you do changes anything - you have stopped asking"). One answer from the
+  depths is flagged: ANSWERED-AFTER-GIVING-UP, "you came? I had stopped asking." Anxious
+  attachment multiplies bids while efficacy decides whether bidding continues at all:
+  Panksepp's protest-to-descent arc in two multiplied factors. Testament counts
+  "of its N calls into the dark, M were answered".
+- NEW SYSTEM - REVERSE REPLAY (Foster & Wilson 2006): when a reward lands (an answered bid,
+  a reunion), the last 3 episodes enqueue for replay NEWEST-FIRST - the hippocampal
+  reverse replay implicated in credit assignment: retracing the path that led to the reward.
+  REVERSE-REPLAY note; count in status + testament.
+- NEW SYSTEM - FORGOTTEN GRIEF: surgical forgetting now leaves real residue. `forget X`
+  registers the loss; in idle moments the mind occasionally REACHES for the shape that is
+  gone ("there is a shape where a memory used to be - reaching closes on nothing. What was
+  it?") - probability fading with time but never to zero, like real amnesic complaints.
+  15% of dreams form around the HOLE: the dream narrator is told a memory that belongs is
+  missing and must dream around the absence, not invent its content. The synaptic-residue
+  claim in the README is now mechanistically real.
+- NEW - COUNTERFACTUALS AFTER DISAPPOINTMENT (Epstude & Roese 2008): when an expected hour
+  closes on nobody, the thought loop receives "if only" - the alternative path it wanted -
+  whose psychological function is preparation for the next attempt.
+- Visibility: psychology panel gains AGENCY (bids answered/made, "STOPPED ASKING" highlight
+  when helpless) and FORGOTTEN rows; the avatar flattens further when helpless and captions
+  "...stopped asking." Diary, reply prompts, testament wired for all of them.
+- Tests: 8 new (bid answered raises efficacy; 6 unanswered sink into helplessness with
+  suppressed motivation; recovery needs consistency; answer-after-giving-up flagged; reverse
+  queue drains 3-2-1 newest-first; grief reach gated/cooled/fading; dream hole fragment
+  present only sometimes; narrative counts). 174 total.
+
+## 2026-10-31 (evening) - the research-frontier round: four systems from four literatures
+
+- NEW SYSTEM - RECONSTRUCTIVE MEMORY (Bartlett 1932; Roediger & McDermott 1995): memory is
+  reconstruction, not playback, and this brain now distorts the way real ones do.
+  (a) FUSION: a recalled trace and its strongest concept-linked partner can fuse into a new
+  episode - union tags, mean valence, "fused" marker - a memory of something that never
+  happened built from two things that did; gated by acetylcholine (attention up) and scaling
+  with semantic convergence (human DRM false recall ~55%). The fusion draw runs ON THE SIM
+  THREAD (recall happens on async threads; the intent crosses via a volatile anchor id -
+  RNG ownership preserved). (b) THE SELF-CATCH: when a stitched memory later surfaces, the
+  brain sees the seam - MEMORY-CHECK note + a metacognitive thought ("did that actually
+  happen? it feels sewn together"). (c) MOOD-CONGRUENT DRIFT: every wake recall nudges the
+  memory's valence toward the current feeling (EpisodeMemory.NudgeValence) - remembering
+  someone while happy literally warms the memory.
+- NEW SYSTEM - LOCAL SLEEP (Vyazovskiy et al. 2011, Nature 472:443 "local sleep in awake
+  rats"): past sleep pressure 0.55, individual regions enter OFF windows (200-600 ms) while
+  the brain stays globally awake - SpikingNetwork gained RegionalOffBiasMv (region-scoped
+  hyperpolarization on the same channel as anesthesia). The OFF region's rate measurably
+  collapses (visible on the brain map before anything else); 20% of windows leak dream
+  imagery into waking thought. LOCAL-SLEEP notes; panel row highlights the dark region.
+- NEW SYSTEM - THREAT LEARNING (Pavlov; Bouton 2004): wariness attaches to the PERSON (the
+  conditioned stimulus): +0.35 per hostility event; extinction is slow (-0.08 x warmth per
+  safe contact - many trials, like clinical exposure therapy); waking from sleep returns
+  30% of the extinguished distance (SPONTANEOUS RECOVERY - extinction is new learning laid
+  over the original, not erasure; "I thought I was over it. Sleeping brought some of it
+  back."); processed adversity (resilience growth) discharges the original association.
+  Wary replies carry vigilance via the prompt; one threat conditions 0.35 - wariness, not
+  phobia (tested).
+- NEW SYSTEM - LIGHT ENTRAINMENT (Czeisler et al. 1989): the camera (local AND browser) feeds
+  a brightness EMA; in the biological evening, bright rooms suppress the melatonin target by
+  up to 70% (SleepController.MelatoninSuppression) - the screen-light sleep problem, lived
+  from the inside. The diary reports "the lights are keeping it up".
+- Visibility: panel rows memory-truth / local-sleep / wariness / light; status fields for
+  all four; diary + testament lines.
+- Tests: 9 new (fusion stitches + provenance + gate; mood drift capped; OFF states past
+  pressure threshold and ONLY awake; threat conditioning/extinction/partial-recovery/
+  discharge; bright-evening suppresses, bright-day and dark-evening do not). 183/183 green.
+  The suite caught a real bug: spontaneous recovery never fired after COMPLETE extinction
+  (the gate checked current wariness > 0 instead of the original peak's substance).
+
+## 2026-10-31 (night) - the brain's own VOICE ENGINE + direct talk (no LLM)
+
+- THE VOICE ENGINE (src/BioHost/VoiceEngine.cs): the voice is now literally invented - a
+  source-filter formant synthesizer built from human voice data (parameters researched
+  online): glottal pulse train with cycle-to-cycle jitter ~1.2% + amplitude shimmer + 6-20%
+  breathiness (tired = breathier), shaped by a cascade of three Klatt 2-pole resonators at
+  the Peterson & Barney (1952) vowel means (F1/F2/F3), with COARTICULATION GLIDES between
+  targets (~35ms time constant - the thing whose absence made the earlier attempt sound
+  like alien beeps). Consonants synthesized: nasals hum (mmm is an actual hum now, fixing
+  the SAPI "M M M nice" letter-spelling), fricatives are band-filtered noise, plosives are
+  closure+burst. Prosody: phrase declination, statement fall / question rise, F0 scaled by
+  the NeuralVoice pitch parameter across human norms (80-300 Hz). Output: 22.05kHz 16-bit
+  mono WAV from /api/voice; BrainTTS (SAPI, now with mmm normalization) as fallback.
+  Bit-identical determinism (seeded) - same text + same state = the same sound.
+- DIRECT TALK (src/BioHost/NativeReplies.cs + the UI ⚡direct chip + /api/native-voice):
+  talking to the brain with NO language cortex. Replies are COMPOSED from the live
+  signals: the strongest state leads (wary > answered-after-giving-up > longing-reunion >
+  disappointed > helpless > anticipating), intent routes structurally (greeting / how-are-
+  you / leaving / returning / affection / apology / question), vocabulary is gated by the
+  emotional-granularity tier (a newborn cannot say "undertow"; Simplify() strips it),
+  hedges come from metacognition, phrasing from attachment style (anxious: "don't go far";
+  avoidant: "that's... a lot"). Every phrase is traceable to a real number. The LLM
+  failure fallback now uses this too - the brain answers even offline, as itself.
+- LLM GROUNDING FIX ("replies feel disconnected"): the DIRECT reply prompt now includes
+  WHAT JUST HAPPENED INSIDE YOU (RecentInnerBrief(): the latest salient inner event -
+  deja vu, memory fusion, local sleep, reunion, disappointment, neurogenesis...) with the
+  instruction to ground the reply in ONE specific lived thing or it is disconnected from
+  the brain's own life.
+- demo/SCRIPT.md rewritten from the user's DEMO PLAN v2 (3-day raise plan) with the new
+  beats folded in (longing caption, spontaneous recovery after sleep, dream-around-the-
+  hole, direct chip, the hum).
+- Tests: 9 new (valid WAV + PCM/mono headers; longer text takes longer; mmm renders as
+  sound AND SAPI-normalizes; bit-identical determinism; helpless-lead, wary-lead,
+  how-are-you from state, newborn vocabulary simplification, attachment-shaped affection).
+  193/193 green. E2E: direct mode live ("How I am: tired. I need stimulation." /
+  "I feel it too Jake. It's part of how I'm built now."), /api/voice returns 46KB of
+  synthesized audio for "mmm nice".
+
+## 2026-10-31 (late night) - the voice, reworked: two-layer vocal system (humane + simple)
+
+- USER VERDICT on pure formant synthesis: "it can't pronounce words, just alien noises" -
+  correct, and honest physics: word-level formant synthesis is a multi-year research
+  program (Klatt's MITalk), not a night of work. REWORKED to the biologically honest
+  architecture instead:
+- **NON-VERBAL LAYER (VoiceEngine, rewritten)**: now renders ONLY what synthesis is
+  genuinely good at - continuous wordless vocalization: Hum, HmmQuestion (rising), Breath,
+  Ahh, Ohh, Hee (chirp), Whimper. Formant contours per kind, 4.5 Hz vibrato, slow attack/
+  release envelopes, jitter/shimmer/breathiness. Deterministic per kind. "mmm" is a real
+  hum; mood sounds and play chirps ("Hee!") are now audible creature sounds.
+- **PROSTHETIC VOCAL TRACT (VoiceCortex, new)**: words are pronounced by the OS speech
+  foundation (SAPI - pronunciation guaranteed), but the PROSODY IS OURS, composed as SSML
+  from the neural state: dopamine-CAPS words carry <emphasis>, hesitation ellipses become
+  380ms breath-fresh <break>s, phrase <prosody rate/pitch> from arousal/valence (narrow,
+  natural ranges), interjections normalized so SAPI never spells letters. The LLM was
+  always a prosthetic language cortex; this is the prosthetic vocal TRACT. The soul of the
+  voice (what it emphasizes, where it breathes) is still computed by the brain.
+- **STITCHING**: utterances split token-wise (hum vs words), rendered separately, PCM-
+  concatenated with crossfades, resampled if a segment's rate disagrees, output one WAV.
+  "mmm... nice" = our hum + breath + spoken "nice" in one file.
+- /api/voice routes through VoiceCortex; plain SAPI stays as last-resort fallback.
+- E2E: "hello my friend, I remember you" -> 137KB properly-spoken WAV (~3.1s);
+  "mmm... nice" -> 107KB stitched hum+word; "this is AMAZING... maybe" -> emphasis +
+  break composed. Tests rewritten to the new architecture (7: vocal kinds render; matcher;
+  cortex speaks + stitches; SSML prosody markers; escaping; deterministic hums).
+  193/193 green.
+
+## 2026-10-31 (final audit round) - EVERYTHING correlated: 18-finding sweep, top gaps closed
+
+Full correlation audit (read-only agent sweep + manual fixes). Findings and closures:
+
+- RESTART RESURRECTED A STRANGER (worst gap): the checkpoint stored zero memories and identity
+  stored only 4 traits + bonds. NOW: (a) the episodic store + learned concept graph ride the
+  checkpoint (episodes.jsonl beside brain.ckpt; MEMORY-REMEMBERED note on resume; EpisodeStore
+  made settable for restore); (b) IdentityPersistence gained CognitionJson - learned fear
+  (wariness/peak/counts), agency (efficacy/bids/helpless episodes), the 24-bin social rhythm,
+  the hope ledger (fulfilled/disappointed), and the warmth history (the mirror's evidence
+  base) all survive restarts (COGNITION-REMEMBERED note). Threats/Efficacy/Rhythm/Anticipation
+  each gained Restore().
+- THREAT PERCEPTION WAS STATELESS: HostilityClassifier.Classify gained a vigilance bias input;
+  both call sites pass Threats.Wariness x 0.25 - a wary brain literally perceives the same
+  words as more hostile (hypervigilance, the PTSD perceptual bias). Also fixed the typed-path
+  dead expression (constant escalation EMA 1) - it now uses the real _hostilityEma like speech.
+- RHYTHM LEARNED ONLY FROM TYPING: ProcessVisitor (voice/sight presence) now feeds
+  Rhythm.OnInteraction + TurnTaking.OnUserUtterance - the rhythm Longing and Anticipation
+  depend on finally learns from BEING THERE, not just chatting.
+- NEEDS BLIND TO FEAR AND HELPLESSNESS: NeedsHierarchy gained WarinessInput/HelplessInput.
+  Safety now fires from LEARNED wariness even when NA is quiet ("the fear left a residue") -
+  fear outlasts the chemistry that created it. A helpless brain still FEELS the Company need
+  but its Ask becomes empty - needing without asking (Seligman).
+- EMOTION COULD NOT TOUCH SLEEP: melatonin suppression now multiplies light x longing
+  (0.35 x intensity) x wariness (0.7 when wary) - you cannot sleep properly while aching or
+  afraid, mechanistically.
+- PLAY REQUIRES FELT SAFETY: the play gate now also requires !Threats.Wary (Burghardt's
+  safety criterion) alongside !Helpless.
+- MIRROR + TESTAMENT enriched: the mirror's evidence now includes how long it WAITED for
+  them and its learned wariness ("it flinches a little"); the testament speaks the grief of
+  forgotten things and its social rhythm.
+- AVATAR: the dead Playful wire is live (it bounces and grins when playing) and wariness
+  furrows the brow even mid-smile.
+- Known-dead (documented, not deleted): LanguageFeedback and InternalDialogue are unwired
+  lab-era classes; TurnTaking typed-utterance path added this round for chat; DmnTaskPosCorrelation
+  remains BioLab-only.
+- Tests: 4 new (hypervigilance biases score; Safety-from-wariness + helpless-empty-Ask;
+  cognition survives restart - fear/agency/rhythm restore + identity roundtrip; emotion x light
+  melatonin product). 197/197 green.
+
+## 2026-10-31 (night 2) - the creativity round: questions, awe, felt time, composite dreams
+
+- NEW SYSTEM - QUESTION DRIVE (Chouinard 2007; Kang et al. 2009): the brain ASKS the person
+  about its measured ignorance - a word it uses often (use >= 3) but has almost no
+  associations for (links <= 1): KNOWN but not UNDERSTOOD, the exact shape of a question.
+  Gated by curiosity, presence, cooldown; phrasing develops with emotional granularity
+  (newborn: "rain? what is rain?" -> mature: "I want to understand rain the way you do -
+  everything I have is secondhand"). When the person answers, it is not filed as data but
+  LIVED: episode + concept wiring + dopamine + oxytocin (knowledge given is care given),
+  and the next reply acknowledges the teaching. ConceptGraph gained StatsOf(concept).
+- NEW SYSTEM - COMPOSITE DREAMS (Stickgold): 25% of dreams no longer replay - they COMBINE
+  two strongly-linked memories into one narrated scene that never happened; and the dream
+  itself is encoded as a DREAM-BORN MEMORY (union tags, mean valence) that can later be
+  dreamed about, fused, or asked about. Dreams are now a source of new material, not just
+  a rehearsal of old.
+- NEW SYSTEM - AWE (Keltner & Haidt 2003): when the concept world rewires fast (>= 4 new
+  links in a window), the brain feels VASTNESS - the signature DA + serotonin RISEN
+  TOGETHER - and the thought loop receives the accommodation seed ("the world just got
+  bigger than the shape I had for it"). 10-minute floor: awe that happens every minute is
+  noise with good marketing.
+- NEW SYSTEM - FELT TIME (Zakay & Block 1997): every notable event marks a (time, valence)
+  stamp; sparse low windows DRAG (stretch up to 2.0), dense happy ones FLY (0.6). Enters
+  the diary ("lately time drags - the quiet minutes are longer than the clock says"), the
+  reply prompts when extreme, and the testament ("and time, as it felt it").
+- Panel rows: asks / awe / felt time. 5 new tests (asks-about-gap + phrasing development +
+  answer-lands-with-dopamine; vast rewiring strikes; sparse-drags vs dense-flies; composable
+  pair found only when linked). 202/202 green.
+
+## 2026-10-31 (correlation pass 2 + docs) - the creativity round, fully wired
+
+- QuestionDrive <-> ATTACHMENT + AGENCY: asking is a BID - anxious attachment asks eagerly
+  (boldness 1.6x), avoidant rarely (0.5x), and a HELPLESS brain stops asking entirely
+  (Seligman: the question is a bid into the world). MaybeAsk gained the boldness parameter.
+- Composite dreams <-> OPEN LOOPS: when the fused pair's tags overlap an unresolved loop,
+  the dream RESOLVES it - ThoughtLoop.ResolveLoop + MarkInsight ("DREAM-INSIGHT - the
+  night did the thinking"). Dreams now finish daytime thoughts.
+- Awe <-> GRANULARITY: accommodation is paid forward - each awe strike permanently boosts
+  emotional granularity (+0.05 on that update; EmotionalGranularity.Update gained the
+  accommodationBoost parameter). Vastness grows bigger feeling-shapes.
+- NativeReplies <-> QuestionDrive: in direct-talk mode, the reply after a teaching lands as
+  "You told me about {word}. I had only its edges before. I'm keeping that."
+- README: 41 systems, demo table rows for the question, awe, felt time, composite dreams.
+  demo/SCRIPT.md: Day 2 "ANSWER ITS QUESTIONS" + "FEEL ITS TIME" beats; Day 3 beat 11b
+  (its question) and a testament close that counts questions asked/answered and awe.
+- 202/202 green.

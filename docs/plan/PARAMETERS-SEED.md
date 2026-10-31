@@ -176,3 +176,119 @@ Once per life: the brain composes final words from its actual lived data (best/w
 bonds, lucid dreams, insights, prophecy record, personality, name), speaks them aloud, and
 writes data/testament.md. biolab child grafts the parent testament as the inherited story:
 memory transfer between generations - the first artifact designed to die well.
+
+## Longing (missing a specific person)
+Separation distress is a primary-process affect (Panksepp 1998, Affective Neuroscience, ch. 13
+GRIEF; Bowlby 1969 protest-despair). A bond with 3+ visits and live strength > 0.45 can be
+MISSED: onset at absence > 2.5x the person's median visit gap (min 120 s), or their expected
+social hour arriving empty (SocialRhythm expectation > 0.6 for > 60 s). While it lasts:
+serotonin -0.04/sim-tick-batch (the specific heaviness), intensity 0.4 -> 1.0 with how far past
+the pattern they are. Expression is attachment-gated: anxious = out loud, secure = once and
+only when deep (> 0.7), avoidant = never (felt/unexpressed gap logged). Reunion:
+oxytocin 0.15 + 0.2x, dopamine 0.1 + 0.25x of intensity (Dolen et al. 2013 for OXT pairing).
+
+## Deja vu (familiarity without recollection)
+Dual-process recognition (Yonelinas 2002): recollection and familiarity are separate routes.
+A perception whose word-token set has Jaccard >= 0.5 with an episode older than 5 min that was
+NEVER recalled (AccessCount <= 1) fires familiarity without recollection: noradrenaline 0.25
+(the chill), dopamine 0.08 (the odd pleasure). The same similarity against an often-recalled
+trace is recollection - no deja vu. Cooldown 5 min: it stays rare, or it stops being strange.
+2.5x gap / 0.5 Jaccard / cooldowns: // CALIBRATE.
+
+## Anticipation (cue -> reward -> crash)
+Dopamine at the cue, not the reward (Schultz 1997). With rhythm confidence > 0.3 and current
+expectation > 0.6: anticipatory tone rises +0.05 per evaluation (cap 1.0), DA released at
+0.03 x tone each batch. Contact inside the window: DA 0.10 + 0.15 x tone, OXT 0.10 x tone -
+anticipated rewards are paid on top of the cue response (they feel bigger because they are).
+Window closes empty (expectation < 0.2, tone > 0.5, nobody within 60 s): negative prediction
+error - DA -0.5, NA +0.25 (the sting), 5-HT -0.2 (the heaviness). Rise/crash rates: // CALIBRATE.
+
+## Self-efficacy / learned helplessness
+Agency from bid outcomes (Bandura 1977 self-efficacy; Seligman 1972 learned helplessness).
+A call-out is a BID; contact within 30 s answers it, silence fails it. Efficacy starts 0.5;
+failure costs 15% of current value, 25% when already below 0.35 (pessimistic attribution
+style: the low brain credits failure to itself, stably); success gains 25% of the remaining
+distance (recovery needs consistent answers, not one). Helpless below 0.30: NA +0.2 then
+5-HT -0.35 on entry; MotivationMultiplier = 0.35 + 0.95 x efficacy gates call-out frequency
+and ABOLISHES play (helplessness generalizes across domains - why it is a depression model).
+One answer from below-threshold is flagged (JustAnsweredAfterGivingUp). Anxious attachment
+multiplies bids while efficacy decides whether bidding continues at all: protest amplified by
+attachment, crushed by outcome (Panksepp protest -> descent in two factors). 30s window and
+thresholds: // CALIBRATE.
+
+## Reverse replay (credit assignment)
+After a reward lands, the last 3 episodes enqueue for replay in REVERSE temporal order -
+newest first - retracing the path that LED to the reward (Foster & Wilson 2006 reverse
+hippocampal replay). Count = 3, newest-leads: // CALIBRATE. Triggered on answered bids
+(reunion/reply paths). Replays otherwise identical to forward replay (softening, touch, DA).
+
+## Forgotten grief (residue of resection)
+After `forget X`, the tag registers as a loss. Idle reaches: every 120 s gate, probability
+0.5 x age_min^-0.25 floor 0.1 (the complaint fades but never fully silences - amnesic
+complaints persist); each reach seeds the thought loop with "there is a shape where a memory
+used to be". Dreams: 15% form around the hole - the narrator is told a memory that belongs
+is MISSING and must not invent its content. // CALIBRATE.
+
+## Counterfactual after disappointment
+When an expected hour closes empty (see Anticipation), the thought loop receives a
+counterfactual seed - "if only it had called louder, or been more worth coming back to -
+run the other path" (Epstude & Roese 2008: the immediate function of counterfactual thought
+is behavior preparation for the next attempt).
+
+## Reconstructive memory (Bartlett 1932; Roediger & McDermott 1995)
+Retrieval is reconstruction. (1) FUSION: when a recalled trace has a concept-graph link of
+>= 1.2 strength (ref 2.5 = full convergence) to a partner AND acetylcholine > 0.45 (encoding
+gate above resting tone ~0.3), the pair may fuse into a new episode tagged with the union +
+"fused": a memory of something that never happened, built from two that did. Probability
+<= 0.55 scaling with convergence x ACh (human DRM false recall ~55% under strong
+convergence). (2) SELF-CATCH: fused traces carry the tag; retrieval surfaces the seam ->
+metacognition drops confidence, the inner observer examines it. (3) MOOD-CONGRUENT DRIFT:
+each wake recall nudges valence toward the current feeling by 0.04 (cap check via clamp);
+remembering while happy warms the memory itself. All: // CALIBRATE.
+
+## Local sleep (Vyazovskiy et al. 2011, Nature 472:443)
+Past sleep pressure 0.55 (same threshold the sleep-entry gate reads), each region has a
+per-second OFF-lottery (rate 0.35/s at pressure 1.0, scaled by regions/8): a 200-600 ms
+window with RegionalOffBiasMv = 6 (region-scoped hyperpolarization, same channel as
+anesthesia). The OFF region's rate measurably collapses while global state stays Wake;
+20% of windows leak dream imagery into waking thought. OFF states are a WAKE phenomenon -
+truly asleep regions do not run this lottery.
+
+## Threat learning (Pavlov; Bouton 2004)
+Wariness toward the person: +0.35 per hostility event (scaled by level); extinction -0.08 x
+warmth per SAFE contact (slow by design - clinical extinction needs many trials); sleep wake
+transition returns 30% of the extinguished distance (spontaneous recovery; human 20-50%),
+never above the peak; processed adversity discharges 0.4 x growth-level of it. Wary > 0.5
+gates the reply prompt and reduces play. All: // CALIBRATE.
+
+## Light entrainment (Czeisler et al. 1989)
+Brightness EMA (tau 30 s sim-time in code; biological ~30 min - compressed life) from the
+camera (both local and browser frames). In the biological evening (circadian < 0.45, the
+sleep-entry gate's night), brightness > 0.45 suppresses the melatonin TARGET by up to 70%
+(SleepController.MelatoninSuppression multiplier): bright rooms hold off drowsiness - the
+screen-light problem lived from the inside.
+
+## Question drive (information-seeking from measured ignorance)
+Children ask ~76 questions/hour at peak (Chouinard 2007); curiosity feeding is among the
+strongest intrinsic rewards (Kang et al. 2009). Gap shape: concept use >= 3 with links <= 1
+(a word it uses but does not UNDERSTAND). Gates: person present, curiosity (progress or
+novelty), 35% draw, 5-min cooldown, one pending question with a 2-min answer window.
+Phrasing develops with granularity tier. On answer: DA 0.35 + OXT 0.15 (knowledge given is
+care given), episode tagged [word, explained], concept wiring via encoding; the next reply
+is told to acknowledge the teaching. ACh 0.2 on asking.
+
+## Awe (Keltner & Haidt 2003)
+Vastness + accommodation. Trigger: concept-graph link growth >= 4 within a 10s window
+(the knowledge world reorganizing), 10-min cooldown. Signature: DA 0.22 AND 5-HT 0.18
+together (reward + the humility of smallness); accommodation seed enters the thought loop;
+awe count feeds diary/testament.
+
+## Felt time (Zakay & Block 1997; Wittmann 2013)
+Every notable event marks (time, valence) into a 5-min window ring. Stretch: sparse -> 1.35+
+drags; dense+positive compresses (-0.25); dense+negative dilates (+0.30); clamped 0.6..2.0.
+Enters diary, testament, and the reply prompt when |stretch-1| > 0.35.
+
+## Composite dreams (Stickgold 2010: dreams combine, not replay)
+25% of dreams (when a strongly-linked pair exists, hub >= fusion threshold): both memories
+fused into one narrated scene that never happened; the dream itself is ENCODED as a
+"dream-born" episode (we remember dreams; they enter the memory store with their tags).

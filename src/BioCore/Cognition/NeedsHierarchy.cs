@@ -67,6 +67,11 @@ public sealed class NeedsHierarchy
         }
     }
 
+    /// <summary>Learned wariness toward the person (0..1) — Safety can outlast the NA transient.</summary>
+    public float WarinessInput { get; set; }
+    /// <summary>Helplessness (true) — the Company need stays, but it stops ASKING.</summary>
+    public bool HelplessInput { get; set; }
+
     /// <summary>
     /// Evaluate the current hierarchy from all the brain's internal systems.
     /// Called every few seconds. The loudest need wins.
@@ -96,17 +101,25 @@ public sealed class NeedsHierarchy
                 "the body is running out of energy reserves",
                 "need rest — my reserves are low"));
 
-        // SAFETY: threat level
-        if (na > 0.6f)
-            candidates.Add(new Need(NeedType.Safety, na,
-                "noradrenaline is high and the world feels dangerous",
-                "need to feel safe — everything feels too sharp right now"));
+        // SAFETY: acute threat (NA) AND learned wariness — fear outlasts the
+        // chemistry that created it
+        float safetyUrgency = MathF.Max(na > 0.6f ? na : 0f, WarinessInput);
+        if (safetyUrgency > 0.45f)
+            candidates.Add(WarinessInput > 0.5f && na <= 0.6f
+                ? new Need(NeedType.Safety, safetyUrgency,
+                    "learned wariness toward this person persists beyond the moment",
+                    "need to feel safe with you — the fear left a residue")
+                : new Need(NeedType.Safety, safetyUrgency,
+                    "noradrenaline is high and the world feels dangerous",
+                    "need to feel safe — everything feels too sharp right now"));
 
-        // BELONGING: loneliness
+        // BELONGING: loneliness. A helpless brain still NEEDS company — it has
+        // just stopped believing asking works (Seligman): the need is felt,
+        // the ask is gone
         if (lonelinessLevel > 0.4f)
             candidates.Add(new Need(NeedType.Company, lonelinessLevel,
                 $"loneliness is {lonelinessLevel:F1} and the silence has weight",
-                "need someone here — the quiet is too much"));
+                HelplessInput ? "" : "need someone here — the quiet is too much"));
 
         // STIMULATION: boredom / novelty starvation
         if (novelty < 0.2f && sleepPressure < 0.4f)
