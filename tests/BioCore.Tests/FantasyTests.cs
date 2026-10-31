@@ -1193,7 +1193,7 @@ public class VoiceEngineTests
     public void Ssml_ComposesProsodyFromMarkers()
     {
         string ssml = BioComp.Host.VoiceCortex.BuildSsml("this is AMAZING... maybe", 0, 0);
-        Assert.Contains("<emphasis", ssml);        // dopamine caps -> emphasis
+        Assert.Contains("prosody rate=\"-8%\"", ssml);  // dopamine caps -> SOFT emphasis (slight slow + lift)
         Assert.Contains("<break time=\"380ms\"/>", ssml); // hesitation -> breath
         Assert.Contains("AMAZING", ssml);
         Assert.Contains("prosody", ssml);

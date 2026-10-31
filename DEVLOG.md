@@ -755,3 +755,22 @@ Second read-only rescan (18 fresh findings). Closed:
   live-verified: scrollable engages, stays at the newest message.
 - Ambient noticing fired live during E2E ("Bright now." from the mock camera step).
   210/210 green.
+
+## 2026-11-01 - the voice, warmed + demo script current
+
+- VOICE HUMANE PASS (user: "sometimes the current one gets scary"): diagnosis - the scary
+  lived in the extremes, not the words. (1) Prosody ranges narrowed to the human band:
+  rate ±10% (was ±22), pitch ±1.5 st (was ±3), SAPI Rate clamped ±2 (Rate 4 = fast/odd);
+  (2) a +0.8 st WARMTH BIAS (friendliness lives slightly above neutral - the old deep
+  bias read eerie); (3) per-utterance micro-variation (±0.3 st, seeded by text hash) so
+  repeated sentences don't sound stapled; (4) SOFT emphasis: dopamine-CAPS words get a
+  slight slow + 1 st lift instead of SAPI's "moderate" emphasis, which barks; (5) volume
+  never maxed (25-95); (6) hums before words are now a soft pre-speech murmur (60%
+  volume, 25% faster) and the inter-layer breath dropped to 35% - the hum-alone case
+  keeps full presence. Words still fully pronounced (SAPI tract untouched).
+- demo/SCRIPT.md: added "WHAT'S NEW IN THE BRAIN" section - the unprompted SHARING beat,
+  the person-noticing jaw-drop, presence fixed (no 'waiting for you' mid-conversation),
+  room-feeling (lights), the conversation slider, and the stable mic tab.
+- E2E: both render paths verified from a clean binary (137 KB sentence, 115 KB hum+words).
+  210/210 green. (And the recorded ops gotcha bit once more mid-round - suite and server
+  must never share a command; corrected immediately.)
