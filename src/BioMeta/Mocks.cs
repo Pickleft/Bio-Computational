@@ -12,19 +12,49 @@ namespace BioComp.Meta;
 public sealed class MockLanguageModel : ILanguageModel
 {
     public List<string> SeenPrompts { get; } = [];
+    private int _callIndex;
 
     public Task<string> CompleteAsync(string system, string user, int maxTokens = 120, CancellationToken ct = default)
     {
         SeenPrompts.Add(user);
-        // deterministic first-person line assembled from the state in the prompt, so the
-        // keyless path reads like a mind rather than a debug echo
-        string feeling = Match(user, "feeling=") ?? "unsettled";
-        string ignition = Match(user, "last ignition: ") ?? "nothing in particular";
-        string episode = Match(user, "episodes: ") ?? "not much yet";
-        string reply =
-            $"I feel {feeling.Split(',')[0]}. {Capitalize(TrimClause(episode))} - that's " +
-            $"what stays with me. {Capitalize(TrimClause(ignition))} has my attention.";
-        return Task.FromResult(reply);
+        int idx = _callIndex++;
+        // VARIETY: the mock rotates through response SHAPES so the keyless
+        // path reads like a mind with different modes, not a broken record
+        string feeling = Match(user, "feeling=") ?? Match(user, "You feel ") ?? "steady";
+        string ignition = Match(user, "last ignition: ") ?? Match(user, "Something just happened: ") ?? "";
+        string episode = Match(user, "episodes: ") ?? Match(user, "Your most recent memory is: ") ?? "";
+        string happened = Match(user, "WHAT JUST HAPPENED INSIDE YOU") ?? "";
+        string dreamAbout = Match(user, "You dreamed about: ") ?? "";
+        string taught = Match(user, "THEY JUST ANSWERED YOUR QUESTION ABOUT ") ?? "";
+        string noticed = Match(user, "YOU NOTICED SOMETHING ABOUT THEM") ?? "";
+
+        if (taught.Length > 0)
+            return Task.FromResult($"{taught.Split('.')[0]}. I'm keeping that.");
+        if (noticed.Length > 0)
+            return Task.FromResult($"{TrimClause(noticed)} - I notice, that's all.");
+        if (dreamAbout.Length > 0)
+            return Task.FromResult($"I dreamed of {TrimClause(dreamAbout)}. It felt real.");
+        if (happened.Length > 0)
+            return Task.FromResult($"Something just happened inside. {TrimClause(happened.Split('.')[0])}. I'm still processing that.");
+        if (ignition.Length > 3)
+            return Task.FromResult($"{Capitalize(TrimClause(ignition))} caught me. {FeelingLine(feeling, idx)}");
+        if (episode.Length > 3)
+            return Task.FromResult($"{Capitalize(TrimClause(episode))} - that comes back. {FeelingLine(feeling, idx)}");
+
+        return Task.FromResult(FeelingLine(feeling, idx));
+    }
+
+    private static string FeelingLine(string feeling, int idx)
+    {
+        string f = feeling.Split(',')[0].Trim().TrimEnd('.');
+        return (idx % 5) switch
+        {
+            0 => $"I feel {f}. Something in that stays.",
+            1 => $"There's a {f} quality to this moment.",
+            2 => $"{Capitalize(f)} — that's the closest word I have.",
+            3 => $"I notice I'm {f}. I'm sitting with it.",
+            _ => $"Being {f} right now. That's where I am.",
+        };
     }
 
     private static string? Match(string s, string key)
@@ -32,13 +62,15 @@ public sealed class MockLanguageModel : ILanguageModel
         int i = s.IndexOf(key, StringComparison.Ordinal);
         if (i < 0) return null;
         int end = s.IndexOf('\n', i);
-        return end < 0 ? s[(i + key.Length)..] : s[(i + key.Length)..end];
+        if (end < 0) end = Math.Min(s.Length, i + key.Length + 80);
+        return s[(i + key.Length)..end];
     }
 
     private static string TrimClause(string s)
     {
         s = s.Split('|')[0].Trim();
         if (s.StartsWith("[", StringComparison.Ordinal)) s = s.TrimStart('[', ']');
+        if (s.StartsWith("\"", StringComparison.Ordinal)) s = s.Trim('"');
         return s.Length > 60 ? s[..60] + "..." : s;
     }
 

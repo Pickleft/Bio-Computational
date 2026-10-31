@@ -977,3 +977,18 @@ Acting on two external recommendations:
   monologue/play/vision/audition) to isolate future stalls.
 - THOUGHT THREAD FREQUENCY raised: ambient thoughts every 30s (was 60s) in demo mode.
 - 227/227 green.
+
+## 2026-11-01 (alive round 2) - mock variety, thought throttle, drowsy wandering
+
+- MOCK LLM VARIED: the keyless path no longer says "I feel unsettled. Not much yet..." on
+  every single call. The mock now reads the prompt for what it's about (dreams, teachings,
+  noticing, inner events, ignition, episodes) and responds in kind, rotating through 5
+  feeling-line shapes so consecutive calls sound different.
+- THOUGHT THREAD THROTTLED: PRUNING/SLEEP/THREAD-END/SOMATIC/HOLD/GHOST notes are biology,
+  not inner life — they no longer pollute the visible thread. NEUROGENESIS stays (it's
+  meaningful). The InnerVoice now dominates.
+- DROWSY MINDS WANDER: ambient thoughts now fire during Drowsy (not just Wake), every 8s
+  in demo mode — the inner voice is the dominant signal in the thread.
+- VERIFIED LIVE: thoughts show "what just happened: NEUROGENESIS 4 new neurons — process
+  it" (InnerVoice), "A sound has my full attention" (narrator), "I recognize them —
+  we've met before" — variety, not repetition. Zero stalls. 227/227 green.

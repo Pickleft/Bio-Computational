@@ -392,7 +392,7 @@ public sealed class BrainRuntime : IDisposable
     {
         var f = _idle.Feelings.Last;
         double idleSec = _idle.Time.SubjectiveSinceEventMs / 1000.0;
-        if (_idle.Sleep.State is BioComp.Core.Sleep.BrainState.NREM or BioComp.Core.Sleep.BrainState.REM) return null;
+        if (_idle.Sleep.State is BioComp.Core.Sleep.BrainState.NREM) return null;  // drowsy minds still wander
 
         // THE INNER VOICE: every ambient thought draws from the same lived
         // stream as the thought-loop seeds — their words echoing, what just
@@ -1565,7 +1565,7 @@ public sealed class BrainRuntime : IDisposable
         _simPhase = "monologue";
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 30_000 : 45_000);   // alive: every 30-45s
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 8_000 : 15_000);   // alive: every 8-15s, the inner voice dominates
             string? line = AmbientThought();
             if (line is not null)
             {
@@ -3259,8 +3259,14 @@ public sealed class BrainRuntime : IDisposable
         {
             _thought.Add($"[{_net.TimeMs / 1000:F1}s] {line}");
             if (_thought.Count > 60) _thought.RemoveAt(0);
+            // VISIBLE THOUGHT THREAD: only events the MIND would notice —
+            // PRUNING/SLEEP/STATE notes are biology, not inner life. Show the
+            // ones that carry feeling; throttle the plumbing.
             string plain = ThoughtNarrator.Narrate(line, _idle.Feelings.Last);
-            if (plain.Length > 0)
+            bool isPlumbing = line.StartsWith("PRUNING") || line.StartsWith("SLEEP") ||
+                              line.StartsWith("THREAD-END") || line.StartsWith("SOMATIC") ||
+                              line.StartsWith("HOLD") || line.StartsWith("GHOST");
+            if (plain.Length > 0 && !isPlumbing)
             {
                 _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
                 if (_plain.Count > 60) _plain.RemoveAt(0);
