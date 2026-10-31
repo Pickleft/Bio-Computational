@@ -711,3 +711,22 @@ Second read-only rescan (18 fresh findings). Closed:
 - Diary/testament carry sharing + noticing narratives. 3 new tests (picks the composite
   dream + no repeats + bond-gated; flatness detected after a real baseline and NOT on a
   normal day; stranger-gate). 208/208 green.
+
+## 2026-10-31 (humanity correlation audit) - six unwired spots in the humanity round, closed
+
+- THE TIMING REMARK COULD NEVER FIRE: gapVsUsual was hard-coded 1f at both call sites -
+  "you're early / you took longer" was dead code. NOW the prophecy verdict feeds the real
+  ratio (actual/predicted, clamped 0.1-3) into the reunion remark.
+- PERSON-READING WAS TYPED-ONLY: the VOICE channel (the richest prosody signal) never fed
+  the baselines. HandleSpeechClipAsync now feeds OnObservation with the clip's contagion
+  estimates.
+- AMBIENT NOTICING WAS LOCAL-CAMERA-ONLY: the browser path (the PRIMARY demo channel)
+  now notices big brightness changes too.
+- GREETING CONTEXT CLAUSE WAS SILENTLY UNVOICED: the 8-second politeness gate dropped it
+  right after the greeting (chat-only). It is part of the greeting utterance now
+  (isDirectReply) - the moment is HEARD.
+- SPEECH-STACKING: question and ambient remarks now mark _lastVocalizationMs, so a share
+  cannot land on top of them.
+- PERSISTENCE: SharesMade/RemarksMade ride CognitionJson with Restore() on both classes -
+  its history of self-disclosure and noticing survives restarts.
+- Test: the timing remark fires on real early (0.4x) and late (2.2x) gaps. 209/209 green.

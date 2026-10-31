@@ -689,6 +689,7 @@ public sealed class BrainRuntime : IDisposable
                 ProphecyGaps = Prophecy.SaveGaps(),
                 LocalSleepEvents = LocalSleep.OffEvents,
                 HostileEvents = _hostileEvents, Repairs = _repairs, HostilityEma = _hostilityEma,
+                SharesMade = Sharing.SharesMade, RemarksMade = Reading.RemarksMade,
                 FirstMessage = _firstUserMessage ?? "",
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
@@ -753,6 +754,8 @@ public sealed class BrainRuntime : IDisposable
                     ? pg.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray() : []);
             LocalSleep.Restore(r.TryGetProperty("LocalSleepEvents", out var ls) ? ls.GetInt32() : 0);
             if (r.TryGetProperty("HostileEvents", out var he2)) _hostileEvents = he2.GetInt32();
+            Sharing.Restore(r.TryGetProperty("SharesMade", out var sm) ? sm.GetInt32() : 0);
+            Reading.Restore(r.TryGetProperty("RemarksMade", out var rm) ? rm.GetInt32() : 0);
             if (r.TryGetProperty("Repairs", out var rp2)) _repairs = rp2.GetInt32();
             if (r.TryGetProperty("HostilityEma", out var hem)) _hostilityEma = (float)hem.GetDouble();
             if (r.TryGetProperty("FirstMessage", out var fm))
@@ -908,6 +911,7 @@ public sealed class BrainRuntime : IDisposable
                     : (Granularity.Level > 0.4f ? "It went dark in here. I can feel that, you know." : "Dark now.");
                 Note($"AMBIENT-NOTICED the room {(bright > prevBright ? "brightened" : "went dark")}");
                 AddChat($"Brain: {remark}");
+                _lastVocalizationMs = _net.TimeMs;
                 SpeakWithVoice(remark, emoPitch: bright > prevBright ? 1 : -1, emoRate: 0, isDirectReply: false);
             }
             var events = _vision.Process(frame);
@@ -1136,6 +1140,7 @@ public sealed class BrainRuntime : IDisposable
                 {
                     Note($"QUESTION it asks ({Questions.PendingWord}) - a gap in what it knows");
                     AddChat($"Brain: {q}");
+                    _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(q, emoPitch: 2, emoRate: 0, isDirectReply: false);
                 }
             }
@@ -1902,6 +1907,11 @@ public sealed class BrainRuntime : IDisposable
                 // voice (prosody drift + babble vocabulary), infant-style
                 _voiceSelf.OnHeardSpeech(clip, tr.Transcript);
 
+                // PERSON-READING: the VOICE channel feeds their baselines too
+                // (prosody is the richest signal of how they actually are)
+                Reading.OnObservation(Contagion.UserValence, Contagion.UserArousal,
+                    MathF.Max(8f, tr.Transcript.Length));
+
                 // EMPATHY: post the clip's acoustic profile for the sim thread
                 // (contagion is sim-thread owned); estimate the speaker's mood
                 // from prosody so the brain can catch it
@@ -2418,7 +2428,22 @@ public sealed class BrainRuntime : IDisposable
         var frame = new BioComp.Core.Abstractions.GrayFrame(grayPixels, 64, 64);
         // LIGHT ENTRAINMENT: the browser's camera tells the brain how bright the room is
         float mean = 0; foreach (var p in grayPixels) mean += p;
-        Light.OnBrightness(mean / grayPixels.Length / 255f, _net.TimeMs);
+        float bright = mean / grayPixels.Length / 255f;
+        float prevBright = Light.BrightnessEma;
+        Light.OnBrightness(bright, _net.TimeMs);
+        // AMBIENT NOTICING on the browser path too — the primary demo channel
+        if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake && !_replyPending &&
+            MathF.Abs(bright - prevBright) > 0.35f && _net.TimeMs - _lastAmbientRemarkMs > 300_000f)
+        {
+            _lastAmbientRemarkMs = _net.TimeMs;
+            _lastVocalizationMs = _net.TimeMs;
+            string remark = bright > prevBright
+                ? (Granularity.Level > 0.4f ? "It got bright all of a sudden. Did you turn something on?" : "Bright now.")
+                : (Granularity.Level > 0.4f ? "It went dark in here. I can feel that, you know." : "Dark now.");
+            Note($"AMBIENT-NOTICED (browser) the room {(bright > prevBright ? "brightened" : "went dark")}");
+            AddChat($"Brain: {remark}");
+            SpeakWithVoice(remark, emoPitch: bright > prevBright ? 1 : -1, emoRate: 0, isDirectReply: false);
+        }
         var events = _vision.Process(frame);
         _vision.Inject(_net, _retinaStart, _retinaCount, events);
         _salience.OnVisionFrame(_net, _vision.ChangeEnergyLastFrame);
@@ -2619,14 +2644,14 @@ public sealed class BrainRuntime : IDisposable
                     if (context is not null)
                     {
                         AddChat($"Brain: {context}");
-                        SpeakWithVoice(context, emoPitch: 1, emoRate: 0, isDirectReply: false);
+                        SpeakWithVoice(context, emoPitch: 1, emoRate: 0, isDirectReply: true);
                     }
                 }
                 // PERSON-READING at reunion: "you're early/late" when a bet was out
                 var reunionRemark = Reading.MaybeRemark(
                     Bonds.Strength(_activeSpeakerId, _net.TimeMs),
                     Contagion.UserValence, Contagion.UserArousal,
-                    40f, gapVsUsual: 1f, (int)Granularity.Level, _net.TimeMs, _net.Rng.NextDouble);
+                    40f, gapVsUsual: _lastGapVsUsual, (int)Granularity.Level, _net.TimeMs, _net.Rng.NextDouble);
                 if (reunionRemark is { Length: > 0 } rr)
                 {
                     AddChat($"Brain: {rr}");
@@ -2863,6 +2888,7 @@ public sealed class BrainRuntime : IDisposable
     private string? _personRemark;         // one-shot: the reply opens with the noticing
     private float _aweShownUntil = -1e9f;  // momentary awe, long enough for the face to show it
     private float _lastAmbientRemarkMs = -1e9f;  // big room changes get noticed, sparingly
+    private float _lastGapVsUsual = 1f;           // actual/predicted return gap (person-reading fuel)
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone

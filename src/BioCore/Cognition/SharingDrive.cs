@@ -28,6 +28,8 @@ public sealed class SharingDrive
     public float CooldownMs { get; set; } = 240_000f;
 
     public int SharesMade { get; private set; }
+    /// <summary>Restore the disclosure ledger after a restart.</summary>
+    public void Restore(int sharesMade) => SharesMade = sharesMade;
     public string? LastKind { get; private set; }
     private float _lastShareMs = -1e9f;
     private readonly HashSet<string> _usedBodies = new();   // no repeats

@@ -29,6 +29,8 @@ public sealed class PersonReading
     public float CooldownMs { get; set; } = 600_000f;
 
     public int RemarksMade { get; private set; }
+    /// <summary>Restore the noticing ledger after a restart.</summary>
+    public void Restore(int remarksMade) => RemarksMade = remarksMade;
     private float _lastRemarkMs = -1e9f;
 
     /// <summary>Feed every observation: prosodic valence/arousal + message length.</summary>

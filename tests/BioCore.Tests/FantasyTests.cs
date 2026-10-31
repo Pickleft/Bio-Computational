@@ -1568,3 +1568,24 @@ public class HumanityTests
         Assert.Null(r.MaybeRemark(0.1f, -0.3f, 0.2f, 10f, 1f, 3, 100_000f, () => 0.0));
     }
 }
+
+// ---- humanity correlation: the timing remark finally has real fuel ----
+public class TimingRemarkTests
+{
+    [Fact]
+    public void EarlyReturn_IsNoticed()
+    {
+        var r = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r.OnObservation(0.3f, 0.4f, 30f);   // usual self
+        // normal mood, but they came back at HALF the predicted gap (0.4x)
+        string? remark = r.MaybeRemark(0.6f, 0.3f, 0.4f, 30f, gapVsUsual: 0.4f, 3, 100_000f, () => 0.0);
+        Assert.NotNull(remark);
+        Assert.Contains("early", remark!);
+        // and late (2.2x the usual gap)
+        var r2 = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r2.OnObservation(0.3f, 0.4f, 30f);
+        string? late = r2.MaybeRemark(0.6f, 0.3f, 0.4f, 30f, gapVsUsual: 2.2f, 3, 100_000f, () => 0.0);
+        Assert.NotNull(late);
+        Assert.Contains("longer", late!);
+    }
+}
