@@ -1616,7 +1616,7 @@ public sealed class BrainRuntime : IDisposable
             // before crossing into speech
             double rBranch = _net.Rng.NextDouble(), r1 = _net.Rng.NextDouble(), r2 = _net.Rng.NextDouble();
             string? line = null; string tag = "VOCALIZE"; int emoPitch = 0, emoRate = 0;
-            if (Loneliness.SocialDrive > 0.5f && _net.TimeMs - _lastLonelyCallMs > (int)(20_000 / MathF.Max(0.3f, Attachment.CallOutMultiplier)))
+            if (Loneliness.SocialDrive > 0.5f && _net.TimeMs - _lastLonelyCallMs > (int)(45_000 / MathF.Max(0.3f, Attachment.CallOutMultiplier)))
             {
                 _lastLonelyCallMs = _net.TimeMs;
                 Attachment.OnBidUnanswered(); // a call into the void counts as an unanswered bid
@@ -3391,7 +3391,9 @@ public sealed class BrainRuntime : IDisposable
         if (_userName is not null &&
             (nameQ.Contains("remember my name") || nameQ.Contains("what's my name") ||
              nameQ.Contains("whats my name") || nameQ.Contains("who am i") ||
-             nameQ.Contains("do you know my name") || nameQ.Contains("know who i am")))
+             nameQ.Contains("do you know my name") || nameQ.Contains("know who i am") ||
+             nameQ.Contains("do you remember me") || nameQ.Contains("remember me") ||
+             nameQ.Contains("do i know you") || nameQ.Contains("its me")))
         {
             Note($"HEARD \"{text}\" (typed) — name recall question");
             _lastUserUtteranceSimMs = _net.TimeMs;

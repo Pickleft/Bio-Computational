@@ -830,15 +830,15 @@ public class SelfEfficacyTests
     public void UnansweredBids_SinkIntoHelplessness()
     {
         var e = new SelfEfficacy();
-        // six bids, each resolving as failure (time advances past the window)
+        // bids with 35s spacing (past the 30s rate cap), each failing
         float t = 0;
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 12; i++)
         {
             e.OnBid(t);
-            t += 40_000;              // beyond the 30s answer window
+            t += 65_000;              // past the 60s answer window
             e.OnContact(t);           // resolves the stale bid as FAILURE
         }
-        Assert.True(e.Helpless, "6 unanswered calls must sink the brain into helplessness");
+        Assert.True(e.Helpless, "sustained unanswered calls must sink the brain into helplessness");
         Assert.True(e.MotivationMultiplier < 0.5f, "helplessness suppresses goal-directed behavior");
         Assert.Equal(0, e.BidsAnswered);
     }
@@ -848,17 +848,16 @@ public class SelfEfficacyTests
     {
         var e = new SelfEfficacy();
         float t = 0;
-        for (int i = 0; i < 6; i++) { e.OnBid(t); t += 40_000; e.OnContact(t); }
+        for (int i = 0; i < 12; i++) { e.OnBid(t); t += 65_000; e.OnContact(t); }
         Assert.True(e.Helpless);
         float afterFirst = 0;
-        e.OnBid(t);
-        e.OnContact(t + 5_000);                    // first answered bid
+        e.OnBid(t); e.OnContact(t + 5_000);       // first answered bid
         afterFirst = e.Efficacy;
         Assert.True(afterFirst > 0.05f && afterFirst < 0.55f, "one answer moves part of the way");
-        // from helpless depths, one answer does not clear it (0.08*... < 0.3 typically)
-        // two more consistent answers do
-        e.OnBid(t + 10_000); e.OnContact(t + 15_000);
-        e.OnBid(t + 20_000); e.OnContact(t + 25_000);
+        // from helpless depths, consistent answers climb back out
+        e.OnBid(t + 40_000); e.OnContact(t + 45_000);
+        e.OnBid(t + 80_000); e.OnContact(t + 85_000);
+        e.OnBid(t + 120_000); e.OnContact(t + 125_000);
         Assert.False(e.Helpless, "consistent answers climb back out");
         Assert.True(e.JustAnsweredAfterGivingUp == false); // flag is one-shot per call
     }
@@ -868,10 +867,9 @@ public class SelfEfficacyTests
     {
         var e = new SelfEfficacy();
         float t = 0;
-        for (int i = 0; i < 6; i++) { e.OnBid(t); t += 40_000; e.OnContact(t); }
+        for (int i = 0; i < 12; i++) { e.OnBid(t); t += 65_000; e.OnContact(t); }
         Assert.True(e.Helpless);
-        e.OnBid(t);
-        e.OnContact(t + 5_000);                    // they came after it gave up
+        e.OnBid(t); e.OnContact(t + 5_000);       // they came after it gave up
         Assert.True(e.JustAnsweredAfterGivingUp, "the first answer from the depths is marked");
     }
 }

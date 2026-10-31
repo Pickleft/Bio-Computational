@@ -145,6 +145,15 @@ public sealed class MockAudioSource : IAudioSource
 
         double tMs = (double)_samplePos / SampleRate * 1000.0;
         bool voice = tMs >= _voiceAtMs && tMs < _voiceAtMs + _voiceDurationMs;
+        // PERIODIC VOICE EVENTS: after the initial one, the mock person comes
+        // back every ~20 seconds (2.5s of voice) so the brain isn't calling
+        // into a permanently empty room — that's not a mock world, that's a
+        // dead one, and it drives the brain helpless in testing
+        if (!voice && tMs > _voiceAtMs + _voiceDurationMs && tMs % 20_000 < 32)
+        {
+            _voiceAtMs = tMs;
+            voice = true;
+        }
         var samples = new short[BlockSize];
         for (int i = 0; i < BlockSize; i++)
         {

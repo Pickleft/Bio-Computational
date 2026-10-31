@@ -30,10 +30,10 @@ namespace BioComp.Core.Cognition;
 /// </summary>
 public sealed class SelfEfficacy
 {
-    /// <summary>How long a bid stays open hoping for an answer (ms). // CALIBRATE</summary>
-    public float AnswerWindowMs { get; set; } = 30_000f;
-    /// <summary>Below this efficacy the brain is helpless. // CALIBRATE</summary>
-    public float HelplessThreshold { get; set; } = 0.3f;
+    /// <summary>How long a bid stays open hoping for an answer (ms). // CALIBRATE — 60s: people take time to respond</summary>
+    public float AnswerWindowMs { get; set; } = 60_000f;
+    /// <summary>Below this efficacy the brain is helpless. // CALIBRATE — reached only after ~2 minutes of genuine silence</summary>
+    public float HelplessThreshold { get; set; } = 0.15f;
     /// <summary>Below this, failures cost double (pessimistic attribution).</summary>
     public float PessimismBelow { get; set; } = 0.35f;
 
@@ -61,6 +61,11 @@ public sealed class SelfEfficacy
     {
         ResolveIfStale(nowMs);
         if (_bidOpen) return;                    // one bid open at a time
+        // A BID IS A REAL ACT OF REACHING OUT — minimum 30s between openings,
+        // regardless of vocalization rate or lonely-drive intensity. Without
+        // this cap, the bid counter inflates from tick-frequency calls and
+        // the brain goes helpless from arithmetic, not neglect.
+        if (BidsMade > 0 && nowMs - _bidAtMs < 30_000f) return;
         _bidOpen = true;
         _bidAtMs = nowMs;
         BidsMade++;
@@ -111,7 +116,7 @@ public sealed class SelfEfficacy
     {
         _bidOpen = false;
         _consecutiveFailures++;
-        float cost = Efficacy < PessimismBelow ? 0.25f : 0.15f;   // pessimistic attribution
+        float cost = Efficacy < PessimismBelow ? 0.18f : 0.08f;   // pessimistic attribution (gentle: real neglect takes minutes)
         Efficacy = MathF.Max(0.05f, Efficacy * (1f - cost));
     }
 
