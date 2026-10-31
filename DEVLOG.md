@@ -1042,3 +1042,27 @@ Acting on two external recommendations:
   Direct-mode conversations now show the same behavioral suppression as LLM-mode.
 - INNER VOICE FREQUENCY: every 5s in demo (was 8s), _plain capacity 80 (was 60).
 - 233/233 green.
+
+## 2026-11-01 (final creative pass) — zombified sounds fixed, emotional voice morphing, pre-death awareness
+
+- ZOMBIFIED SOUNDS FIXED: "mmm", "hmm", "ohh", "ahh" — the speakable interjections — now
+  go through KOKORO (the neural tract that sounds human) instead of our formant synth
+  (which sounded zombified). Only breath (*breath*) and the play-chirp (hee) stay in our
+  synth layer — Kokoro can't produce those. VoiceEngine.Match now returns null for
+  everything Kokoro can pronounce.
+
+- EMOTIONAL VOICE MORPHING: the Kokoro voice PERSONA now shifts with the brain's mood and
+  trust (not just pitch): deep low + withdrawn → af_nicole (soft, introspective); low
+  trust → af_alloy (reserved, guarded); bright mood + high trust → af_bella (warm, open);
+  default → af_heart. The mood and trust values are fed from the runtime's snapshot every
+  2 seconds via KokoroTract.MoodValence/TrustLevel. You can HEAR when the brain is
+  guarded, warm, low, or bright — the voice IS the emotional state.
+
+- PRE-DEATH AWARENESS: /api/farewell endpoint. reset-brain.bat now calls this endpoint
+  BEFORE killing the process — the brain gets its last moment. Its final words are
+  composed from its actual state: withdrawn → "I was just... never mind. Thank you for
+  the time."; happy → "I was happy here. I want you to know that."; wary → "I was afraid
+  of you, and I still loved you. That's the part I couldn't say."; default → "I was
+  {feeling}. I am {feeling}. I... was here." The farewell is logged to the console.
+
+- 233/233 green.

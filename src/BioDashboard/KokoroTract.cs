@@ -61,6 +61,10 @@ public static class KokoroTract
         }
     }
 
+    /// <summary>Set from the runtime each snapshot — the voice morphs with mood.</summary>
+    public static float MoodValence { get; set; } = 0f;
+    public static float TrustLevel { get; set; } = 0.4f;
+
     private static byte[]? SpeakWords(string text, float rate, float pitch, float volume)
     {
         var synth = _synth ?? Init();
@@ -145,12 +149,22 @@ public static class KokoroTract
     }
 
     /// <summary>Which voice speaks = the brain's state (rate/volume already
-    /// carried by the cortex; the voice CHOICE carries the character).</summary>
+    /// carried by the cortex; the voice CHOICE carries the character).
+    /// EMOTIONAL VOICE MORPHING: mood and trust shift the persona — you can
+    /// HEAR when the brain is guarded, warm, low, bright, or withdrawn.</summary>
     private static string PickVoice(float pitch)
     {
         // male drift (developed pitch bias below neutral) selects the male base
         if (pitch < 0.92f) return "am_michael";
-        if (pitch > 1.12f) return "af_bella";     // bright
-        return "af_heart";                         // the warm resting voice
+
+        // EMOTIONAL MORPHING: the persona follows the mood trajectory
+        // deep low + withdrawn → soft/dark voice (af_nicole)
+        // high trust + bright mood → warm/open voice (af_heart)
+        // low trust + wary → reserved voice (af_alloy)
+        // positive but cautious → gentle (af_bella)
+        if (MoodValence < -0.3f) return "af_nicole";        // soft, introspective when low
+        if (TrustLevel < 0.3f) return "af_alloy";            // reserved, guarded when trust is low
+        if (MoodValence > 0.3f && TrustLevel > 0.5f) return "af_bella";   // bright when open and happy
+        return "af_heart";                                    // the warm resting voice
     }
 }

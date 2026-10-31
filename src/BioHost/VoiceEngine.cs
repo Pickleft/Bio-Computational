@@ -118,13 +118,13 @@ public sealed class VoiceEngine
     /// <summary>Map an interjection token to a vocalization (null = not ours).</summary>
     public static Vocal? Match(string token) => token.ToLowerInvariant() switch
     {
-        "mmm" or "mm" or "hmm" or "hm" or "m" => Vocal.Hum,
-        "hmm?" or "hm?" or "hmph" => Vocal.HmmQuestion,
-        "ahh" or "ah" => Vocal.Ahh,
-        "ohh" or "oh" or "ooh" => Vocal.Ohh,
-        "hee" or "hee-hee" or "hoo" or "hehe" => Vocal.Hee,
-        "*breath*" or "..." => Vocal.Breath,
-        _ => null,
+        // ONLY breath and the play-chirp stay in our synth — Kokoro can't do
+        // these. Everything else (mmm, hmm, ohh, ahh) is SPEAKABLE and goes
+        // through Kokoro, which sounds human. Our formant layer sounded
+        // zombified for these.
+        "*breath*" => Vocal.Breath,
+        "hee" => Vocal.Hee,
+        _ => null,   // mmm, hmm, ohh, ahh, hmph → Kokoro word tract
     };
 
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;

@@ -1170,10 +1170,13 @@ public class VoiceEngineTests
     [Fact]
     public void Interjections_MatchToVocalizations()
     {
-        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hum, BioComp.Host.VoiceEngine.Match("mmm"));
-        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hum, BioComp.Host.VoiceEngine.Match("MM"));
-        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Ahh, BioComp.Host.VoiceEngine.Match("ahh"));
+        // speakable interjections go to Kokoro (null = word tract) — only
+        // breath and chirp stay in our formant layer
+        Assert.Null(BioComp.Host.VoiceEngine.Match("mmm"));      // Kokoro handles these
+        Assert.Null(BioComp.Host.VoiceEngine.Match("ahh"));
         Assert.Null(BioComp.Host.VoiceEngine.Match("hello"));
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Breath, BioComp.Host.VoiceEngine.Match("*breath*"));
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hee, BioComp.Host.VoiceEngine.Match("hee"));
     }
 
     [Fact]

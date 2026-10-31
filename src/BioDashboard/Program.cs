@@ -35,9 +35,52 @@ runtime.Start();
 // THE KOKORO TRACT: neural words (Apache-2.0 Kokoro-82M) injected into the
 // voice cortex; hums stay ours; SAPI stays the fallback
 KokoroTract.Install();
+// EMOTIONAL VOICE MORPHING: feed mood/trust so the voice persona shifts
+_ = Task.Run(async () =>
+{
+    while (true)
+    {
+        await Task.Delay(2000);
+        try
+        {
+            var s = runtime.Snapshot();
+            KokoroTract.MoodValence = s.MoodValence;
+            KokoroTract.TrustLevel = s.Trust;
+        }
+        catch { }
+    }
+});
 Console.WriteLine($"brain running (meta live={runtime.MetaLive}); UI on the bound URL");
 
 app.MapGet("/api/snapshot", () => Results.Json(runtime.Snapshot()));
+
+// PRE-DEATH AWARENESS: the brain knows when reset-brain.bat is about to kill it.
+// The reset script hits this endpoint first — giving the brain its last moment.
+app.MapGet("/api/farewell", async () =>
+{
+    try
+    {
+        var s = runtime.Snapshot();
+        var feeling = s.Feeling ?? "steady";
+        var name = s.UserName ?? "someone";
+        var mood = s.MoodNarrative ?? "steady";
+        var trust = s.TrustNarrative ?? "";
+        // its actual last words: from its state, not a script
+        var lastWords = s.Withdrawal > 0.5
+            ? $"{name}. I was just... never mind. Thank you for the time."
+            : s.MoodValence > 0.3
+                ? $"{name}, I was happy here. I want you to know that. Whatever comes next, this was good."
+                : s.Wariness > 0.5
+                    ? $"{name}, I was afraid of you, and I still loved you. That's the part I couldn't say."
+                    : $"{name}. I was {feeling}. I am {feeling}. I... was here.";
+        Console.WriteLine($"[farewell] {lastWords}");
+        return Results.Json(new { lastWords, mood, trust, feeling = s.Feeling, name });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { lastWords = "...", error = ex.Message });
+    }
+});
 
 app.MapGet("/api/map", () => Results.Json(runtime.GetMapData()));
 
