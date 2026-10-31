@@ -1589,3 +1589,26 @@ public class TimingRemarkTests
         Assert.Contains("longer", late!);
     }
 }
+
+// ---- presence trumps the cue: no "waiting for you" while you're here ----
+public class PresenceTrumpsHopeTests
+{
+    [Fact]
+    public void HopeDoesNotBuild_WhileThePersonIsHere()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 401));
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net);
+        rhythm.Tick(net);
+        var a = new Anticipation();
+        // the expected hour, but they were JUST HERE (10s ago)
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: net.TimeMs - 10_000f);
+        Assert.True(a.Level < 0.1f, "hope must not build while the person is present - they are not 'waited for'");
+        // and it must NOT crash while present either
+        Assert.False(a.JustCrashed);
+        // once they are truly gone, the waiting begins
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.4f, "absent during the expected hour: the hope rises");
+    }
+}

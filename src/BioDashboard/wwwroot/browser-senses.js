@@ -190,8 +190,12 @@ function startTranscription() {
   const int = document.getElementById("live-interim");
   const dot = document.getElementById("live-dot");
 
-  // STATUS: make it IMPOSSIBLE to not know what's happening
+  // STATUS: make it IMPOSSIBLE to not know what's happening — but also
+  // IMPOSSIBLE to flicker: identical consecutive states touch nothing
+  let lastStatusText = "";
   const setStatus = (msg, color) => {
+    if (msg === lastStatusText) return;
+    lastStatusText = msg;
     if (fin) { fin.textContent = msg; fin.style.color = color || "#8fa3ba"; }
     console.log("[transcription]", msg);
   };
@@ -228,35 +232,47 @@ function startTranscription() {
     // INTERIM: show live words as you speak (gray, italic, smaller)
     if (int && interim) { int.textContent = interim; int.style.color = "#3ddbb8"; int.style.fontSize = "15px"; }
   };
-  rec.onstart = () => {
-    setStatus("LISTENING - speak now", "#3ddbb8");
-    if (dot) { dot.classList.add("on"); dot.style.color = "#3ddbb8"; }
-  };
   let lastErrorTime = 0;
+  let lastErrorText = "";
   rec.onerror = (e) => {
     const err = e.error;
-    console.error("[senses] SpeechRecognition error:", err);
-    if (err === "no-speech") return; // normal pause, not an error
+    // no-speech and aborted are the normal heartbeat of continuous
+    // recognition, not errors — showing them is the flicker
+    if (err === "no-speech" || err === "aborted") return;
 
-    // Don't overwrite errors too fast — keep each one visible for 5 seconds
+    // Don't overwrite errors too fast — keep each one visible for 5 seconds,
+    // and don't re-show the SAME error repeatedly (network blips spam)
     const now = Date.now();
-    if (now - lastErrorTime < 5000 && fin && fin.dataset.persisting === "1") return;
-    lastErrorTime = now;
-    if (fin) fin.dataset.persisting = "1";
-
-    const hints = {
+    const hint = ({
       "network": "\u26A0 VOICE RECOGNITION OFFLINE - server transcription is still working, just slower. Try Chrome on PC for instant voice.",
       "not-allowed": "\u26A0 MIC BLOCKED - click the lock icon in the address bar, allow microphone, then reload",
       "audio-capture": "\u26A0 NO MIC FOUND - check microphone connection",
       "service-not-allowed": "\u26A0 VOICE SERVICE BLOCKED - try Chrome on PC",
-    };
-    setStatus(hints[err] || "(voice error: " + err + ")", "#f07080");
+    })[err] || "(voice error: " + err + ")";
+    if (now - lastErrorTime < 8000 && hint === lastErrorText) return;
+    lastErrorTime = now;
+    lastErrorText = hint;
+    if (fin) fin.dataset.persisting = "1";
+    setStatus(hint, "#f07080");
     if (dot) { dot.style.color = "#f07080"; dot.classList.remove("on"); }
     setTimeout(() => { if (fin) fin.dataset.persisting = "0"; }, 5000);
   };
+  // RESTART WITH BACKOFF: instant restarts race the engine (start throws
+  // "already started" → error → end → start...) which reads as flicker
+  let restartDelay = 400;
   rec.onend = () => {
-    console.log("[senses] SpeechRecognition ended, restarting...");
-    if (senseActive && rec) { try { rec.start(); } catch {} }
+    if (!senseActive || !rec) return;
+    const delay = restartDelay;
+    restartDelay = Math.min(restartDelay * 2, 4000);
+    setTimeout(() => {
+      if (!senseActive || !rec) return;
+      try { rec.start(); } catch { /* already starting: the next onend retries */ }
+    }, delay);
+  };
+  rec.onstart = () => {
+    restartDelay = 400;   // healthy start resets the backoff
+    setStatus("LISTENING - speak now", "#3ddbb8");
+    if (dot) { dot.classList.add("on"); dot.style.color = "#3ddbb8"; }
   };
   try {
     rec.start();

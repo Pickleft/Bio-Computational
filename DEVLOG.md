@@ -730,3 +730,28 @@ Second read-only rescan (18 fresh findings). Closed:
 - PERSISTENCE: SharesMade/RemarksMade ride CognitionJson with Restore() on both classes -
   its history of self-disclosure and noticing survives restarts.
 - Test: the timing remark fires on real early (0.4x) and late (2.2x) gaps. 209/209 green.
+
+## 2026-10-31 (presence round) - "am I gone while I'm right here?" + flicker + slider
+
+- ROOT CAUSE of the mid-conversation "waiting for you...": Anticipation's hope RISES during
+  the expected hour REGARDLESS of presence - so while you sat there talking, the level
+  climbed past 0.5 and the avatar captioned "waiting for you". FIXED: presence trumps the
+  cue - someoneRecent is checked FIRST (savoring/decay, never buildup, never crash while
+  present); hope only builds when there is actually no one. Unit-tested (hope stays < 0.1
+  with contact 10s ago; rises when truly absent).
+- The voice path was verified fully wired (clips -> ProcessVisitor -> bonds/longing/
+  rhythm/presence + 2-min presence extension), and the "messages vanish" scare during
+  E2E was diagnosed as a STALE BINARY from running dotnet test (Debug) and dotnet run
+  (Release) CONCURRENTLY - clean rebuild confirmed chat flows. Operational rule: never
+  run the suite and the dashboard in the same command.
+- MIC/SENSES TAB FLICKER fixed in browser-senses.js: no-speech AND aborted are the normal
+  heartbeat of continuous recognition (not errors - showing them was the flicker); the
+  same error text is deduped for 8s; restarts use exponential backoff (400ms -> 4s cap,
+  reset on healthy start) instead of instant restarts that race the engine; setStatus is
+  a no-op on identical consecutive text (no DOM churn).
+- CONVERSATION SLIDER: the chat panel is hard-capped (height 300px, max-height 42vh,
+  min 140px, flex 0 1 auto) so it can never push the page around, with a visible
+  grabbable gradient scrollbar (webkit + firefox thin), autoscroll pinned to bottom -
+  live-verified: scrollable engages, stays at the newest message.
+- Ambient noticing fired live during E2E ("Bright now." from the mock camera step).
+  210/210 green.
