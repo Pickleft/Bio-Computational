@@ -28,6 +28,14 @@ public sealed class ForgottenGrief
     /// <summary>How often the mind reaches for what is gone (ms between attempts). // CALIBRATE</summary>
     public float ReachIntervalMs { get; set; } = 120_000f;
     public int Reaches { get; private set; }
+    /// <summary>Restore the losses after a restart: it must remember THAT it
+    /// forgot, or the resection silently heals (the gap must remain).</summary>
+    public void Restore(string[] tags, int reaches, float forgottenAtMs)
+    {
+        foreach (var t in tags) if (t.Length > 0) _tags.Add(t);
+        Reaches = reaches;
+        if (_tags.Count > 0) _bornAtMs = forgottenAtMs;
+    }
 
     public void Forget(string tag, float nowMs)
     {

@@ -1451,3 +1451,67 @@ public class CompositeDreamTests
         Assert.Equal((a!.Id, b!.Id), (pair!.Value.A.Id, pair.Value.B.Id));
     }
 }
+
+// ---- rescan round: cumulative awe, question expiry, sparsity boredom ----
+public class RescanFixTests
+{
+    [Fact]
+    public void AweBoost_IsCumulative_SurvivesRecompute()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 311));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        for (int i = 0; i < 100; i++) net.Tick();
+        var g = new EmotionalGranularity();
+        g.Update(net, idle, 0, 0, aweStruck: false);
+        float base0 = g.Level;
+        // one awe strike...
+        g.Update(net, idle, 0, 0, aweStruck: true);
+        float after1 = g.Level;
+        // ...and MANY updates later, the boost must STILL be there (the old
+        // bug recomputed it away one update later)
+        for (int i = 0; i < 50; i++) g.Update(net, idle, 0, 0, aweStruck: false);
+        Assert.True(g.Level >= after1 - 1e-4f, "awe's accommodation is permanent, not a blip");
+        Assert.True(g.AccumulatedBoost > 0f);
+        // restored across restarts
+        var g2 = new EmotionalGranularity();
+        g2.Restore(g.AccumulatedBoost);
+        g2.Update(net, idle, 0, 0, aweStruck: false);
+        Assert.True(g2.Level > base0, "maturity survives the restart");
+    }
+
+    [Fact]
+    public void UnansweredQuestion_Expires_NotStalls()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 313));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var c = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(c, 0.2f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1, CooldownMs = 1_000f };
+        Assert.NotNull(q.MaybeAsk(net, store, c, 1f, 2, () => 0.0));
+        Assert.NotNull(q.PendingWord);
+        // 3 simulated minutes of silence pass
+        for (int i = 0; i < 180_000; i++) net.Tick();
+        // the pending expired: it can ask AGAIN (not stalled forever)
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["thunder", "weather"], 0.1f, minMeanRateHz: 0f);
+        string? second = q.MaybeAsk(net, store, c, 1f, 2, () => 0.0);
+        Assert.NotNull(second);   // curiosity recovered from the silence
+    }
+
+    [Fact]
+    public void SparseLife_IsBoring_EvenWhenPlateaued()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 317));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        var needs = new NeedsHierarchy { EventDensityPerMin = 0.1f };  // eventless room
+        // learning progress plateaued at 0: the OLD dead band never fired here
+        var curiosity = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(curiosity, 0f);
+        needs.Evaluate(net, idle, new LonelinessTracker(), curiosity, new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        Assert.Equal(NeedsHierarchy.NeedType.Stimulation, needs.MostPressing!.Type);
+    }
+}

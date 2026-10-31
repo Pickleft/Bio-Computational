@@ -39,6 +39,12 @@ public sealed class ResilienceEngine
     public int AdversitiesUnprocessed => Adversities - AdversitiesProcessed;
     /// <summary>Current growth level: positive = post-traumatic growth, negative = sensitization.</summary>
     public float GrowthLevel { get; private set; }
+    /// <summary>Restore growth history after a restart.</summary>
+    public void Restore(float growthLevel, int adversitiesProcessed, int adversities)
+    {
+        GrowthLevel = Math.Clamp(growthLevel, -1f, 2f);
+        AdversitiesProcessed = adversitiesProcessed; Adversities = adversities;
+    }
     /// <summary>Log of every adversity and its outcome.</summary>
     public readonly List<(float TimeMs, string Description, bool WasProcessed)> AdversityLog = [];
 

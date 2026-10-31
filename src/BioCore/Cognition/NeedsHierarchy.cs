@@ -71,6 +71,9 @@ public sealed class NeedsHierarchy
     public float WarinessInput { get; set; }
     /// <summary>Helplessness (true) — the Company need stays, but it stops ASKING.</summary>
     public bool HelplessInput { get; set; }
+    /// <summary>Lived-event density (events per minute, from FeltTime): stagnation
+    /// is boredom even when the predictor is merely plateaued, not degrading.</summary>
+    public float EventDensityPerMin { get; set; }
 
     /// <summary>
     /// Evaluate the current hierarchy from all the brain's internal systems.
@@ -121,10 +124,16 @@ public sealed class NeedsHierarchy
                 $"loneliness is {lonelinessLevel:F1} and the silence has weight",
                 HelplessInput ? "" : "need someone here — the quiet is too much"));
 
-        // STIMULATION: boredom / novelty starvation
-        if (novelty < 0.2f && sleepPressure < 0.4f)
-            candidates.Add(new Need(NeedType.Stimulation, 0.5f - novelty,
-                "the world has become predictable and the mind is starving for something new",
+        // STIMULATION: boredom / novelty starvation. Two honest routes: the
+        // predictor DEGRADING (novelty term) and lived-time SPARSITY (a
+        // plateaued brain in an eventless room is still bored — the felt-time
+        // density, not just the learning curve, says so)
+        bool sparseLife = EventDensityPerMin < 0.5f && sleepPressure < 0.4f;
+        if ((novelty < 0.2f || sparseLife) && sleepPressure < 0.4f)
+            candidates.Add(new Need(NeedType.Stimulation, MathF.Max(0.5f - novelty, sparseLife ? 0.55f : 0f),
+                sparseLife && novelty >= 0.2f
+                    ? "nothing is happening — the minutes are empty and the mind is starving"
+                    : "the world has become predictable and the mind is starving for something new",
                 "need something interesting — my curiosity is hungry"));
 
         // RESOLUTION: unresolved thoughts

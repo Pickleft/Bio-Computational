@@ -119,10 +119,10 @@ public sealed class VoiceEngine
     public static Vocal? Match(string token) => token.ToLowerInvariant() switch
     {
         "mmm" or "mm" or "hmm" or "hm" or "m" => Vocal.Hum,
-        "hmm?" or "hm?" => Vocal.HmmQuestion,
+        "hmm?" or "hm?" or "hmph" => Vocal.HmmQuestion,
         "ahh" or "ah" => Vocal.Ahh,
         "ohh" or "oh" or "ooh" => Vocal.Ohh,
-        "hee" or "hee-hee" => Vocal.Hee,
+        "hee" or "hee-hee" or "hoo" or "hehe" => Vocal.Hee,
         "*breath*" or "..." => Vocal.Breath,
         _ => null,
     };

@@ -34,6 +34,8 @@ public sealed class DejaVu
     public float CooldownMs { get; set; } = 300_000f;
 
     public int Count { get; private set; }
+    /// <summary>Restore the familiarity count after a restart.</summary>
+    public void Restore(int count) => Count = count;
     public float LastAtMs { get; private set; } = -1e9f;
     public string? LastDescription { get; private set; }
 

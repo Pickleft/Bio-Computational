@@ -40,14 +40,21 @@ public sealed class FeltTime
     {
         Trim(nowMs);
         if (_events.Count == 0) return 1.4f;         // an empty window drags
-        float density = _events.Count / MathF.Max(1f, WindowMs / 60_000f); // events per felt-minute
         float meanValence = 0f;
         foreach (var e in _events) meanValence += e.Valence;
         meanValence /= _events.Count;
 
         // dense + positive -> compression; dense + negative -> dilation; sparse -> drag
-        float densityTerm = density < 1f ? 0.35f : meanValence > 0.1f ? -0.25f : 0.30f;
+        float densityTerm = DensityPerMin(nowMs) < 1f ? 0.35f : meanValence > 0.1f ? -0.25f : 0.30f;
         return Math.Clamp(1f + densityTerm + 0.1f * -meanValence, 0.6f, 2.0f);
+    }
+
+    /// <summary>Lived events per minute in the window (feeds the Stimulation
+    /// need: a plateaued brain in an eventless room is still bored).</summary>
+    public float DensityPerMin(float nowMs)
+    {
+        Trim(nowMs);
+        return _events.Count / MathF.Max(1f, WindowMs / 60_000f);
     }
 
     /// <summary>For diary/prompt: the recent past in felt-size words.</summary>

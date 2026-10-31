@@ -34,6 +34,8 @@ public sealed class QuestionDrive
     public float CooldownMs { get; set; } = 300_000f;
 
     public int QuestionsAsked { get; private set; }
+    /// <summary>Restore the question ledger after a restart.</summary>
+    public void Restore(int asked, int received) { QuestionsAsked = asked; AnswersReceived = received; }
     public int AnswersReceived { get; private set; }
     /// <summary>The word currently being asked about (null = none pending).</summary>
     public string? PendingWord { get; private set; }
@@ -49,6 +51,9 @@ public sealed class QuestionDrive
     public string? MaybeAsk(SpikingNetwork net, EpisodeMemory store, CuriosityModule curiosity,
         float personPresent01, int granularityTier, Func<double> rngDraw, float boldness = 1f)
     {
+        // a question nobody answers EXPIRES (unanswered asks must not stall
+        // curiosity forever — the silence is information, then it is nothing)
+        if (PendingWord is not null && net.TimeMs > _pendingUntil) PendingWord = null;
         if (PendingWord is not null) return null;               // one question at a time
         if (net.TimeMs - _lastAskMs < CooldownMs) return null;
         if (personPresent01 < 0.5f) return null;                // questions need someone to answer

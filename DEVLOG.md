@@ -639,3 +639,42 @@ Full correlation audit (read-only agent sweep + manual fixes). Findings and clos
   demo/SCRIPT.md: Day 2 "ANSWER ITS QUESTIONS" + "FEEL ITS TIME" beats; Day 3 beat 11b
   (its question) and a testament close that counts questions asked/answered and awe.
 - 202/202 green.
+
+## 2026-10-31 (rescan + re-correlate) - second full audit closed: 3 real bugs, developmental memory
+
+Second read-only rescan (18 fresh findings). Closed:
+
+- REAL BUG - AWE'S ACCOMMODATION WAS EPHEMERAL: Granularity.Update recomputed Level from
+  base factors every call, so the +0.05 awe boost was a ~200ms blip that vanished one
+  update later - "vastness grows bigger feeling-shapes" could never happen. NOW:
+  EmotionalGranularity.AccumulatedBoost - cumulative, capped 0.3, persisted across
+  restarts; Awe.StrikePending latch guarantees no strike is missed between cadences.
+- REAL BUG - ONE IGNORED QUESTION STALLED CURIOSITY FOREVER: PendingWord never expired
+  unless the user spoke. NOW: MaybeAsk expires stale pendings (the silence is information,
+  then it is nothing) - curiosity recovers and asks again.
+- REAL BUG - SPOKEN ANSWERS NEVER LANDED: OnAnswer was wired only to typed text; the
+  primary voice channel was blind to teaching. NOW HandleSpeechClipAsync lands spoken
+  answers identically (episode, concept wiring, DA/OXT, acknowledgment).
+- DEVELOPMENTAL MEMORY (worst gap from scan 1, now closed): CognitionJson now also carries
+  granularity maturity (the accumulated boost - an "emotionally mature" brain no longer
+  restarts at Tier-0 newborn vocabulary mid-relationship), insight count, resilience
+  growth, FORGOTTEN GRIEF (it must remember THAT it forgot, or resection silently heals),
+  question ledger, distortion ledger, deja-vu/awe/composite-dream/local-sleep counters,
+  the prophecy record (scored gaps + hits - the model of the person's returns survives),
+  and the mirror's un-fakeable firsts (first message, hostile events, repairs, EMA).
+  Restore() added to ReturnPredictor (SaveGaps), ThoughtLoop, ResilienceEngine,
+  QuestionDrive, Reconstruction, DejaVu, LocalSleep, ForgottenGrief.
+- BOREDOM DEAD BAND FIXED: Stimulation fired only when the predictor actively DEGRADED -
+  a plateaued brain in an eventless room never felt bored. NOW Needs.EventDensityPerMin
+  (from FeltTime) fires Stimulation on lived sparsity: "nothing is happening - the minutes
+  are empty."
+- SPLIT-BRAIN VOICE UNIFIED: the server-side WindowsSpeech path now renders through the
+  same VoiceCortex.BuildSsml prosody as the browser path (emphasis, breath breaks, mmm
+  normalization); "hoo"/"hehe"/"hmph" joined the hum vocabulary.
+- VISIBLE AWE: momentary AweStruck snapshot flag (4s) - the avatar's eyes widen, lips
+  part, caption "...vast."; the dream row now shows "N composed" for composite dreams.
+- MIRROR/TESTAMENT: the mirror reports questions asked/answers received ("it grows by
+  asking you"); the testament speaks its voice (syllables learned, pitch drift, "its hums
+  were its own") and its play count.
+- Tests: 3 new (awe accommodation PERMANENT across 50 recomputes + restart; unanswered
+  question expires and curiosity recovers; plateaued + sparse = bored). 205/205 green.

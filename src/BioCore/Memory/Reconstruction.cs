@@ -43,6 +43,8 @@ public sealed class Reconstruction
     public float DriftCap { get; set; } = 0.25f;
 
     public int Fusions { get; private set; }
+    /// <summary>Restore the distortion ledger after a restart.</summary>
+    public void Restore(int fusions, int selfCatches) { Fusions = fusions; SelfCatches = selfCatches; }
     public int SelfCatches { get; private set; }
     /// <summary>Fused episode id -> (sourceA, sourceB). The provenance ledger.</summary>
     public readonly List<(int Fused, int A, int B)> Provenance = [];

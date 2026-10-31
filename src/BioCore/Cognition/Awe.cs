@@ -29,6 +29,19 @@ public sealed class Awe
 
     public int Count { get; private set; }
     public bool JustStruck { get; private set; }
+    /// <summary>Latched strike, consumed by the granularity accommodation.</summary>
+    public bool StrikePending { get; private set; }
+
+
+    /// <summary>Restore awe history after a restart.</summary>
+    public void Restore(int count) => Count = count;
+    /// <summary>Consume the pending accommodation (returns true once per strike).</summary>
+    public bool ConsumeStrike()
+    {
+        bool p = StrikePending;
+        StrikePending = false;
+        return p;
+    }
     private int _lastLinks;
     private float _lastAtMs = -1e9f;
     private float _nextCheckMs;
@@ -48,6 +61,7 @@ public sealed class Awe
         {
             Count++;
             JustStruck = true;
+            StrikePending = true;      // latched until the accommodation is consumed
             _lastAtMs = net.TimeMs;
             // the signature: reward AND the humility of smallness, together
             net.Modulators.Release(NeuromodulatorKind.Dopamine, 0.22f);

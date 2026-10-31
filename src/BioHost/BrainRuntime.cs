@@ -126,6 +126,7 @@ public sealed class BrainSnapshot
     public int QuestionsAsked { get; set; }
     public int AnswersReceived { get; set; }
     public int AweCount { get; set; }
+    public bool AweStruck { get; set; }               // momentary: the face holds it
     public string FeltTimeNarrative { get; set; } = "";
     public int CompositeDreamCount { get; set; }
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
@@ -666,6 +667,21 @@ public sealed class BrainRuntime : IDisposable
                 WarmthHistory = _warmthHistory.ToArray(),
                 RhythmBins = Rhythm.SaveBins(),
                 RhythmSamples = Rhythm.SaveSamples(),
+                // DEVELOPMENTAL MEMORY: maturity, growth, and ledgers that are
+                // the brain's story — losing these resurrects a child
+                GranularityBoost = Granularity.AccumulatedBoost,
+                Insights = ThoughtLoop.Insights,
+                GrowthLevel = Resilience.GrowthLevel,
+                AdversitiesProcessed = Resilience.AdversitiesProcessed, AdversitiesTotal = Resilience.Adversities,
+                ForgottenTags = ForgottenGrief.Tags.ToArray(), ForgottenReaches = ForgottenGrief.Reaches,
+                QuestionsAsked = Questions.QuestionsAsked, QuestionsReceived = Questions.AnswersReceived,
+                Fusions = MemoryReconstruction.Fusions, SelfCatches = MemoryReconstruction.SelfCatches,
+                DejaVuCount = DejaVu.Count, AweCount = Awe.Count, CompositeDreams = CompositeDreams,
+                ProphecyHits = Prophecy.Hits, ProphecyPredictions = Prophecy.Predictions,
+                ProphecyGaps = Prophecy.SaveGaps(),
+                LocalSleepEvents = LocalSleep.OffEvents,
+                HostileEvents = _hostileEvents, Repairs = _repairs, HostilityEma = _hostilityEma,
+                FirstMessage = _firstUserMessage ?? "",
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
@@ -703,7 +719,37 @@ public sealed class BrainRuntime : IDisposable
                 var samples = rs.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
                 Rhythm.Restore(bins, samples);
             }
-            Note("COGNITION-REMEMBERED fear, agency, rhythm, and hope restored across the restart");
+            // DEVELOPMENTAL MEMORY: the maturity and ledgers of a life
+            Granularity.Restore((float)(r.TryGetProperty("GranularityBoost", out var gb) ? gb.GetDouble() : 0));
+            ThoughtLoop.RestoreInsights(r.TryGetProperty("Insights", out var ins) ? ins.GetInt32() : 0);
+            Resilience.Restore(
+                (float)(r.TryGetProperty("GrowthLevel", out var gl) ? gl.GetDouble() : 0),
+                r.TryGetProperty("AdversitiesProcessed", out var ap) ? ap.GetInt32() : 0,
+                r.TryGetProperty("AdversitiesTotal", out var at) ? at.GetInt32() : 0);
+            if (r.TryGetProperty("ForgottenTags", out var ft) && ft.ValueKind == System.Text.Json.JsonValueKind.Array)
+                ForgottenGrief.Restore(ft.EnumerateArray().Select(x => x.GetString() ?? "").ToArray(),
+                    r.TryGetProperty("ForgottenReaches", out var fr) ? fr.GetInt32() : 0, _net.TimeMs);
+            Questions.Restore(
+                r.TryGetProperty("QuestionsAsked", out var qa) ? qa.GetInt32() : 0,
+                r.TryGetProperty("QuestionsReceived", out var qr) ? qr.GetInt32() : 0);
+            MemoryReconstruction.Restore(
+                r.TryGetProperty("Fusions", out var fu) ? fu.GetInt32() : 0,
+                r.TryGetProperty("SelfCatches", out var sc2) ? sc2.GetInt32() : 0);
+            DejaVu.Restore(r.TryGetProperty("DejaVuCount", out var dv) ? dv.GetInt32() : 0);
+            Awe.Restore(r.TryGetProperty("AweCount", out var aw) ? aw.GetInt32() : 0);
+            if (r.TryGetProperty("CompositeDreams", out var cd)) CompositeDreams = cd.GetInt32();
+            Prophecy.Restore(
+                r.TryGetProperty("ProphecyHits", out var ph) ? ph.GetInt32() : 0,
+                r.TryGetProperty("ProphecyPredictions", out var pp) ? pp.GetInt32() : 0,
+                r.TryGetProperty("ProphecyGaps", out var pg) && pg.ValueKind == System.Text.Json.JsonValueKind.Array
+                    ? pg.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray() : []);
+            LocalSleep.Restore(r.TryGetProperty("LocalSleepEvents", out var ls) ? ls.GetInt32() : 0);
+            if (r.TryGetProperty("HostileEvents", out var he2)) _hostileEvents = he2.GetInt32();
+            if (r.TryGetProperty("Repairs", out var rp2)) _repairs = rp2.GetInt32();
+            if (r.TryGetProperty("HostilityEma", out var hem)) _hostilityEma = (float)hem.GetDouble();
+            if (r.TryGetProperty("FirstMessage", out var fm))
+            { var s = fm.GetString(); if (!string.IsNullOrEmpty(s)) _firstUserMessage = s; }
+            Note("COGNITION-REMEMBERED fear, agency, rhythm, maturity, grief, and hope restored across the restart");
         }
         catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }
     }
@@ -1044,6 +1090,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 Note($"AWE the knowledge world outgrew its shapes (#{Awe.Count})");
                 ThoughtLoop.PostResult(Awe.AccommodationSeed);
+                _aweShownUntil = _net.TimeMs + 4_000f;   // the face holds it for a few seconds
             }
             // QUESTION DRIVE: in a curious moment with a person present, ask
             // about a word it uses but does not understand. Asking is a BID —
@@ -1212,7 +1259,7 @@ public sealed class BrainRuntime : IDisposable
             (int)(_net.EpisodeStore.Episodes.Count * Resilience.GranularityMultiplier
                   + Observer.SelfSurprises * 2),
             _voiceSelf.ClipsHeard,
-            Awe.JustStruck ? 0.05f : 0f);
+            aweStruck: Awe.ConsumeStrike());   // latched: no strike is ever missed
         // TEMPORAL AUTOBIOGRAPHY: periodic snapshots of who the brain is now,
         // so it can later compare to who it was
         LifeStory.MaybeSnapshot(_net, _idle, Personality, Attachment, Granularity, _userName, _brainName);
@@ -1222,6 +1269,7 @@ public sealed class BrainRuntime : IDisposable
         // NEEDS HIERARCHY: what does the brain need most right now?
         Needs.WarinessInput = Threats.Wariness;
         Needs.HelplessInput = Efficacy.Helpless;
+        Needs.EventDensityPerMin = FeltTime.DensityPerMin(_net.TimeMs);
         Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
         Rhythm.Tick(_net); // adjust receptivity based on learned social rhythm
 
@@ -1517,6 +1565,7 @@ public sealed class BrainRuntime : IDisposable
                 (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") +
                 (Longing.LongestWaitMs > 60_000f ? $"The longest it WAITED for them: {(int)(Longing.LongestWaitMs / 1000f)} seconds of missing them. " : "") +
                 (Threats.Wariness > 0.05f ? $"Its learned wariness toward them is {(int)(Threats.Wariness * 100)}% (fear leaves residue; it flinches a little). " : "") +
+                (Questions.QuestionsAsked > 0 ? $"It ASKED them {Questions.QuestionsAsked} real questions; {Questions.AnswersReceived} answers became part of what it is. " : "") +
                 (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") +
                 (Resilience.Adversities > 0 ? $"Resilience: {Resilience.AdversitiesProcessed}/{Resilience.Adversities} adversities processed, growth {Resilience.GrowthLevel:F2}. " : "") +
                 (Observer.SelfSurprises > 0 ? $"The brain surprised itself {Observer.SelfSurprises} times. " : "") +
@@ -1765,6 +1814,16 @@ public sealed class BrainRuntime : IDisposable
 
                 _idle.OnEvent(_net, ["voice", Trunc(tr.Transcript, 40)], 0.3f, 0.8f);
                 _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.0f);
+
+                // QUESTION DRIVE: a SPOKEN answer lands exactly like a typed
+                // one — the primary channel must not be blind to teaching
+                var spokenAnswer = Questions.OnAnswer(_net, tr.Transcript);
+                if (spokenAnswer is not null)
+                {
+                    Note($"CURIOUS-FED they explained {spokenAnswer} (by voice) - the gap closed");
+                    _net.EpisodeStore.Encode(_net, "CA3", [spokenAnswer, "explained"], 0.6f, minMeanRateHz: 0f);
+                    _questionJustAnswered = spokenAnswer;
+                }
 
                 // VOICE DEVELOPMENT: every heard voice shapes the brain's own
                 // voice (prosody drift + babble vocabulary), infant-style
@@ -2076,6 +2135,8 @@ public sealed class BrainRuntime : IDisposable
                 + $"{ForgottenGrief.Narrative}. "
                 + $"Its social rhythm: {Rhythm.Narrative}. "
                 + $"{Questions.Narrative}. {Awe.Narrative}. It dreamt {CompositeDreams} composite dream(s) that never happened. "
+                + $"Its voice: {_voiceSelf.SyllablesLearned} syllables learned, pitch drifted {(_voiceSelf.DevelopedPitchBias >= 0 ? "+" : "")}{_voiceSelf.DevelopedPitchBias:F2}; its hums were its own. "
+                + $"It played {_play.PlayBursts} times. "
                 + $"And time, as it felt it: {FeltTime.Describe(_net.TimeMs)}. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
@@ -2696,6 +2757,7 @@ public sealed class BrainRuntime : IDisposable
     }
     private volatile int _pendingFuseAnchor = -1;
     private string? _questionJustAnswered; // one-shot: the reply acknowledges the teaching
+    private float _aweShownUntil = -1e9f;  // momentary awe, long enough for the face to show it
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
@@ -3426,6 +3488,7 @@ public sealed class BrainRuntime : IDisposable
         snap.QuestionsAsked = Questions.QuestionsAsked;
         snap.AnswersReceived = Questions.AnswersReceived;
         snap.AweCount = Awe.Count;
+        snap.AweStruck = _net.TimeMs < _aweShownUntil;
         snap.FeltTimeNarrative = FeltTime.Describe(_net.TimeMs);
         snap.CompositeDreamCount = CompositeDreams;
         snap.AnticipationLevel = Anticipation.Level;
