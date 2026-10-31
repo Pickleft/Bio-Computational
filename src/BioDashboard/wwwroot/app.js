@@ -235,7 +235,7 @@ function render(s) {
   setText("semantic-growth", `${s.Concepts || 0} concepts, ${s.ConceptLinks || 0} associations wired`);
   setText("turn-state", s.TurnState || "silent room");
   const dg = s.Dreams || [];
-  setText("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}`);
+  setText("dream-count", `${dg.length}${s.LucidDreams ? ` (${s.LucidDreams} lucid)` : ""}${s.CompositeDreamCount ? `, ${s.CompositeDreamCount} composed` : ""}`);
   setText("neurogenesis", `${s.NeuronsBorn || 0} in ${s.BirthEvents || 0} events`);
   setText("pruned", `${s.SynapsesPruned || 0} synapses`);
   setText("self-surprise", `${s.SelfSurprises || 0} surprises, ${s.ObserverRedirects || 0} redirects`);

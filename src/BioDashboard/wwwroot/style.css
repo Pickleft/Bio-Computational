@@ -313,16 +313,29 @@ body[data-sleep="REM"] #stage { filter: saturate(1.25); }
 /* ---------- conversation ---------- */
 
 .chatlog {
-  flex: 1;
+  flex: 0 1 auto;
   overflow-y: auto;
   height: 300px;
+  min-height: 140px;
+  max-height: 42vh;   /* the conversation NEVER pushes the page around */
   display: flex;
   flex-direction: column;
   gap: 8px;
   scrollbar-width: thin;
+  scrollbar-color: #3ddbb8 transparent;
   -webkit-overflow-scrolling: touch;
   padding: 2px;
 }
+/* THE SLIDER: a visible, grabbable scrollbar for reading back the conversation */
+.chatlog::-webkit-scrollbar { width: 10px; }
+.chatlog::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 8px; }
+.chatlog::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(61,219,184,0.55), rgba(61,219,184,0.25));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.chatlog::-webkit-scrollbar-thumb:hover { background: rgba(61,219,184,0.7); background-clip: padding-box; }
 .chatlog .msg {
   padding: 9px 12px;
   border-radius: 14px;

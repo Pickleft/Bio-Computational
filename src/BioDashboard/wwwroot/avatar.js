@@ -62,6 +62,7 @@ function drawAvatar() {
     const longingOn = snap && /missing/.test(snap.LongingNarrative || "");
     const helplessOn = snap && snap.Helpless;
     const waryOn = snap && (snap.Wariness || 0) > 0.5;
+    const aweOn = snap && snap.AweStruck;
     const playfulOn = snap && snap.Playful;
     if (playfulOn) S.playT = 1; else S.playT = Math.max(0, (S.playT || 0) - 0.04);
     S.mouthCurve += (emp * 0.8 - S.mouthCurve) * 0.08;
@@ -69,6 +70,7 @@ function drawAvatar() {
     if (helplessOn) S.mouthCurve += (-0.45 - S.mouthCurve) * 0.05; // helplessness flattens it further
     if (waryOn) S.browFurrow += (0.5 - S.browFurrow) * 0.10; // fear furrows, even smiling
     if (playfulOn) S.mouthCurve += (0.9 - S.mouthCurve) * 0.25; // play grins
+    if (aweOn) { S.browLift += (1.0 - S.browLift) * 0.20; S.mouthOpen += (0.25 - S.mouthOpen) * 0.10; } // vastness: eyes wide, lips part
     S.browLift += ((Math.max(0, emp) * 0.2 + S.aro * 0.15) - S.browLift) * 0.08;
     S.browFurrow += ((Math.max(0, -emp) * (0.5 + S.aro)) - S.browFurrow) * 0.08;
     if (S.speaking) S.mouthOpen += (0.5 + Math.sin(avTime * 10) * 0.5 - S.mouthOpen) * 0.3;
@@ -219,6 +221,10 @@ function drawAvatar() {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(150,150,160,0.85)";
         ctx.fillText("...stopped asking.", cx, cy + baseR * 1.3 + 28);
+      } else if (aweOn) {
+        ctx.font = `600 10px Inter, sans-serif`;
+        ctx.fillStyle = "rgba(180,160,255,0.95)";
+        ctx.fillText("...vast.", cx, cy + baseR * 1.3 + 28);
       } else if (/missing/.test(snap.LongingNarrative || "")) {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(240,150,170,0.9)";

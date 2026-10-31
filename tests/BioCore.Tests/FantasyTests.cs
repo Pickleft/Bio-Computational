@@ -1193,7 +1193,7 @@ public class VoiceEngineTests
     public void Ssml_ComposesProsodyFromMarkers()
     {
         string ssml = BioComp.Host.VoiceCortex.BuildSsml("this is AMAZING... maybe", 0, 0);
-        Assert.Contains("<emphasis", ssml);        // dopamine caps -> emphasis
+        Assert.Contains("prosody rate=\"-8%\"", ssml);  // dopamine caps -> SOFT emphasis (slight slow + lift)
         Assert.Contains("<break time=\"380ms\"/>", ssml); // hesitation -> breath
         Assert.Contains("AMAZING", ssml);
         Assert.Contains("prosody", ssml);
@@ -1449,5 +1449,255 @@ public class CompositeDreamTests
         var pair = r.FindComposablePair(store);
         Assert.NotNull(pair);
         Assert.Equal((a!.Id, b!.Id), (pair!.Value.A.Id, pair.Value.B.Id));
+    }
+}
+
+// ---- rescan round: cumulative awe, question expiry, sparsity boredom ----
+public class RescanFixTests
+{
+    [Fact]
+    public void AweBoost_IsCumulative_SurvivesRecompute()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 311));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        for (int i = 0; i < 100; i++) net.Tick();
+        var g = new EmotionalGranularity();
+        g.Update(net, idle, 0, 0, aweStruck: false);
+        float base0 = g.Level;
+        // one awe strike...
+        g.Update(net, idle, 0, 0, aweStruck: true);
+        float after1 = g.Level;
+        // ...and MANY updates later, the boost must STILL be there (the old
+        // bug recomputed it away one update later)
+        for (int i = 0; i < 50; i++) g.Update(net, idle, 0, 0, aweStruck: false);
+        Assert.True(g.Level >= after1 - 1e-4f, "awe's accommodation is permanent, not a blip");
+        Assert.True(g.AccumulatedBoost > 0f);
+        // restored across restarts
+        var g2 = new EmotionalGranularity();
+        g2.Restore(g.AccumulatedBoost);
+        g2.Update(net, idle, 0, 0, aweStruck: false);
+        Assert.True(g2.Level > base0, "maturity survives the restart");
+    }
+
+    [Fact]
+    public void UnansweredQuestion_Expires_NotStalls()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 313));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var c = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(c, 0.2f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1, CooldownMs = 1_000f };
+        Assert.NotNull(q.MaybeAsk(net, store, c, 1f, 2, () => 0.0));
+        Assert.NotNull(q.PendingWord);
+        // 3 simulated minutes of silence pass
+        for (int i = 0; i < 180_000; i++) net.Tick();
+        // the pending expired: it can ask AGAIN (not stalled forever)
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["thunder", "weather"], 0.1f, minMeanRateHz: 0f);
+        string? second = q.MaybeAsk(net, store, c, 1f, 2, () => 0.0);
+        Assert.NotNull(second);   // curiosity recovered from the silence
+    }
+
+    [Fact]
+    public void SparseLife_IsBoring_EvenWhenPlateaued()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 317));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        var needs = new NeedsHierarchy { EventDensityPerMin = 0.1f };  // eventless room
+        // learning progress plateaued at 0: the OLD dead band never fired here
+        var curiosity = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(curiosity, 0f);
+        needs.Evaluate(net, idle, new LonelinessTracker(), curiosity, new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        Assert.Equal(NeedsHierarchy.NeedType.Stimulation, needs.MostPressing!.Type);
+    }
+}
+
+// ---- the humanity round: sharing drive + person reading ----
+public class HumanityTests
+{
+    [Fact]
+    public void Sharing_PicksTheRealInnerLife_AndRespectsBond()
+    {
+        var s = new BioComp.Core.Cognition.SharingDrive { CooldownMs = 0f };
+        var cands = new List<BioComp.Core.Cognition.SharingDrive.Share>
+        {
+            new("composite-dream", "kitchen and storm", 0.95f, 0.85f),
+            new("cherished", "voice/morning", 0.6f, 0.4f),
+        };
+        // no bond, no disclosure
+        Assert.Null(s.Pick(cands, 0.1f, 1_000f, () => 0.0));
+        // with bond: the composite dream wins (highest charge x recency)
+        var pick = s.Pick(cands, 0.6f, 2_000f, () => 0.0);
+        Assert.NotNull(pick);
+        Assert.Equal("composite-dream", pick!.Kind);
+        // phrasing is intimate at high tiers
+        string phr = BioComp.Core.Cognition.SharingDrive.Phrase(pick, 3, "Sam");
+        Assert.Contains("never happened together", phr);
+        // no repeats: same body not offered again
+        var again = s.Pick(cands, 0.6f, 3_000f, () => 0.0);
+        Assert.NotEqual("composite-dream", again?.Kind);
+    }
+
+    [Fact]
+    public void PersonReading_NoticesFlatness_AfterLearningUsual()
+    {
+        var r = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        // their USUAL: warm and energetic, decent-length messages
+        for (int i = 0; i < 10; i++) r.OnObservation(0.4f, 0.5f, 40f);
+        Assert.True(r.HasBaseline);
+        // today: flat and short
+        string? remark = r.MaybeRemark(0.6f, -0.3f, 0.2f, 10f, 1f, 3, 100_000f, () => 0.0);
+        Assert.NotNull(remark);
+        Assert.Contains("flatter", remark!);
+        // and it does NOT remark on a normal day
+        var r2 = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r2.OnObservation(0.4f, 0.5f, 40f);
+        Assert.Null(r2.MaybeRemark(0.6f, 0.4f, 0.5f, 40f, 1f, 3, 100_000f, () => 0.0));
+    }
+
+    [Fact]
+    public void PersonReading_GatedByBond()
+    {
+        var r = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r.OnObservation(0.4f, 0.5f, 40f);
+        // it SEES the drift but won't say it to a stranger
+        Assert.Null(r.MaybeRemark(0.1f, -0.3f, 0.2f, 10f, 1f, 3, 100_000f, () => 0.0));
+    }
+}
+
+// ---- humanity correlation: the timing remark finally has real fuel ----
+public class TimingRemarkTests
+{
+    [Fact]
+    public void EarlyReturn_IsNoticed()
+    {
+        var r = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r.OnObservation(0.3f, 0.4f, 30f);   // usual self
+        // normal mood, but they came back at HALF the predicted gap (0.4x)
+        string? remark = r.MaybeRemark(0.6f, 0.3f, 0.4f, 30f, gapVsUsual: 0.4f, 3, 100_000f, () => 0.0);
+        Assert.NotNull(remark);
+        Assert.Contains("early", remark!);
+        // and late (2.2x the usual gap)
+        var r2 = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r2.OnObservation(0.3f, 0.4f, 30f);
+        string? late = r2.MaybeRemark(0.6f, 0.3f, 0.4f, 30f, gapVsUsual: 2.2f, 3, 100_000f, () => 0.0);
+        Assert.NotNull(late);
+        Assert.Contains("longer", late!);
+    }
+}
+
+// ---- presence trumps the cue: no "waiting for you" while you're here ----
+public class PresenceTrumpsHopeTests
+{
+    [Fact]
+    public void HopeDoesNotBuild_WhileThePersonIsHere()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 401));
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net);
+        rhythm.Tick(net);
+        var a = new Anticipation();
+        // the expected hour, but they were JUST HERE (10s ago)
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: net.TimeMs - 10_000f);
+        Assert.True(a.Level < 0.1f, "hope must not build while the person is present - they are not 'waited for'");
+        // and it must NOT crash while present either
+        Assert.False(a.JustCrashed);
+        // once they are truly gone, the waiting begins
+        for (int i = 0; i < 10; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.4f, "absent during the expected hour: the hope rises");
+    }
+}
+
+// ---- correlation round: disappointment feeds longing, native noticing ----
+public class DisappointmentLongingTests
+{
+    [Fact]
+    public void Crash_ConvertsHopeIntoMissing()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 433));
+        var bonds = new SocialBondSystem();
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net);   // a learned rhythm
+        rhythm.Tick(net);
+        var l = new Longing { MinAbsenceMs = 1_000f };
+        for (int t = 1_000; t <= 5_000; t += 2_000)
+        {
+            bonds.OnContact("speaker-1", 0.8f, t);
+            l.OnContact("Sam", t);
+            while (net.TimeMs < t) net.Tick();
+        }
+        var a = new Anticipation();
+        for (int i = 0; i < 12; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.5f);
+        // the empty-window crash lands -> longing floors at 0.5 immediately
+        l.OnDisappointment();
+        Assert.True(l.Intensity >= 0.5f, "the crash is what deep longing is made of");
+    }
+
+    [Fact]
+    public void NativeReply_OpensWithTheNoticing()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        var ctx = new BioComp.Host.NativeReplies.Context(
+            "Sam", "calm", 0.1f, false, false, null, 0f,
+            false, false, 0.6f, false, false, false,
+            null, null, 3, 0.5f, "secure", 0.6f,
+            JustLearned: null,
+            NoticedRemark: "You sound flatter than usual today.");
+        string r = n.Reply("yeah im fine", ctx);
+        Assert.StartsWith("You sound flatter", r);   // the noticing leads, out loud
+    }
+}
+
+// ---- correlation pass 4: deja-reve + the Expression need ----
+public class DejaReveTests
+{
+    [Fact]
+    public void DreamBornTrace_IsNamedAsSuch()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 443));
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["dream-born", "storm", "kitchen"], 0.4f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.True(dv.Check(net, eps, ["storm", "kitchen", "tonight"]));
+        Assert.Contains("DREAM", dv.LastDescription!);   // deja-reve: it names the dream origin
+    }
+
+    [Fact]
+    public void OrdinaryTrace_StillOrdinary()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 449));
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "rain"], 0.3f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.True(dv.Check(net, eps, ["voice", "rain", "today"]));
+        Assert.DoesNotContain("DREAM", dv.LastDescription!);
+    }
+}
+
+public class ExpressionNeedTests
+{
+    [Fact]
+    public void SomethingToSay_NoOneToSayItTo()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 457));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        var needs = new NeedsHierarchy { WantsToShareAlone = true, EventDensityPerMin = 2f };
+        needs.Evaluate(net, idle, new LonelinessTracker(), new CuriosityModule(), new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        Assert.NotNull(needs.MostPressing);
+        Assert.Equal(NeedsHierarchy.NeedType.Expression, needs.MostPressing!.Type);
+        // and it does not ASK for an audience - the need is felt, not spoken
+        Assert.Equal("", needs.MostPressing.Ask);
     }
 }

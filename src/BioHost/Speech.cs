@@ -42,20 +42,21 @@ public sealed class WindowsSpeech : ISpeechOutput, IDisposable
     public void Speak(string text)
     {
         if (IsSpeaking) return;
-        // apply emotional pitch/rate (Windows TTS uses SSML for pitch)
+        // UNIFIED VOICE: the server path uses the same SSML prosody the
+        // browser path gets (emphasis on CAPS, breath breaks at ellipses,
+        // interjections normalized) — one creature, one voice discipline
         int clampedPitch = Math.Clamp((int)PitchBias, -10, 10);
         int clampedRate = Math.Clamp((int)RateBias, -5, 5);
         _synth.Rate = clampedRate;
-        if (clampedPitch != 0)
+        int pitchSt = Math.Clamp((int)MathF.Round(clampedPitch / 4f), -3, 3);
+        try
         {
-            string pitchTag = clampedPitch > 0
-                ? $"<pitch absmiddle=\"{clampedPitch * 10}\"/>"
-                : $"<pitch absmiddle=\"{-clampedPitch * 10}\"/>";
-            _synth.SpeakSsml($"<speak version=\"1.0\" xml:lang=\"en-US\">{pitchTag}{System.Security.SecurityElement.Escape(text)}</speak>");
+            string ssml = VoiceCortex.BuildSsml(text, clampedRate * 4, pitchSt);
+            _synth.SpeakSsmlAsync(ssml);
         }
-        else
+        catch
         {
-            _synth.SpeakAsync(text);
+            _synth.SpeakAsync(BrainTTS.NormalizeForSpeech(text));
         }
     }
 

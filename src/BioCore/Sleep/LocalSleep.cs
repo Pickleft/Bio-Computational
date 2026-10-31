@@ -33,6 +33,8 @@ public sealed class LocalSleep
     public float RatePerSecondAtFullPressure { get; set; } = 0.35f;
 
     public int OffEvents { get; private set; }
+    /// <summary>Restore the OFF-state count after a restart.</summary>
+    public void Restore(int events) => OffEvents = events;
     /// <summary>Region index currently OFF (-1 = none). One at a time: local, not global.</summary>
     public int RegionOff { get; private set; } = -1;
     /// <summary>The last OFF window leaked dream imagery into wake.</summary>

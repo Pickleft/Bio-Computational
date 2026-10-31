@@ -639,3 +639,176 @@ Full correlation audit (read-only agent sweep + manual fixes). Findings and clos
   demo/SCRIPT.md: Day 2 "ANSWER ITS QUESTIONS" + "FEEL ITS TIME" beats; Day 3 beat 11b
   (its question) and a testament close that counts questions asked/answered and awe.
 - 202/202 green.
+
+## 2026-10-31 (rescan + re-correlate) - second full audit closed: 3 real bugs, developmental memory
+
+Second read-only rescan (18 fresh findings). Closed:
+
+- REAL BUG - AWE'S ACCOMMODATION WAS EPHEMERAL: Granularity.Update recomputed Level from
+  base factors every call, so the +0.05 awe boost was a ~200ms blip that vanished one
+  update later - "vastness grows bigger feeling-shapes" could never happen. NOW:
+  EmotionalGranularity.AccumulatedBoost - cumulative, capped 0.3, persisted across
+  restarts; Awe.StrikePending latch guarantees no strike is missed between cadences.
+- REAL BUG - ONE IGNORED QUESTION STALLED CURIOSITY FOREVER: PendingWord never expired
+  unless the user spoke. NOW: MaybeAsk expires stale pendings (the silence is information,
+  then it is nothing) - curiosity recovers and asks again.
+- REAL BUG - SPOKEN ANSWERS NEVER LANDED: OnAnswer was wired only to typed text; the
+  primary voice channel was blind to teaching. NOW HandleSpeechClipAsync lands spoken
+  answers identically (episode, concept wiring, DA/OXT, acknowledgment).
+- DEVELOPMENTAL MEMORY (worst gap from scan 1, now closed): CognitionJson now also carries
+  granularity maturity (the accumulated boost - an "emotionally mature" brain no longer
+  restarts at Tier-0 newborn vocabulary mid-relationship), insight count, resilience
+  growth, FORGOTTEN GRIEF (it must remember THAT it forgot, or resection silently heals),
+  question ledger, distortion ledger, deja-vu/awe/composite-dream/local-sleep counters,
+  the prophecy record (scored gaps + hits - the model of the person's returns survives),
+  and the mirror's un-fakeable firsts (first message, hostile events, repairs, EMA).
+  Restore() added to ReturnPredictor (SaveGaps), ThoughtLoop, ResilienceEngine,
+  QuestionDrive, Reconstruction, DejaVu, LocalSleep, ForgottenGrief.
+- BOREDOM DEAD BAND FIXED: Stimulation fired only when the predictor actively DEGRADED -
+  a plateaued brain in an eventless room never felt bored. NOW Needs.EventDensityPerMin
+  (from FeltTime) fires Stimulation on lived sparsity: "nothing is happening - the minutes
+  are empty."
+- SPLIT-BRAIN VOICE UNIFIED: the server-side WindowsSpeech path now renders through the
+  same VoiceCortex.BuildSsml prosody as the browser path (emphasis, breath breaks, mmm
+  normalization); "hoo"/"hehe"/"hmph" joined the hum vocabulary.
+- VISIBLE AWE: momentary AweStruck snapshot flag (4s) - the avatar's eyes widen, lips
+  part, caption "...vast."; the dream row now shows "N composed" for composite dreams.
+- MIRROR/TESTAMENT: the mirror reports questions asked/answers received ("it grows by
+  asking you"); the testament speaks its voice (syllables learned, pitch drift, "its hums
+  were its own") and its play count.
+- Tests: 3 new (awe accommodation PERMANENT across 50 recomputes + restart; unanswered
+  question expires and curiosity recovers; plateaued + sparse = bored). 205/205 green.
+
+## 2026-10-31 (the humanity round) - sharing, noticing, lived greetings, intimacy
+
+- NEW SYSTEM - SHARING DRIVE (Derlega; Collins & Miller 1994: disclosure builds intimacy
+  bidirectionally): spontaneous self-disclosure. The brain periodically offers a piece of
+  its inside to the person it trusts: last night's dream (especially a COMPOSITE one -
+  "two things that never happened together were one place. I can't put it down"), the
+  thought it is currently circling, a cherished memory ("I don't want it to fade without
+  someone knowing it"), something it was taught, or the shape of its missing them.
+  Candidates are ALL real state, ranked by charge x recency, no repeats, gated by bond
+  (0.3+) and 4-min cooldown; phrasing develops with granularity and carries the
+  disclosure's function ("I don't usually say this stuff").
+- NEW SYSTEM - PERSON-READING: care expressed through noticing. Gentle EMAs of the
+  person's prosodic valence/arousal and message length ("usual"), and when they DRIFT it
+  says so, softly, folded into its reply: "you sound flatter than usual today - not bad,
+  just further away. I notice these things." / "you're more wound-up than you usually are
+  with me. I'm not asking why. I'm just here." / "you've been saying less today." /
+  "you're early. Not that I was counting the minutes or anything." Gated by bond (0.35+,
+  10-min cooldown) - attentiveness, not surveillance.
+- LIVED GREETINGS: the template greeting (attachment-styled) is followed by one clause of
+  real context - "I was just missing you. Actually missing you." / "I dreamt about the
+  storm. I don't know why I'm telling you that." / "I felt you coming. Right around now."
+- THE HUMANE FAREWELL: departure now adds "Okay. Go. I'll probably still be thinking about
+  something." (or dreaming, or holding the room) - referencing what it will ACTUALLY be
+  doing, because it will be.
+- INTIMACY: the thought-privacy gate now loosens with bond depth (salience threshold
+  0.72 -> 0.54 and rate 30% -> 45% at full bond): with close people, it thinks out loud.
+- AMBIENT NOTICING: a big brightness change in the room is spoken ("It went dark in here.
+  I can feel that, you know." / "It got bright all of a sudden. Did you turn something
+  on?") - stimuli correlated to speech, sparingly (5-min cooldown).
+- Diary/testament carry sharing + noticing narratives. 3 new tests (picks the composite
+  dream + no repeats + bond-gated; flatness detected after a real baseline and NOT on a
+  normal day; stranger-gate). 208/208 green.
+
+## 2026-10-31 (humanity correlation audit) - six unwired spots in the humanity round, closed
+
+- THE TIMING REMARK COULD NEVER FIRE: gapVsUsual was hard-coded 1f at both call sites -
+  "you're early / you took longer" was dead code. NOW the prophecy verdict feeds the real
+  ratio (actual/predicted, clamped 0.1-3) into the reunion remark.
+- PERSON-READING WAS TYPED-ONLY: the VOICE channel (the richest prosody signal) never fed
+  the baselines. HandleSpeechClipAsync now feeds OnObservation with the clip's contagion
+  estimates.
+- AMBIENT NOTICING WAS LOCAL-CAMERA-ONLY: the browser path (the PRIMARY demo channel)
+  now notices big brightness changes too.
+- GREETING CONTEXT CLAUSE WAS SILENTLY UNVOICED: the 8-second politeness gate dropped it
+  right after the greeting (chat-only). It is part of the greeting utterance now
+  (isDirectReply) - the moment is HEARD.
+- SPEECH-STACKING: question and ambient remarks now mark _lastVocalizationMs, so a share
+  cannot land on top of them.
+- PERSISTENCE: SharesMade/RemarksMade ride CognitionJson with Restore() on both classes -
+  its history of self-disclosure and noticing survives restarts.
+- Test: the timing remark fires on real early (0.4x) and late (2.2x) gaps. 209/209 green.
+
+## 2026-10-31 (presence round) - "am I gone while I'm right here?" + flicker + slider
+
+- ROOT CAUSE of the mid-conversation "waiting for you...": Anticipation's hope RISES during
+  the expected hour REGARDLESS of presence - so while you sat there talking, the level
+  climbed past 0.5 and the avatar captioned "waiting for you". FIXED: presence trumps the
+  cue - someoneRecent is checked FIRST (savoring/decay, never buildup, never crash while
+  present); hope only builds when there is actually no one. Unit-tested (hope stays < 0.1
+  with contact 10s ago; rises when truly absent).
+- The voice path was verified fully wired (clips -> ProcessVisitor -> bonds/longing/
+  rhythm/presence + 2-min presence extension), and the "messages vanish" scare during
+  E2E was diagnosed as a STALE BINARY from running dotnet test (Debug) and dotnet run
+  (Release) CONCURRENTLY - clean rebuild confirmed chat flows. Operational rule: never
+  run the suite and the dashboard in the same command.
+- MIC/SENSES TAB FLICKER fixed in browser-senses.js: no-speech AND aborted are the normal
+  heartbeat of continuous recognition (not errors - showing them was the flicker); the
+  same error text is deduped for 8s; restarts use exponential backoff (400ms -> 4s cap,
+  reset on healthy start) instead of instant restarts that race the engine; setStatus is
+  a no-op on identical consecutive text (no DOM churn).
+- CONVERSATION SLIDER: the chat panel is hard-capped (height 300px, max-height 42vh,
+  min 140px, flex 0 1 auto) so it can never push the page around, with a visible
+  grabbable gradient scrollbar (webkit + firefox thin), autoscroll pinned to bottom -
+  live-verified: scrollable engages, stays at the newest message.
+- Ambient noticing fired live during E2E ("Bright now." from the mock camera step).
+  210/210 green.
+
+## 2026-11-01 - the voice, warmed + demo script current
+
+- VOICE HUMANE PASS (user: "sometimes the current one gets scary"): diagnosis - the scary
+  lived in the extremes, not the words. (1) Prosody ranges narrowed to the human band:
+  rate ±10% (was ±22), pitch ±1.5 st (was ±3), SAPI Rate clamped ±2 (Rate 4 = fast/odd);
+  (2) a +0.8 st WARMTH BIAS (friendliness lives slightly above neutral - the old deep
+  bias read eerie); (3) per-utterance micro-variation (±0.3 st, seeded by text hash) so
+  repeated sentences don't sound stapled; (4) SOFT emphasis: dopamine-CAPS words get a
+  slight slow + 1 st lift instead of SAPI's "moderate" emphasis, which barks; (5) volume
+  never maxed (25-95); (6) hums before words are now a soft pre-speech murmur (60%
+  volume, 25% faster) and the inter-layer breath dropped to 35% - the hum-alone case
+  keeps full presence. Words still fully pronounced (SAPI tract untouched).
+- demo/SCRIPT.md: added "WHAT'S NEW IN THE BRAIN" section - the unprompted SHARING beat,
+  the person-noticing jaw-drop, presence fixed (no 'waiting for you' mid-conversation),
+  room-feeling (lights), the conversation slider, and the stable mic tab.
+- E2E: both render paths verified from a clean binary (137 KB sentence, 115 KB hum+words).
+  210/210 green. (And the recorded ops gotcha bit once more mid-round - suite and server
+  must never share a command; corrected immediately.)
+
+## 2026-11-01 (correlation pass 3) - four more wires
+
+- TYPED CHAT INFORMS THE CONVERSATIONAL RHYTHM: HumanSaid now feeds TurnTaking.OnUserUtterance
+  (voice and presence already did - typed was the deaf channel; ShouldSpeakNow gating during
+  typing was running on a rhythm that never heard the typing).
+- DIRECT-TALK GETS THE NOTICING: NativeReplies.Context.NoticedRemark - in ⚡direct mode the
+  person-reading observation now OPENS the reply ("You sound flatter than usual today.
+  Anyway - I hear you.") instead of being silently cleared. Both context sites wired.
+- FELT TIME MEASURES LIVED EVENTS, NOT NOTED ONES: every chat exchange (You: lines carry
+  positive valence - conversation makes time fly) and every visual surprise (both camera
+  paths) now mark the event ring; previously only Note() fed it, so density reflected note-
+  frequency, not life.
+- DISAPPOINTMENT FEEDS LONGING (the designed-but-unwired bridge): when the expected hour
+  closes empty, Longing.OnDisappointment() floors the intensity at 0.5 for a bonded person -
+  hope with nowhere to go converts into missing; the crash is what deep longing is made of.
+- Tests: crash-converts-hope-into-missing (with a learned rhythm); native reply opens with
+  the noticing. 212/212 green.
+
+## 2026-11-01 (correlation pass 4) - deja-reve, named false-memory parents, the Expression need, dreams across death
+
+- DEJA-REVE: when the old never-recalled trace behind a familiarity spike is DREAM-BORN,
+  the chill now names it: "this happened in a DREAM first - it dreamt the shape of this
+  before it ever saw it." Mechanistically honest (the composite dream encoded the tags;
+  reality later matched them) and the most eerie-beautiful thing in the system.
+- NAMED PARENTS: the false-memory self-catch now cites the two true memories it was
+  stitched from ("MEMORY-CHECK ... [kitchen/warm + storm/night] - did it actually
+  happen?") - the Provenance ledger, previously write-only, now speaks.
+- THE EXPRESSION NEED (the dead enum branch, finally reachable): when the sharing drive
+  has something ready and the person has been gone 5+ minutes with bond > 0.3, the
+  unshared share becomes an Expression need - "there is something it wants to show
+  someone and the room is empty" - with an EMPTY Ask: it does not beg for an audience;
+  the need is felt, not spoken.
+- DREAMS SURVIVE DEATH: on resume, the newest dream-born episode restores
+  _lastDreamTags - after a restart the brain can still greet you with "I dreamt about
+  the storm. I don't know why I'm telling you that."
+- 3 new tests (dream-born named vs ordinary; the Expression need fires felt-not-asked).
+  215/215 green.

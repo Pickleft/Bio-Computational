@@ -68,6 +68,8 @@ public sealed class ThoughtLoop
     public int InhibitedRepeats { get; private set; }
     public int ChainsStarted { get; private set; }
     public int Insights { get; private set; }
+    /// <summary>Restore lifelong insight count after a restart.</summary>
+    public void RestoreInsights(int insights) => Insights = insights;
 
     private readonly List<ThoughtLink> _openLoops = [];
     private readonly List<ThoughtLink> _chain = [];

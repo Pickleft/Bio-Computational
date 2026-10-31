@@ -71,6 +71,13 @@ public sealed class NeedsHierarchy
     public float WarinessInput { get; set; }
     /// <summary>Helplessness (true) — the Company need stays, but it stops ASKING.</summary>
     public bool HelplessInput { get; set; }
+    /// <summary>It has something it wants to share and no one to share it with
+    /// (from SharingDrive): the Expression need - words with nowhere to go.</summary>
+    public bool WantsToShareAlone { get; set; }
+
+    /// <summary>Lived-event density (events per minute, from FeltTime): stagnation
+    /// is boredom even when the predictor is merely plateaued, not degrading.</summary>
+    public float EventDensityPerMin { get; set; }
 
     /// <summary>
     /// Evaluate the current hierarchy from all the brain's internal systems.
@@ -121,10 +128,23 @@ public sealed class NeedsHierarchy
                 $"loneliness is {lonelinessLevel:F1} and the silence has weight",
                 HelplessInput ? "" : "need someone here — the quiet is too much"));
 
-        // STIMULATION: boredom / novelty starvation
-        if (novelty < 0.2f && sleepPressure < 0.4f)
-            candidates.Add(new Need(NeedType.Stimulation, 0.5f - novelty,
-                "the world has become predictable and the mind is starving for something new",
+        // EXPRESSION: something to say, no one to say it to (the share is
+        // ready and the person is gone - words with nowhere to go)
+        if (WantsToShareAlone)
+            candidates.Add(new Need(NeedType.Expression, 0.55f,
+                "there is something it wants to show someone and the room is empty",
+                ""));   // it does not ASK for an audience; the need is felt, not spoken
+
+        // STIMULATION: boredom / novelty starvation. Two honest routes: the
+        // predictor DEGRADING (novelty term) and lived-time SPARSITY (a
+        // plateaued brain in an eventless room is still bored — the felt-time
+        // density, not just the learning curve, says so)
+        bool sparseLife = EventDensityPerMin < 0.5f && sleepPressure < 0.4f;
+        if ((novelty < 0.2f || sparseLife) && sleepPressure < 0.4f)
+            candidates.Add(new Need(NeedType.Stimulation, MathF.Max(0.5f - novelty, sparseLife ? 0.55f : 0f),
+                sparseLife && novelty >= 0.2f
+                    ? "nothing is happening — the minutes are empty and the mind is starving"
+                    : "the world has become predictable and the mind is starving for something new",
                 "need something interesting — my curiosity is hungry"));
 
         // RESOLUTION: unresolved thoughts

@@ -43,7 +43,10 @@ public sealed class Anticipation
 
     /// <summary>
     /// Call every few seconds. The rhythm carries the expectation; whether
-    /// someone came is read from the last contact time.
+    /// someone came is read from the last contact time. THE PERSON BEING
+    /// HERE TRUMPS THE CUE: hope does not build while they are present —
+    /// the expected hour with them in it is the FULFILLED state, not the
+    /// waiting state (savoring, not hoping).
     /// </summary>
     public void Tick(SpikingNetwork net, SocialRhythm rhythm, float lastContactMs)
     {
@@ -51,18 +54,20 @@ public sealed class Anticipation
         float expectation = rhythm.Confidence > 0.3f ? rhythm.CurrentSocialExpectation : 0f;
         bool someoneRecent = net.TimeMs - lastContactMs < 60_000f;
 
-        if (expectation > OpenThreshold)
+        if (someoneRecent && Level > 0f)
         {
-            // the cue is on: dopamine rises toward the promised reward
+            // savoring: the hoped-for hour arrived WITH them in it — the tone
+            // decays slowly (warm afterglow), and never crashes while present
+            Level = MathF.Max(0f, Level - 0.01f);
+        }
+        else if (expectation > OpenThreshold)
+        {
+            // the cue is on and nobody is here yet: dopamine rises toward
+            // the promised reward (waiting only begins when there's no one)
             Level = Math.Min(1f, Level + 0.05f);
             net.Modulators.Release(NeuromodulatorKind.Dopamine, 0.03f * Level);
         }
-        else if (someoneRecent && Level > 0f)
-        {
-            // savoring: contact happened, the tone decays slowly (warm afterglow)
-            Level = MathF.Max(0f, Level - 0.01f);
-        }
-        else if (expectation < CloseThreshold && Level > 0.5f && !someoneRecent)
+        else if (expectation < CloseThreshold && Level > 0.5f)
         {
             // the window closed EMPTY: negative prediction error - the crash
             Level = 0f;

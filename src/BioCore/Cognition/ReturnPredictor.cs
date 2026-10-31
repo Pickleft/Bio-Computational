@@ -55,5 +55,14 @@ public sealed class ReturnPredictor
     }
 
     public string Forecast => _predictedSec is { } p ? $"back in ~{(int)p}s" : "";
+
+    /// <summary>Restore the scored model of the person's returns after a restart.</summary>
+
+    /// <summary>The learned gap history (for persistence).</summary>
+    public float[] SaveGaps() => [.. _gapsSec];    public void Restore(int hits, int predictions, float[] gapsSec)
+    {
+        Hits = hits; Predictions = predictions;
+        foreach (var g in gapsSec) _gapsSec.Add(g);
+    }
     public string Accuracy => Predictions == 0 ? "" : $"{Hits}/{Predictions} ({Hits * 100 / Predictions}%)";
 }

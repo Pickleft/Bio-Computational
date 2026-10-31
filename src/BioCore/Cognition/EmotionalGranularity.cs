@@ -56,12 +56,19 @@ public sealed class EmotionalGranularity
     };
 
     /// <summary>
+    /// Cumulative accommodation from awe: vastness forces bigger feeling-shapes
+    /// (Keltner & Haidt's accommodation, paid forward). Unlike the recomputed
+    /// base factors, this ONLY grows — each awe permanently deepens the vocabulary.
+    /// Persisted across restarts.
+    /// </summary>
+    public float AccumulatedBoost { get; private set; }
+
+    /// <summary>
     /// Update granularity from lived experience. Called periodically.
-    /// accommodationBoost: awe's contribution — vastness forces bigger
-    /// feeling-shapes (Piagetian accommodation, paid forward).
+    /// aweStruck: an awe moment just landed — its accommodation accumulates.
     /// </summary>
     public void Update(SpikingNetwork net, IdleController idle, int episodesHeard, int voicesHeard,
-        float accommodationBoost = 0f)
+        bool aweStruck = false)
     {
         float ageMin = net.TimeMs / 60_000f;
         float ageFactor = MathF.Min(1f, ageMin / 30f);       // saturates at 30 sim-minutes
@@ -69,14 +76,19 @@ public sealed class EmotionalGranularity
         float voiceFactor = MathF.Min(1f, voicesHeard / 15f);     // saturates at 15 clips
         float socialFactor = MathF.Min(1f, idle.Feelings.Last.Arousal * 0.3f); // arousal broadens
 
+        if (aweStruck) AccumulatedBoost = MathF.Min(0.3f, AccumulatedBoost + 0.05f);
+
         // weighted geometric mean: all factors must grow together
-        Level = MathF.Pow(
+        float @base = MathF.Pow(
             ageFactor * 0.3f +
             episodeFactor * 0.25f +
             voiceFactor * 0.25f +
             socialFactor * 0.2f, 1.2f);
-        Level = Math.Clamp(Level + accommodationBoost, 0f, 1f);
+        Level = Math.Clamp(@base + AccumulatedBoost, 0f, 1f);
     }
+
+    /// <summary>Restore developmental maturity after a restart.</summary>
+    public void Restore(float accumulatedBoost) => AccumulatedBoost = Math.Clamp(accumulatedBoost, 0f, 0.3f);
 
     // Vocabulary tiers — each more nuanced than the last
     private static readonly string[] Tier0 = // newborn: basic survival states

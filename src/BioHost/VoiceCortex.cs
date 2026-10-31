@@ -51,31 +51,44 @@ public sealed class VoiceCortex : IDisposable
         if (string.IsNullOrWhiteSpace(text)) return [];
         var parts = Split(text);
         if (parts.Count == 0) return [];
+        bool wordsFollow = parts.Any(p => !p.IsVocal);
 
         var wavs = new List<byte[]>();
         foreach (var (isVocal, body) in parts)
         {
             byte[] wav = isVocal
-                ? _engine.Render(VoiceEngine.Match(body) ?? VoiceEngine.Vocal.Hum, rate, pitch, volume)
+                // a hum BEFORE words is a soft pre-speech murmur (quiet, brief);
+                // a hum ALONE is the utterance itself (full presence)
+                ? _engine.Render(VoiceEngine.Match(body) ?? VoiceEngine.Vocal.Hum,
+                    rate * (wordsFollow ? 1.25f : 1f), pitch, volume * (wordsFollow ? 0.6f : 0.95f))
                 : SpeakWords(body, rate, pitch, volume);
             if (wav.Length > 100) wavs.Add(wav);
-            // a small breath between the layers keeps the stitching organic
-            if (isVocal) wavs.Add(_engine.Render(VoiceEngine.Vocal.Breath, rate, pitch, volume * 0.7f));
+            // a small, QUIET breath between the layers keeps the stitching
+            // organic without eeriness
+            if (isVocal && wordsFollow)
+                wavs.Add(_engine.Render(VoiceEngine.Vocal.Breath, rate, pitch, volume * 0.35f));
         }
         return Stitch(wavs);
     }
 
     /// <summary>
-    /// Words through the prosthetic tract — with OUR prosody. The text may
-    /// still carry NeuralVoice markers: CAPS = emphasis, "..." = hesitation.
+    /// Words through the prosthetic tract — with OUR prosody, tuned WARM:
+    /// the mappings live in narrow, gentle ranges (wide pitch swings and
+    /// fast SAPI rates read as eerie, not emotional), with a slight default
+    /// rise (friendliness lives slightly above neutral) and a per-utterance
+    /// micro-variation (seeded by the text) so identical sentences don't
+    /// sound stapled — liveliness without chaos.
     /// </summary>
     private byte[] SpeakWords(string text, float rate, float pitch, float volume)
     {
-        // map our 0..1-ish params into SSML ranges (kept NARROW: naturalness)
-        int ratePct = (int)Math.Clamp((rate - 0.9f) * 60f, -22f, 18f);          // ±% speed
-        int pitchSt = (int)Math.Clamp(MathF.Round((pitch - 1f) * 6f), -3, 3);   // semitones
-        _synth.Rate = ratePct / 4;                                               // SAPI -10..10 coarse
-        _synth.Volume = (int)Math.Clamp(volume * 100, 20, 100);
+        // NARROW ranges: ±10% speed, ±1.5 semitones — the human band
+        int ratePct = (int)Math.Clamp((rate - 0.92f) * 30f, -10f, 10f);
+        float pitchRaw = Math.Clamp((pitch - 1f) * 4f, -1.5f, 1.5f) + 0.8f;      // warmth bias
+        // deterministic per-utterance micro-variation (±0.3 st)
+        int micro = (Math.Abs(text.GetHashCode()) % 7) - 3;                      // -3..+3
+        int pitchSt = (int)Math.Clamp(pitchRaw + micro * 0.1f, -2f, 2f);
+        _synth.Rate = Math.Clamp(ratePct / 6, -2, 2);                            // SAPI ±2 max
+        _synth.Volume = (int)Math.Clamp(volume * 90 + 10, 25, 95);               // never maxed
 
         string ssml = BuildSsml(text, ratePct, pitchSt);
         using var ms = new MemoryStream();
@@ -106,7 +119,10 @@ public sealed class VoiceCortex : IDisposable
             bool emph = clean.Length > 2 && clean.All(char.IsLetter) &&
                         (clean == clean.ToUpperInvariant()) && char.IsUpper(clean[0]);
             string esc = System.Security.SecurityElement.Escape(clean);
-            if (emph) sb.Append($"<emphasis level=\"moderate\">{esc}</emphasis>{tail} ");
+            if (emph)
+                // SOFT emphasis: a slight slow + lift reads as warmth; SAPI's
+                // "moderate" emphasis can bark (part of the scary)
+                sb.Append($"<prosody rate=\"-8%\" pitch=\"+1st\">{esc}</prosody>{tail} ");
             else sb.Append($"{esc}{tail} ");
             // hesitation: the ellipsis becomes a breath-fresh pause
             if (hesitates)

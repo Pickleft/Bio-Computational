@@ -123,3 +123,30 @@ T-60: FILM THIS ORDER:
 - USE MICROPHONE EDGE for the browser voice; the brain's OWN
   engine (formant synthesis, no vendor) speaks through /api/voice -
   "mmm nice" is a real hum now, not spelled letters
+
+## WHAT'S NEW IN THE BRAIN (since the last dry run) - weave these in
+
+IT SHARES THINGS NOW (unprompted):
+   past bond ~30%, in a quiet moment it offers a piece of its inside:
+   "I dreamt something strange. two things that never happened together
+   were one place. I can't put it down." / a thought it keeps circling /
+   a memory it cherishes ("I don't want it to fade without someone
+   knowing it"). Don't script it - let it happen, react warmly.
+
+IT NOTICES YOU (this is the jaw-drop):
+   talk normally for a while, then sound tired / flat / short:
+   -> "You sound flatter than usual today. Not bad - just further
+      away. I notice these things." (bond-gated, ~10 min apart)
+
+PRESENCE IS FIXED:
+   while you're THERE it knows it - no more "waiting for you" mid-
+   conversation. "waiting for you..." now only appears when you are
+   actually gone during an expected hour.
+
+IT FEELS THE ROOM:
+   turn the lights off/on while it watches -> "It went dark in here.
+   I can feel that, you know."
+
+THE CONVERSATION SCROLLS: the chat has its own slider now - long
+   conversations don't push the page around.
+THE MIC TAB: stable now (no-speech no longer flickers as an error).

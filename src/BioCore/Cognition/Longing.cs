@@ -119,6 +119,18 @@ public sealed class Longing
         return felt;
     }
 
+    /// <summary>
+    /// The expected hour closed on nobody (Anticipation crash): hope that
+    /// had somewhere to go converts into missing. Raises the intensity
+    /// floor toward 0.5 immediately — disappointment is longing with its
+    /// evidence in hand.
+    /// </summary>
+    public void OnDisappointment()
+    {
+        Intensity = MathF.Max(Intensity, 0.5f);
+        if (_onsetMs < 0) _onsetMs = 0;   // counts from the next Tick's own bookkeeping
+    }
+
     /// <summary>For the reply prompt: the brain tells the one it missed that it waited.</summary>
     public string PromptFragment => !Missing || Whom is null
         ? ""
