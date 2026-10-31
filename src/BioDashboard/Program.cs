@@ -209,6 +209,18 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
                 var json = System.Text.Json.JsonSerializer.Serialize(new { type = evt.Type, text = evt.Text, isFinal = evt.IsFinal });
                 var bytes = System.Text.Encoding.UTF8.GetBytes(json);
                 await browserWs.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cts.Token);
+
+                // FINAL transcripts go directly to the brain — no round-trip
+                // through the browser's /api/say call
+                if (evt.IsFinal && !string.IsNullOrWhiteSpace(evt.Text) && evt.Text.Length > 1)
+                {
+                    Console.WriteLine($"[transcribe] FINAL: \"{evt.Text}\"");
+                    runtime.HumanSaid(evt.Text);
+                }
+                else if (evt.Type == "partial" && !string.IsNullOrEmpty(evt.Text))
+                {
+                    Console.WriteLine($"[transcribe] partial: \"{evt.Text}\"");
+                }
             }
         }
         catch (OperationCanceledException) { }

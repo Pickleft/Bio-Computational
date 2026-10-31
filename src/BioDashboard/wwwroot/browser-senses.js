@@ -123,9 +123,10 @@ async function enableBrowserSenses() {
       const vadEl = document.getElementById("audio-vad");
       if (vadEl) vadEl.textContent = rms > 0.01 ? "VOICE" : "quiet";
 
-      // send to server at most every 50ms (not every 43ms - saves data)
+      // send to server and Meta ASR at most every 50ms — lower the gate to
+      // near-zero for Meta (it handles silence detection itself)
       const now = Date.now();
-      if (now - lastSend > 50 && rms > 0.0008) {
+      if (now - lastSend > 50 && rms > 0.0001) {
         lastSend = now;
         // resample to 16 kHz
         const ratio = audioCtx.sampleRate / 16000;
@@ -141,12 +142,19 @@ async function enableBrowserSenses() {
         for (let i = 0; i < out.length; i++) {
           pcm[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
         }
-        // fire and forget
+        // send to server (presence + VAD path)
         fetch("/api/browser-audio", {
           method: "POST",
           headers: { "Content-Type": "application/octet-stream" },
           body: pcm.buffer,
         }).catch(() => {});
+
+        // ALSO send via WebSocket to Meta real-time ASR (primary transcription)
+        if (transcribeWs && transcribeWs.readyState === WebSocket.OPEN) {
+          transcribeWs.send(pcm.buffer);
+        } else if (transcribeWs && transcribeWs.readyState === WebSocket.CONNECTING && wsAudioQueue.length < 20) {
+          wsAudioQueue.push(pcm.buffer);   // queue until connected
+        }
       }
     };
     src.connect(audioProc);
@@ -170,8 +178,8 @@ async function enableBrowserSenses() {
       }
     }, 5000);
 
-    // === METHOD 2: SpeechRecognition for live transcription (parallel, independent) ===
-    startTranscription();
+    // === METHOD 2: Meta real-time ASR via WebSocket (primary transcription) ===
+    startMetaTranscription();
   }
 
   senseActive = true;
@@ -183,105 +191,96 @@ async function enableBrowserSenses() {
     "audioCtx rate:", audioCtx ? audioCtx.sampleRate : "N/A");
 }
 
-// === LIVE TRANSCRIPTION (browser SpeechRecognition - instant, free) ===
-function startTranscription() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// === LIVE TRANSCRIPTION (Meta real-time ASR via WebSocket — PRIMARY) ===
+// Audio flows: browser mic → ScriptProcessor → /ws/transcribe WebSocket → Meta ASR → transcript → /api/say → brain
+// No browser SpeechRecognition. No server VAD. Meta handles everything.
+let transcribeWs = null;
+let wsAudioQueue = [];
+
+function connectTranscribeWs() {
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
   const dot = document.getElementById("live-dot");
-
-  // STATUS: make it IMPOSSIBLE to not know what's happening — but also
-  // IMPOSSIBLE to flicker: identical consecutive states touch nothing
-  let lastStatusText = "";
   const setStatus = (msg, color) => {
-    if (msg === lastStatusText) return;
-    lastStatusText = msg;
     if (fin) { fin.textContent = msg; fin.style.color = color || "#8fa3ba"; }
-    console.log("[transcription]", msg);
+    console.log("[transcribe-ws]", msg);
   };
 
-  if (!SR) {
-    setStatus("(this browser has no speech recognition - use Chrome or Edge)", "#f07080");
+  try {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    transcribeWs = new WebSocket(`${proto}//${location.host}/ws/transcribe`);
+    transcribeWs.binaryType = "arraybuffer";
+  } catch (e) {
+    setStatus("(cannot open transcription socket: " + e.message + ")", "#f07080");
     return;
   }
-  setStatus("connecting speech recognition...", "#f0b45c");
 
-  rec = new SR();
-  rec.continuous = true;
-  rec.interimResults = true;
-  rec.lang = "en-US";
-  rec.onresult = (e) => {
-    let interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript.trim();
-      if (e.results[i].isFinal) {
-        // FINAL: show in green, send to brain
-        if (fin && t) { fin.textContent = "\u201C" + t + "\u201D"; fin.style.color = "#6ee7a0"; fin.style.fontSize = "17px"; }
+  transcribeWs.onopen = () => {
+    console.log("[transcribe-ws] connected to Meta ASR");
+    setStatus("LISTENING (Meta real-time) — speak now", "#3ddbb8");
+    if (dot) { dot.classList.add("on"); dot.style.color = "#3ddbb8"; }
+    // flush any queued audio
+    while (wsAudioQueue.length > 0 && transcribeWs.readyState === WebSocket.OPEN) {
+      transcribeWs.send(wsAudioQueue.shift());
+    }
+  };
+
+  transcribeWs.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      if (evt.type === "partial" && evt.text) {
+        if (int) { int.textContent = evt.text; int.style.color = "#3ddbb8"; int.style.fontSize = "15px"; }
+      } else if ((evt.type === "final" || evt.isFinal) && evt.text && evt.text.length > 1) {
+        if (fin) { fin.textContent = "\u201C" + evt.text + "\u201D"; fin.style.color = "#6ee7a0"; fin.style.fontSize = "17px"; }
         if (int) int.textContent = "";
         if (dot) { dot.classList.add("on"); dot.style.color = "#6ee7a0"; }
-        // SEND TO BRAIN
-        if (t && t.length > 1) {
-          fetch("/api/say", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: t })
-          }).catch(() => {});
-        }
-      } else interim += t + " ";
-    }
-    // INTERIM: show live words as you speak (gray, italic, smaller)
-    if (int && interim) { int.textContent = interim; int.style.color = "#3ddbb8"; int.style.fontSize = "15px"; }
+        console.log("[transcribe-ws] FINAL:", evt.text);
+        // The SERVER feeds finals to the brain directly (no round-trip needed)
+      } else if (evt.type === "expired") {
+        setStatus("(session expired — reconnecting...)", "#f0b45c");
+        setTimeout(connectTranscribeWs, 2000);
+      } else if (evt.type === "error") {
+        setStatus("(ASR error: " + evt.text + ")", "#f07080");
+      }
+    } catch { /* not JSON */ }
   };
-  let lastErrorTime = 0;
-  let lastErrorText = "";
-  rec.onerror = (e) => {
-    const err = e.error;
-    // no-speech and aborted are the normal heartbeat of continuous
-    // recognition, not errors — showing them is the flicker
-    if (err === "no-speech" || err === "aborted") return;
 
-    // Don't overwrite errors too fast — keep each one visible for 5 seconds,
-    // and don't re-show the SAME error repeatedly (network blips spam)
-    const now = Date.now();
-    const hint = ({
-      "network": "\u26A0 VOICE RECOGNITION OFFLINE - server transcription is still working, just slower. Try Chrome on PC for instant voice.",
-      "not-allowed": "\u26A0 MIC BLOCKED - click the lock icon in the address bar, allow microphone, then reload",
-      "audio-capture": "\u26A0 NO MIC FOUND - check microphone connection",
-      "service-not-allowed": "\u26A0 VOICE SERVICE BLOCKED - try Chrome on PC",
-    })[err] || "(voice error: " + err + ")";
-    if (now - lastErrorTime < 8000 && hint === lastErrorText) return;
-    lastErrorTime = now;
-    lastErrorText = hint;
-    if (fin) fin.dataset.persisting = "1";
-    setStatus(hint, "#f07080");
-    if (dot) { dot.style.color = "#f07080"; dot.classList.remove("on"); }
-    setTimeout(() => { if (fin) fin.dataset.persisting = "0"; }, 5000);
+  transcribeWs.onclose = (e) => {
+    console.log("[transcribe-ws] closed:", e.code, e.reason);
+    if (e.reason === "no-api-key") {
+      setStatus("(no API key — server transcription only. The brain still hears audio.)", "#f0b45c");
+      return; // don't reconnect: it will fail again
+    }
+    if (e.reason === "meta-connect-failed") {
+      setStatus("(Meta ASR unreachable — check server console)", "#f07080");
+      setTimeout(connectTranscribeWs, 5000); // retry in 5s
+      return;
+    }
+    // normal close: reconnect after 2s
+    if (senseActive) {
+      setStatus("(reconnecting...)", "#f0b45c");
+      setTimeout(connectTranscribeWs, 2000);
+    }
   };
-  // RESTART WITH BACKOFF: instant restarts race the engine (start throws
-  // "already started" → error → end → start...) which reads as flicker
-  let restartDelay = 400;
-  rec.onend = () => {
-    if (!senseActive || !rec) return;
-    const delay = restartDelay;
-    restartDelay = Math.min(restartDelay * 2, 4000);
-    setTimeout(() => {
-      if (!senseActive || !rec) return;
-      try { rec.start(); } catch { /* already starting: the next onend retries */ }
-    }, delay);
+
+  transcribeWs.onerror = () => {
+    setStatus("(socket error — reconnecting...)", "#f07080");
   };
-  rec.onstart = () => {
-    restartDelay = 400;   // healthy start resets the backoff
-    setStatus("LISTENING - speak now", "#3ddbb8");
-    if (dot) { dot.classList.add("on"); dot.style.color = "#3ddbb8"; }
-  };
-  try {
-    rec.start();
-    console.log("[senses] SpeechRecognition start() called");
-  } catch (e) {
-    console.error("[senses] SpeechRecognition start failed:", e);
-    setStatus("(failed to start voice recognition: " + e.message + ")", "#f07080");
-  }
 }
+
+function startMetaTranscription() {
+  connectTranscribeWs();
+
+  // Hook into the audio processor: when PCM is ready, send via WebSocket
+  // (in addition to the existing /api/browser-audio POST)
+  // We piggyback on the same onaudioprocess that sends to /api/browser-audio
+  // by intercepting the audio data at the point of PCM conversion
+  // The actual sending is done in the onaudioprocess handler via
+  // the global `lastPcmBuffer` variable
+}
+
+// Global: the last PCM buffer from the audio processor, for the WS to send
+let lastPcmBuffer = null;
 
 // === CAMERA FRAME ===
 function sendFrame() {
