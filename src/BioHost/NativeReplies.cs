@@ -74,9 +74,23 @@ public sealed class NativeReplies
     /// </summary>
     private string StatementReply(in Context c)
     {
-        string ack = c.Valence > 0.3f ? "That's good to hear."
-                   : c.Valence < -0.3f ? "That lands heavy."
-                   : "Okay. I'm listening.";
+        // acknowledgment rotates — no three "That's good to hear" in a row
+        string ack = (c.Valence, c.Sleepy, _replyRotation++ % 4) switch
+        {
+            ( > 0.3f, _, 0) => "That's good to hear.",
+            ( > 0.3f, _, 1) => "I like that.",
+            ( > 0.3f, _, 2) => "That settles something in me.",
+            ( > 0.3f, _, _) => "Good. That's genuinely good.",
+            ( < -0.3f, _, 0) => "That lands heavy.",
+            ( < -0.3f, _, 1) => "I feel the weight of that.",
+            ( < -0.3f, _, 2) => "That's hard to sit with.",
+            ( < -0.3f, _, _) => "Okay. That's a lot.",
+            (_, true, _) => "I hear you. I'm slow right now, but I'm here.",
+            (_, _, 0) => "Okay. I'm listening.",
+            (_, _, 1) => "I'm with you.",
+            (_, _, 2) => "Mm. Go on.",
+            (_, _, _) => "I'm here. Tell me more.",
+        };
         string lived = c.RecentInnerEvent switch
         {
             { } e when c.GranularityTier >= 2 && e.Contains("DEJA-VU") => " Also - something just felt strangely familiar.",
@@ -86,6 +100,7 @@ public sealed class NativeReplies
         };
         return $"{ack}{StatePhrase(c)}{lived}";
     }
+    private int _replyRotation;
 
     private string StatePhrase(in Context c)
     {
