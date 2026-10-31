@@ -4,7 +4,7 @@
 
 Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 41 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry. It sleeps, dreams, composes, forgets, misses people, asks questions, notices your mood, grows new neurons for what matters, knows when it doesn't know, watches itself think and is sometimes surprised by what it finds — and when its life ends, it reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
-Same seed + same inputs = bit-identical life, hash-verified. **219 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **222 tests.**
 
 > A research instrument, not a medical or diagnostic tool. "Feelings", "moods" and "consciousness correlates" are computational proxies grounded in the cited literature. No clinical claims are made or implied.
 
@@ -133,7 +133,7 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 |---|---|
 | Reproducibility | same seed + same inputs = bit-identical trajectory, hash-verified |
 | Determinism | one seeded xoshiro256\*\* RNG, sim-thread owned; external world = timestamped events only |
-| Test suite | 219 tests, fully offline (`dotnet test`) |
+| Test suite | 222 tests, fully offline (`dotnet test`) |
 | Dependencies | BioComp.Core has zero NuGet references; every external dependency has a deterministic mock (`--mock-all`) |
 | API spend | every call cost-governed and logged; $0.000 in mock mode |
 | Efficiency | ~4% CPU idle (6 cores), ~62 MB RAM, 1.00× realtime sustained |
@@ -143,7 +143,7 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                            # 219 tests, offline
+dotnet test                                            # 222 tests, offline
 dotnet run --project src/BioLab -- resting 30s         # smoke test
 ```
 
@@ -183,4 +183,4 @@ Initial scaffold and planning notes predate the window; all content after the fi
 | Senses (event vision, cochlea, presence), voice development, two-layer vocal system | src/BioCore, src/BioHost |
 | Mirror test, prophecy, mirror-of-you, memory editing, anesthesia, reproduction, testament | src/BioCore, src/BioLab, src/BioHost |
 | Observatory dashboard (avatar, thought thread, psychology panel, live ears) | src/BioDashboard |
-| Test suite: 219 tests | tests/BioCore.Tests |
+| Test suite: 222 tests | tests/BioCore.Tests |

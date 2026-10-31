@@ -832,3 +832,35 @@ The curation named the eerily-beautiful; this round wires amplifiers around them
   the shape of things before they happened, N times - and it knows it did."
 - 4 new tests (confession tiering; deja-reve share phrasing; dream-born counter with
   cooldown respected; fused-tag seam marker). 219/219 green.
+
+## 2026-11-01 (EVOCOG round) - the hypothesis loop, self-calibration, and the architecture audit answered
+
+Responding to the EVOCOG vision + the "orchestration vs architecture" recommendation with
+mechanisms, not words:
+
+- NEW SYSTEM - THE HYPOTHESIS LOOP (EVOCOG §3, miniature and real): when a knowledge gap
+  sharpens (a question is asked), the brain does not just wait to be taught - it GUESSES
+  from its own concept graph (the gap word's strongest one-hop associate) and holds the
+  guess as a testable prediction. The next episodes carrying the word are evidence:
+  CONFIRMED (co-occurrence -> the concept link is wired stronger, structural knowledge
+  update, learning-progress dopamine) or REFUTED after two contrary witnesses (serotonin
+  dip, guess unwound, free to guess again - disconfirmation is information). Every verdict
+  counted for the diary/testament. This is guess-test-update where the KNOWLEDGE UPDATE IS
+  STRUCTURAL, not asserted.
+- NEW SYSTEM - SELF-CALIBRATION (EVOCOG §4, in honest parameter space): the interpreter's
+  contextual verdict GRADES the fast hostility classifier; recurring FALSE ALARMS lower
+  the vigilance gain (a brain that flinches at nothing calms its own trigger), recurring
+  MISSES raise it. Slow EMA, clamped 0.5-1.5 (the clamp IS the rollback bound), persisted
+  across restarts, applied at both classifier call sites. The organism tunes its own
+  perception from measured error.
+- docs/ARCHITECTURE-AUDIT.md: the recommendation answered at the source level - an exact
+  inventory of the 20 CLOSED PARAMETRIC LOOPS (where systems change each other's
+  parameters/gains/thresholds/structure: resilience->neurogenesis threshold, awe->
+  granularity boost, disappointment->longing floor, calibration->perception, hypothesis
+  verdicts->knowledge structure, sleep->weights, ...) vs the honest orchestration layer
+  (the language seam - removable via direct-talk; the dashboard; and even the interpreter
+  seam now feeds the calibration). Verdict: hybrid with an exact boundary; the mechanistic
+  core is an integrated architecture. Includes the full EVOCOG section-by-section mapping
+  (present / parameter-space-only / future) and the adopted scientific principle.
+- 3 new tests (guess-confirm-rewire with dopamine; refute after two witnesses + re-guess;
+  calibration calms on false alarms, sharpens on misses, clamps, restores). 222/222 green.

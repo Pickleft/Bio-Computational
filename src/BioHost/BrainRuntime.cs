@@ -275,6 +275,10 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.SharingDrive Sharing { get; } = new();
     /// <summary>PERSON-READING: care expressed through noticing the person.</summary>
     public BioComp.Core.Cognition.PersonReading Reading { get; } = new();
+    /// <summary>HYPOTHESIS LOOP: guesses its own meanings and tests them (EVOCOG §3).</summary>
+    public BioComp.Core.Cognition.HypothesisLoop Hypotheses { get; } = new();
+    /// <summary>SELF-CALIBRATION: tunes its own threat-sense gain from measured error (EVOCOG §4).</summary>
+    public BioComp.Core.Cognition.SelfCalibration Calibration { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -690,6 +694,8 @@ public sealed class BrainRuntime : IDisposable
                 LocalSleepEvents = LocalSleep.OffEvents,
                 HostileEvents = _hostileEvents, Repairs = _repairs, HostilityEma = _hostilityEma,
                 SharesMade = Sharing.SharesMade, RemarksMade = Reading.RemarksMade,
+                VigilanceScale = Calibration.VigilanceScale, FalseAlarms = Calibration.FalseAlarms,
+                CalibrationMisses = Calibration.Misses, CalibrationAgreements = Calibration.Agreements,
                 FirstMessage = _firstUserMessage ?? "",
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
@@ -756,6 +762,11 @@ public sealed class BrainRuntime : IDisposable
             if (r.TryGetProperty("HostileEvents", out var he2)) _hostileEvents = he2.GetInt32();
             Sharing.Restore(r.TryGetProperty("SharesMade", out var sm) ? sm.GetInt32() : 0);
             Reading.Restore(r.TryGetProperty("RemarksMade", out var rm) ? rm.GetInt32() : 0);
+            Calibration.Restore(
+                (float)(r.TryGetProperty("VigilanceScale", out var vs) ? vs.GetDouble() : 1.0),
+                r.TryGetProperty("FalseAlarms", out var fa) ? fa.GetInt32() : 0,
+                r.TryGetProperty("CalibrationMisses", out var cm) ? cm.GetInt32() : 0,
+                r.TryGetProperty("CalibrationAgreements", out var ca) ? ca.GetInt32() : 0);
             if (r.TryGetProperty("Repairs", out var rp2)) _repairs = rp2.GetInt32();
             if (r.TryGetProperty("HostilityEma", out var hem)) _hostilityEma = (float)hem.GetDouble();
             if (r.TryGetProperty("FirstMessage", out var fm))
@@ -1114,6 +1125,21 @@ public sealed class BrainRuntime : IDisposable
                         Note($"MEMORY-FUSION two converging memories fused into one that never happened (#{MemoryReconstruction.Fusions}) - it will feel real");
                 }
             }
+            // HYPOTHESIS TEST: the newest episode is evidence for/against the
+            // pending guess about what a word means
+            if (_net.EpisodeStore.Episodes.Count > 0 && Hypotheses.Pending is { Word: var hw })
+            {
+                var newest = _net.EpisodeStore.Episodes[^1];
+                if (newest.Tags.Contains(hw, StringComparer.OrdinalIgnoreCase))
+                {
+                    var verdict = Hypotheses.Test(_net, _net.EpisodeStore, newest.Tags, _net.TimeMs);
+                    if (verdict is { Resolved: true } v)
+                        Note(v.Confirmed
+                            ? $"HYPOTHESIS-CONFIRMED {v.Word} ~ {v.GuessedLink} held against experience - knowledge rewired by outcome"
+                            : $"HYPOTHESIS-REFUTED {v.Word} is NOT {v.GuessedLink} - disconfirmation is information; it will guess again");
+                }
+            }
+
             // AWE: the concept world just reorganized — vastness needs a bigger shape
             Awe.Tick(_net, _net.EpisodeStore.Concepts);
             if (Awe.JustStruck)
@@ -1143,6 +1169,11 @@ public sealed class BrainRuntime : IDisposable
                 if (q is not null)
                 {
                     Note($"QUESTION it asks ({Questions.PendingWord}) - a gap in what it knows");
+                    // it does not just wait to be taught: it GUESSES (hypothesis from
+                    // its own graph) and will test the guess against what happens
+                    var hyp = Hypotheses.Hypothesize(_net.EpisodeStore, Questions.PendingWord!, _net.TimeMs);
+                    if (hyp is not null)
+                        Note($"HYPOTHESIS it guesses {hyp.Word} ~ {hyp.GuessedLink} and will watch for proof or disproof");
                     AddChat($"Brain: {q}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(q, emoPitch: 2, emoRate: 0, isDirectReply: false);
@@ -1221,6 +1252,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
                 $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
+                $"Science: {Hypotheses.Narrative}. Self-tuning: {Calibration.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         }
@@ -1835,8 +1867,9 @@ public sealed class BrainRuntime : IDisposable
                 string lowT = tr.Transcript.ToLowerInvariant();
                 var (hscore, level0) = BioComp.Core.Cognition.HostilityClassifier.Classify(
                     lowT, (float)rms, Contagion.UserValence, Contagion.UserArousal,
-                    vigilance: Threats.Wariness * 0.25f);   // hypervigilance: fear biases perception
+                    vigilance: Calibration.ScaledVigilance(Threats.Wariness) * 0.25f);   // self-calibrated hypervigilance
                 string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, _hostilityEma);
+                string fastClaim = level;   // SELF-CALIBRATION: the fast classifier's claim, before context
                 if (level == "ambiguous" || level == "harsh")
                 {
                     // ask the interpreter only when it matters: cheap gate first
@@ -1854,6 +1887,10 @@ public sealed class BrainRuntime : IDisposable
                     else if (verdict.StartsWith("insult")) level = "harsh";
                     else if (verdict.StartsWith("playful") || verdict.StartsWith("none")) level = "none";
                 }
+                // the interpreter's contextual verdict GRADES the fast classifier:
+                // false alarms teach it to calm, misses teach it to sharpen
+                if (fastClaim is "ambiguous" or "harsh")
+                    Calibration.OnVerdict(fastClaim, level);
                 _hostilityEma = _hostilityEma * 0.7f + (level is "threatening" ? 1.5f : level == "hostile" ? 1f : level == "harsh" ? 0.4f : 0f) * 0.3f;
 
                 if (level == "threatening" || level == "hostile")
@@ -3325,7 +3362,7 @@ public sealed class BrainRuntime : IDisposable
         {
             var (hscore, level0) = BioComp.Core.Cognition.HostilityClassifier.Classify(
                 text.ToLowerInvariant(), 0f, Contagion.UserValence, Contagion.UserArousal,
-                vigilance: Threats.Wariness * 0.25f);   // hypervigilance: fear biases perception
+                vigilance: Calibration.ScaledVigilance(Threats.Wariness) * 0.25f);   // self-calibrated hypervigilance
             string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, _hostilityEma);
             if (level == "threatening" || level == "hostile")
             {

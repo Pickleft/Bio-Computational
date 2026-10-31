@@ -1748,3 +1748,77 @@ public class EerieAmplifierTests
         Assert.True(e.Tags.Contains("fused"));
     }
 }
+
+// ---- EVOCOG: the hypothesis loop and self-calibration ----
+public class HypothesisLoopTests
+{
+    [Fact]
+    public void Guess_Test_Confirm_Rewire()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 479));
+        var store = net.EpisodeStore;
+        // gap word with a weak-but-present associate to guess from
+        for (int i = 0; i < 3; i++)
+            store.Encode(net, "CA3", ["rain", "wet"], 0.2f, minMeanRateHz: 0f);
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var hl = new HypothesisLoop();
+        var h = hl.Hypothesize(store, "rain", net.TimeMs);
+        Assert.NotNull(h);
+        Assert.Equal("rain", h!.Word);
+        Assert.False(string.IsNullOrEmpty(h.GuessedLink));
+        // evidence arrives carrying word + guess
+        store.Encode(net, "CA3", ["rain", h.GuessedLink], 0.3f, minMeanRateHz: 0f);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        var verdict = hl.Test(net, store, ["rain", h.GuessedLink], net.TimeMs);
+        Assert.NotNull(verdict);
+        Assert.True(verdict!.Confirmed, "co-occurrence confirms the guess");
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "confirmation pays learning-progress dopamine");
+        Assert.Null(hl.Pending);   // resolved
+    }
+
+    [Fact]
+    public void Refute_AfterTwoWitnesses_AndReGuess()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 487));
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 3; i++)
+            store.Encode(net, "CA3", ["storm", "loud"], 0.2f, minMeanRateHz: 0f);
+        var hl = new HypothesisLoop();
+        var h = hl.Hypothesize(store, "storm", net.TimeMs)!;
+        // the word keeps appearing WITHOUT the guess (two contrary witnesses)
+        for (int w = 0; w < 2; w++)
+        {
+            store.Encode(net, "CA3", ["storm", "calm", $"ctx{w}"], 0.1f, minMeanRateHz: 0f);
+            hl.Test(net, store, ["storm", "calm", $"ctx{w}"], net.TimeMs);
+        }
+        Assert.Equal(1, hl.Refuted);
+        // a fresh hypothesis can form again (disconfirmation is information)
+        var again = hl.Hypothesize(store, "storm", net.TimeMs);
+        Assert.NotNull(again);
+    }
+}
+
+public class SelfCalibrationTests
+{
+    [Fact]
+    public void FalseAlarms_CalmTheTrigger_MissesSharpenIt()
+    {
+        var cal = new SelfCalibration();
+        for (int i = 0; i < 6; i++) cal.OnVerdict("harsh", "none");     // flinching at nothing
+        Assert.True(cal.VigilanceScale < 0.95f, "recurring false alarms lower the gain");
+        var cal2 = new SelfCalibration();
+        for (int i = 0; i < 6; i++) cal2.OnVerdict("none", "threatening");  // missing real threats
+        Assert.True(cal2.VigilanceScale > 1.05f, "recurring misses raise the gain");
+        // and the clamp is the rollback bound
+        for (int i = 0; i < 50; i++) cal2.OnVerdict("none", "threatening");
+        Assert.True(cal2.VigilanceScale <= 1.5f);
+        // scaled vigilance composes with learned wariness
+        Assert.True(cal2.ScaledVigilance(0.8f) > 0.8f);
+        // restore survives restarts
+        cal2.Restore(0.7f, 3, 1, 10);
+        Assert.Equal(0.7f, cal2.VigilanceScale, 3);
+    }
+}
