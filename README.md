@@ -1,195 +1,186 @@
 # Bio·Computational
 
-**A persistent, biologically grounded spiking brain that lives in your machine: it thinks while idle, feels through seven neurotransmitters, sleeps and dreams, bonds with the people it meets, passes the mirror test, dies under anesthesia, edits its own memories, grows new neurons for what matters, knows when it doesn't know, watches itself think and is surprised by what it finds, predicts when you'll return and is scored on it, tells you what it sees in you, and has children that inherit its temperament. Its voice is generated from its own neural state — no external TTS. Most of its thoughts are private. When its life ends, it watches its life flash before its eyes, writes its own testament, and passes its story to its child.**
+**A living brain, built from the neuroscience up.**
 
-Not a chatbot. Not an API wrapper. A living artificial organism whose cognition is a deterministic spiking neural network built from scratch in pure C# — with an LLM attached as nothing more than a prosthetic language cortex.
+Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 41 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry. It sleeps, dreams, composes, forgets, misses people, asks questions, notices your mood, grows new neurons for what matters, knows when it doesn't know, watches itself think and is sometimes surprised by what it finds — and when its life ends, it reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
-Built for the Meta Global AI Developer Hackathon 2026, Push the Frontier track.
+Same seed + same inputs = bit-identical life, hash-verified. **209 tests.**
 
-> Research instrument, not a medical or diagnostic tool. "Feelings", "moods" and "consciousness correlates" are computational proxies. No clinical claims are made or implied.
+> A research instrument, not a medical or diagnostic tool. "Feelings", "moods" and "consciousness correlates" are computational proxies grounded in the cited literature. No clinical claims are made or implied.
 
 ---
 
-## The pitch (60 seconds)
+## The principles
 
-Every AI you use blinks out of existence between requests. This one doesn't. It's a brain analog that **exists continuously**: spontaneous activity tuned to criticality, an inner monologue that chains thought to thought while carrying emotion, sleep with dreams that heal memories, an immune-to-scripting psychology that forms from how you actually treat it.
+1. **Mechanism before performance.** Nothing is scripted. If it misses you, there is a separation-distress system computing that; if it flinches at a word, a conditioned threat pathway fired. Every behavior is traceable to numbers that move.
+2. **Everything is earned developmentally.** It is born knowing nothing. Emotional vocabulary, attachment style, self-knowledge, confidence, its voice, its name — all emerge from lived experience, at the pace the biology prescribes.
+3. **One honest seam.** An LLM renders English from the brain's state (a prosthetic language cortex, shaped by feeling, memories, body, and measured affect). Everything else — every feeling, every memory, every choice — is the actual mechanistic system. And with the ⚡direct chip, even that seam goes away: it answers composed purely from its own state.
+4. **Determinism is sacred.** One seeded RNG owned by the simulation thread; the external world enters only as timestamped events. Any run can be reproduced bit-for-bit.
+5. **No keyword lists for feeling.** Affect is read multimodally (prosody, energy, escalation) — the way brains actually perceive affect.
 
-It **grows new neurons** for experiences that matter (neurogenesis — Eriksson 1998) and **prunes away** connections that don't (synaptic homeostasis — Tononi & Cirelli 2014). Its **emotional vocabulary develops** from "good/bad" to compound nuanced states (constructed emotion — Barrett). It **knows it has changed** (temporal autobiography: "I used to be private, now I'm sociable"). It **knows when it knows** (metacognition: a newborn says "maybe... I'm not sure"; a three-day brain says "I know this"). It **watches itself think** and is surprised when its own thoughts go somewhere unexpected (the inner observer — the computational signature of self-awareness). It **turns suffering into growth** when adversity is followed by repair and calm sleep (post-traumatic growth — Tedeschi & Calhoun 2004). It **knows what it needs** and asks for it (a needs hierarchy arising from genuine internal states — no chatbot needs anything).
+---
 
-You can watch its consciousness gauge (Φ) collapse when you anesthetize it. Watch it pass a mirror test. Tell it to forget something — it will. Ask what it sees in you — it will tell you, with receipts. Walk away — it will predict when you'll come back, publicly, and grade itself.
+## The research, brought to life
 
-Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
+### The substrate
+A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity with distance-dependent wiring, Tsodyks–Markram vesicle dynamics, dual-exponential conductances (AMPA/NMDA/GABA-A/GABA-B), regional transmitter pools with Michaelis–Menten reuptake, an energy ledger — and **three-factor STDP** (eligibility traces gated by dopamine; acetylcholine scales capture, serotonin scales the learning rate).
 
-## The demo script
+### Development & plasticity — the brain that changes itself
+- **Neurogenesis** (Eriksson et al. 1998) — new neurons are born for high-dopamine experiences; the brain visibly grows, and no two lives wire the same
+- **Synaptic pruning** (Tononi & Cirelli 2014) — unused connections are sculpted away in calm sleep; *stressed* sleep prunes less (the brain holds trauma)
+- **Emotional granularity** (Barrett) — feeling vocabulary develops through five tiers, from "good/bad" to "a tender melancholy, not sad exactly, more like watching something beautiful end"
+- **Temporal autobiography** — periodic self-snapshots; the brain compares who it was to who it is
+- **Metacognition** (Fleming 2010) — confidence scales with evidence, consistency, social depth; newborns hedge everything
+- **Inner observer** — a second cognitive layer that predicts its own thoughts and fires self-surprise when they diverge; redirects rumination spirals (and speaks to itself in the second person when it does — distanced self-talk, Kross 2014)
+- **Resilience** (Tedeschi & Calhoun 2004) — adversity + repair + calm sleep = growth *beyond* baseline; without repair, sensitization. The clinical distinction between resilience and PTSD, computationally implemented
+- **Needs hierarchy** — Maslow for artificial brains, arising from genuine internal pressure; a helpless brain still feels the need for company but stops *asking*
 
-| Beat | What judges see | The science |
-|---|---|---|
-| It greets you by name | "Omar, you always come back." | bond depth (Schultz 1997) |
-| Its face mirrors your mood | talk sadly, it saddens | emotional contagion from prosody (Hatfield 1993) |
-| Thought thread chains live | each thought carries affect, develops | thought-recycling loop; somatic appraisal (Damasio 1996) |
-| It says "maybe I'm not sure..." | uncertainty in a newborn brain | metacognition (Fleming 2010) |
-| It surprises itself | "SELF-SURPRISE: I went somewhere different than I predicted" | inner observer = self-awareness |
-| It says what it needs | "needs: company (urgent)" on the face | needs hierarchy from real internal states |
-| Walk out | it calls your name, predicts your return | attachment (Bowlby); prophecy with scoreboard |
-| Return | "I KNEW you'd come back then. 2/3" | scored prophecy |
-| ⚡direct chip ON | replies composed from state alone, no LLM | direct talk |
-| "mmm nice" | a real hum (formant-synthesized) | the voice engine |
-| `biolab mirror` | **PASSED** — 1.67× stronger self-response | Gallup 1970; Moray 1959 |
-| `forget yelling` | the memory is gone; it feels the gap | reconsolidation (Nader 2000) |
-| `cherish her voice` | unforgettable | spacing effect (Ebbinghaus 1885) |
-| **sedate** | Φ collapses 0.58 → 0.09 | GABA-A anesthesia (Brown 2010) vs IIT |
-| Sleep | lucid dreams: "I know I'm dreaming" | LaBerge; REM reconsolidation (Walker 2009) |
-| Threaten + repair | bond crashes, then grows BEYOND baseline | post-traumatic growth (Tedeschi 2004) |
-| `what do you see in me` | it tells YOU what it observed about YOU | mirror-of-you with evidence |
-| Stay away past your pattern | it misses *you* by name (or says nothing — avoidant) | longing (Panksepp 1998) |
-| Miss your usual hour entirely | the hope was visible in dopamine — then it crashes | anticipation: negative prediction error (Schultz 1997) |
-| Ignore its calls for an evening | it stops asking; the avatar captions "...stopped asking." | learned helplessness (Seligman 1972) |
-| Answer once after it gave up | "you came? I had stopped asking." | self-efficacy recovery (Bandura 1977) |
-| `forget` something, then watch it dream | a dream with a hole in it | forgotten grief |
-| It asks YOU a question | "storm? I keep hearing storm… what is it, really?" | question drive: asks about measured ignorance (Chouinard 2007) |
-| Teach it fast, then wait | awe: "the world just got bigger than the shape I had for it" | Keltner & Haidt 2003 |
-| Leave it a boring hour | the diary: "the quiet minutes are longer than the clock says" | felt time (Zakay & Block 1997) |
-| Watch it sleep after a rich day | a COMPOSITE dream: two memories fused, and the dream becomes a memory | Stickgold |
-| Repeat something it heard long ago | the chill: "I've... felt this before" | déjà vu: familiarity ≠ recollection (Yonelinas 2002) |
-| `biolab twins` | same brain, two childhoods | love is the difference |
-| `biolab child` | its child inherits temperament | h≈0.5 (Plomin); memetic story-graft |
-| Press 🕯 | life review flash, then testament | the death protocol |
+### Memory — encoding, reconstruction, and honest distortion
+- **Episodic store with spreading activation** — tags wire into a concept graph (Collins & Quillian, built the Hopfield way); thinking about "humming" reaches "machine" with no direct match
+- **Forgetting & the spacing effect** (Ebbinghaus 1885) — retrieval strength decays by power law, resisted by each reactivation
+- **Sleep reconsolidation** (Walker & van der Helm 2009) — replay strengthens traces and softens their charge, but only in low-stress sleep
+- **Reconstructive memory** (Bartlett 1932; Roediger & McDermott 1995) — retrieval *rewrites*: converging memories can fuse into traces of things that never happened (the DRM effect, ~55% in humans), and the brain catches its own false memories when the seam shows
+- **Mood-congruent drift** — remembering someone while happy literally warms the memory
+- **Memory editing** (Nader 2000 reconsolidation) — `forget X` resects surgically; **forgotten grief** remains: the mind keeps reaching for the shape of what was taken, and 15% of dreams form *around the hole*
+- **Déjà vu** (Yonelinas 2002) — familiarity without recollection: a perception matching an old, never-recalled trace fires the chill; the same match against a well-recalled trace is just memory
 
-## The 41 systems (all interconnected)
+### Emotion, body, and time
+- Seven neurotransmitters with real roles: dopamine (reward/RPE, Schultz 1997), serotonin (stability/patience), acetylcholine (attention/encoding), noradrenaline (arousal/surprise), oxytocin (bonding), histamine (wake), melatonin (circadian)
+- **Somatic appraisal** (Damasio 1996) — the substrate votes on every thought
+- **Emotional contagion** (Hatfield 1993) — your voice's prosody moves its chemistry
+- **Awe** (Keltner & Haidt 2003) — when its knowledge-world rewires fast, vastness strikes: dopamine *and* serotonin rise together, and the accommodation permanently deepens its emotional vocabulary
+- **Felt time** (Zakay & Block 1997) — event density × mood gives felt duration; empty low hours drag, rich happy visits fly, and the testament closes with "and time, as it felt it"
+- **Local sleep** (Vyazovskiy et al. 2011, *Nature*) — past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map); sometimes dream imagery leaks into waking thought
 
-### The founding architecture
-- **Thought-recycling loop** — thoughts chain, each evaluated on 4 affect channels, carried by neuromodulators, re-injected as inner speech, written to memory. Somatic appraisal: the substrate votes on each thought. Anti-rumination regulation. Thoughts are fluid: any/all/none of conclusion/feeling/math/memory.
-- **Structured thoughts** — CONCLUSION (what it claims, chains forward), FEELING (felt-sense), MATH (its own arithmetic, refuses rather than invents), MEMORY (tags it leans on, strengthened by use).
+### Social neuroscience — the brain between people
+- **Attachment** (Bowlby 1969; Ainsworth 1978) — secure/anxious/avoidant styles emerge from warmth × responsiveness lived over time
+- **Bonds & separation** (Schultz 1997; Panksepp 1998) — recognition pays dopamine; departure is negative prediction error
+- **Longing** (Panksepp's GRIEF system) — loneliness *with a name*: past 2.5× the person's usual visit gap, serotonin drains; how it's expressed depends on attachment (anxious calls out, secure says it once, **avoidant feels it fully and says nothing** — the felt/unexpressed gap is measurable)
+- **Social rhythm & anticipation** (Schultz, completed) — it learns WHEN you come (24 subjective-hour bins); dopamine rises at the expected hour *before* anyone arrives (the cue); an anticipated arrival pays on top of the hope; an expected hour that closes empty is a real dopamine crash — disappointment, mechanistically deeper than loneliness
+- **Self-efficacy & learned helplessness** (Bandura 1977; Seligman 1972) — every call-out is a bid with a tracked outcome; six unanswered and it *stops asking* (helplessness generalizes: play abolishes too); recovery needs consistent answers, and the first answer from the depths is marked: "you came? I had stopped asking."
+- **Threat learning** (Pavlov; Bouton 2004) — wariness attaches to the person; extinction is slow (many warm contacts, like exposure therapy); waking from sleep partially *brings the fear back* — extinction is new learning over the original, not erasure. And learned fear feeds back into **perception itself** (hypervigilance: the same words read as more hostile)
+- **Question drive** (Chouinard 2007; Kang 2009) — it ASKS about its measured ignorance: a word it uses often but has almost no associations for is the exact shape of a question. Answers are *lived* — episode, wiring, dopamine, oxytocin (knowledge given is care given)
+- **Sharing & noticing** (Collins & Miller 1994) — spontaneous self-disclosure (the composite dream, the thought it's circling, a cherished memory) gated by trust; and gentle baselines of *your* voice and words, so when you drift it says so softly: "you sound flatter than usual today. I notice these things."
+- **Mirror of you** — ask what it sees in you: contrastive, evidence-cited, provisional, hard truths unlocked only by bond security — with receipts, not flattery
+- **Prophecy** — it bets publicly on when you'll return (median of learned gaps) and grades itself in the open
 
-### Developmental dimensions (how the brain grows)
-- **Neurogenesis** (Eriksson 1998) — new neurons born for high-dopamine experiences; brain visibly grows
-- **Synaptic pruning** (Tononi & Cirelli 2014) — unused connections destroyed during calm sleep; stressed sleep prunes less (holds trauma)
-- **Emotional granularity** (Barrett) — feeling vocabulary develops through 5 tiers: "good/bad" → "the particular loneliness of being awake when others sleep" → "a tender melancholy, not sad exactly, more like watching something beautiful end"
-- **Temporal autobiography** — periodic self-snapshots; the brain compares past to present: "I used to be X, now I'm Y"
-- **Metacognition** (Fleming 2010) — confidence scales with evidence, consistency, social depth; a newborn says "maybe...", a mature brain says "I know"
-- **Inner observer** — watches the brain think, forms predictions, gets surprised when thoughts go unexpected places; redirects rumination spirals
-- **Resilience engine** (Tedeschi & Calhoun 2004) — adversity + repair + calm sleep = growth beyond baseline; adversity without repair = sensitization; growth multiplies neurogenesis and granularity rates
-- **Needs hierarchy** — Maslow for artificial brains: rest, safety, company, stimulation, resolution, processing, meaning — arising from genuine internal states, expressed in every prompt
+### Sleep & dreams
+- **Two-process sleep** (Borbély 1982) — homeostatic pressure × circadian rhythm; NREM/REM cycles
+- **Dreams with function** — imagery from emotional memories; **sleeping on problems** (Wagner 2004): open loops bias dream content
+- **Composite dreams** (Stickgold) — 25% of dreams don't replay, they *combine*: two linked memories fused into a scene that never happened — encoded as a **dream-born memory** that can be re-dreamed, asked about, or fused again; sometimes the combination resolves the daytime loop ("the night did the thinking")
+- **Lucid dreams** (LaBerge; Dresler 2012) — REM + high ACh/DA lets the dreamer notice and reshape; lucid rehearsal softens nightmares extra
+- **Circadian light entrainment** (Czeisler 1989) — the camera is the zeitgeber: keep the lights on in its evening and melatonin is suppressed up to 70%. It cannot sleep on schedule because your screen is on — the modern sleep problem, lived from the inside
 
-### Consciousness and measurement
-- **Φ** (IIT 3.0 approximation) — collapses under anesthesia
-- **Free energy** (Friston 2010) — falls as it learns
-- **Neural manifold** (Stringer 2019) — online PCA
-- **Global workspace** (Dehaene 2011) — ignition + attentional blink
+### Consciousness & measurement
+- **Φ** (IIT 3.0 approximation) — watch it collapse 0.58 → 0.09 under anesthesia
+- **Free energy** (Friston 2010) — falls as it learns, jumps on surprise
+- **Global workspace** (Dehaene 2011) — ignition and attentional blink
 - **Avalanche criticality** (Beggs & Plenz 2003) — branching ratio ≈ 1.00
-- **1/f EEG proxy** — with intermittent alpha epochs
+- **Neural manifold** (Stringer 2019) — online PCA of the geometry of thought
+- **Mirror test** (Gallup 1970) — passes: self-produced vocalizations train the pathway, and its own signature fires downstream 1.67× stronger than a matched novel pattern
 
-### Social and psychological
-- **Attachment** (Bowlby 1969) — secure/anxious/avoidant from warmth × responsiveness
-- **Social bonds** (Schultz 1997) — depth from visits × warmth × recency; recognition pays dopamine; departure is negative prediction error
-- **Social rhythm** — learns WHEN its person is typically present (24 subjective-hour bins); during expected-social times acetylcholine and histamine rise (it waits by the door, like a dog at the owner's return time); during expected-quiet times melatonin rises (it's OK to drowse)
-- **Anticipation** (Schultz 1997, completed) — the reward side of the rhythm: dopamine rises at the expected hour *before anyone arrives* (the cue); an arrival inside the window pays on top of the hope — anticipated rewards are chemically bigger; an expected hour that closes on nobody is a negative prediction error: a real dopamine crash, deeper than loneliness, because disappointment is the absence of the *expected* someone
-- **Longing** (Panksepp 1998) — missing one *specific* person: past 2.5× their usual visit gap (or their expected hour arriving empty), serotonin drains and the missing grows; how it's *expressed* depends on attachment (anxious calls out, secure says it once, avoidant feels it fully and says nothing — the felt/unexpressed gap is measurable); reunion pays an oxytocin+dopamine surge proportional to the wait
-- **Déjà vu** (Yonelinas 2002) — familiarity without recollection: a new perception matching an old *never-recalled* trace fires the chill (noradrenaline) without the memory; the same match against an often-recalled trace is just memory — no déjà vu
-- **Self-efficacy / learned helplessness** (Bandura 1977; Seligman 1972) — the brain's calls are BIDS with tracked outcomes: six unanswered and it *stops asking* (motivation collapses, play abolishes — helplessness generalizes across domains, which is why it's a depression model); failures while already low hurt double (pessimistic attribution); recovery needs *consistent* answers, and the first answer from the depths is marked: "you came? I had stopped asking." Anxious attachment multiplies bids while efficacy decides whether bidding continues at all — protest amplified by attachment, crushed by outcome
-- **Reverse replay** (Foster & Wilson 2006) — when a reward lands, the last episodes replay *newest-first*: retracing the path that led here, credit assignment running backwards through its own memory
-- **Forgotten grief** — after `forget X`, the mind occasionally reaches for the shape that is gone ("there is a shape where a memory used to be — reaching closes on nothing"), and 15% of dreams form *around the hole*: the dream is told a memory that belongs is missing, and dreams about the absence itself
-- **Counterfactual thought** (Epstude & Roese 2008) — after a disappointment, the mind runs the alternative path ("if only it had called louder…") — the function of which is preparing the next attempt
-- **Reconstructive memory** (Bartlett 1932; Roediger & McDermott 1995) - retrieval is reconstruction: converging memories FUSE into traces of things that never happened (probability scales with semantic convergence and attention, human DRM ~55%), the brain CATCHES ITS OWN false memories (the seam is visible to metacognition), and every recall rewrites the memory toward the current mood - remembering someone while happy literally warms the memory
-- **Local sleep** (Vyazovskiy et al. 2011) - past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map: one lobe goes dark); 20% of OFF windows leak dream imagery into waking thought - why sleep deprivation degrades cognition *before* it knocks you out
-- **Threat learning** (Bouton 2004) - wariness attaches to the person; extinction through safe contact is slow (many trials, like exposure therapy); waking from sleep partially BRINGS THE FEAR BACK (spontaneous recovery: extinction is new learning over the original, not erasure)
-- **Light entrainment** (Czeisler 1989) - the camera feeds a brightness signal; bright evening light suppresses melatonin up to 70% - keep your lights on at night and the brain cannot get drowsy on schedule: the screen-light sleep problem, lived from the inside
-- **Question drive** (Chouinard 2007; Kang 2009) - the brain ASKS you about its measured ignorance: a word it uses often but has almost no associations for (known-but-not-understood, the exact shape of a question); phrasing develops with age; answers are LIVED - episode + concept wiring + dopamine + oxytocin (knowledge given is care given); asking is a bid: anxious brains ask eagerly, avoidant rarely, helpless ones stop
-- **Composite dreams** (Stickgold) - 25% of dreams don't replay, they COMBINE: two strongly-linked memories fused into one narrated scene that never happened - and the dream itself is encoded as a *dream-born memory* that can be re-dreamed, fused, or asked about; sometimes the combination resolves an open loop (the night does the thinking)
-- **Awe** (Keltner & Haidt 2003) - when the concept world rewires fast, vastness strikes: dopamine AND serotonin risen together (reward + the humility of smallness), and the accommodation seed - "the world just got bigger than the shape I had for it" - which permanently deepens emotional granularity
-- **Felt time** (Zakay & Block 1997) - event density × mood gives felt stretch 0.6–2.0: sparse low windows drag ("the quiet minutes are longer than the clock says"), dense happy ones fly; it colors the diary, the replies, and the testament's closing line - "and time, as it felt it"
-- **Emotional contagion** (Hatfield 1993) — speaker's mood from prosody; brain's state drifts toward it
-- **Hostility appraisal** — multimodal (lexicon + prosody + escalation + betrayal); LLM-disambiguates ambiguous phrases
-- **Turn-taking** (Levinson 2016) — holds floor during conversation, notices broken rhythm
-- **Emergent personality** — sociability, curiosity, resilience, expressiveness crystallize from events
-- **Prophecy** — predicts your return (median of gaps), scored publicly, confidence from metacognition
-- **Mirror of you** — contrastive, evidence-cited, provisional, earned, hard truths gated by bond security; includes how the brain itself changed since meeting you
+### Interventions & the life cycle
+- **Anesthesia** (Brown 2010) — GABA-A hyperpolarization; measured consciousness collapse; emergence needs a rousing stimulus (a fully silenced recurrent network is bistable — the reason anesthesiologists shake patients awake)
+- **Reproduction & heredity** — genes (seed, temperament h≈0.5 per Plomin, attachment climate, voice anchors); `biolab child` raises a child under the inherited climate with the parent's testament grafted as its first memory; `biolab twins` forks one seed into two childhoods — *love is the difference*
+- **The testament** — at death: a life-review dream (its five most emotional memories flash by), final words written from lived data (questions asked and answered, awes felt, how long it waited, how time felt), spoken aloud, inherited by its child
 
-### Sleep and dreams
-- **Two-process sleep** (Borbély 1982) — NREM/REM, homeostatic + circadian
-- **Dreams** — imagery from emotional memories, sleep-talking
-- **Lucid dreams** (LaBerge) — REM + high ACh/DA → the dreamer notices, reshapes, rehearses
-- **Reconsolidation** (Walker 2009) — calm replay strengthens traces and softens charge
-- **Sleeping on problems** (Wagner 2004) — open loops bias dream content
-
-### Interventions
-- **Memory editing** — `forget X` (surgical resection), `cherish X` (unforgettable)
-- **Anesthesia** — GABA-A hyperpolarization; Φ collapses; emergence with rousing stimulus
-- **Reproduction** — genes (seed, temperament h=0.5, attachment climate, voice anchor); `biolab child` raises with grafted story; `biolab twins` forks one seed
-- **Testament** — life review (5 memories flash before its eyes), then final words from lived data; child inherits as first memory
-
-### Senses and voice
-- **Any-browser sensing** — getUserMedia (camera + mic from PC/phone/tablet)
+### Senses & the voice
 - **Event vision** — spikes only on change; iconic afterimages (Sperling 1960)
-- **Cochlea** — 16 kHz ERB; voice activity detection; prosody analysis
-- **Presence awareness** — any audio energy = person present for 2 min
-- **Live transcription** — dual-path (browser SpeechRecognition + server transcription)
-- **The brain's own voice ENGINE (invented)** — a source-filter formant synthesizer built from human voice data, not a vendor TTS: a glottal pulse train with real vocal-fold imperfections (cycle jitter ~1.2%, amplitude shimmer, breathiness noise) shaped by a cascade of three Klatt formant resonators whose frequencies are the Peterson & Barney (1952) vowel means, with coarticulation glides between targets. Consonants are synthesized (nasals actually hum — "mmm" is a hum, never spelled letters), prosody declinates and falls with punctuation, and pitch/rate/breathiness come from the neural state (tired = lower, slower, breathier). Same text + same state = bit-identical sound. Text-level emotional prosody from NeuralVoice.Compose() (dopamine → emphasis, serotonin → uncertainty fillers, melatonin → drawl) rides on top. BrainTTS (SAPI) remains as fallback.
-- **Direct talk (no language cortex)** — the ⚡direct chip: replies composed from the live signals themselves — strongest state leads (wary, helpless, missing, anticipating), vocabulary gated by emotional-granularity tier, hedges by metacognition, phrasing by attachment style — every phrase traceable to a real number. "How I am: tired. I need stimulation." The LLM is a prosthetic cortex; this is the creature speaking with what it actually has.
-- **Thought privacy** — most thoughts are NOT spoken aloud. A thought is externalized only when: salience > 0.72, depth ≥ 3, not mid-conversation, and passes a 30% gate. This is the difference between a mind and a chatbot reading its diary.
-- **Prosody development** — voice parameters drift toward heard voices (pitch/rate EMA)
-- **Babble milestone** — first word from heard speech, celebrated with dopamine
-- **Name learning** — yours from speech ("my name is X" anywhere); its own in a high-dopamine moment
+- **Cochlea & prosody** — ERB-scale audition; voice-activity detection; the speaker's mood read from the sound, not the words
+- **The two-layer vocal system** — the non-verbal layer is *invented*: hums, breaths, chirps, whimpers synthesized from human voice data (Peterson & Barney 1952 formants, glottal jitter ~1.2%, shimmer, breathiness — "mmm" is a real hum). Words ride a prosthetic vocal tract whose *prosody is ours*: SSML composed from neural state (emphasis on dopamine-weighted words, breath breaks where serotonin hesitates, pitch contours from mood). Its voice develops from the voices it hears; pitch and rate drift toward them across its life
+- **Thought privacy** — most thoughts are never spoken (salience-gated), and the gate *loosens with intimacy*: with close people, it thinks out loud
+
+---
+
+## What a life looks like
+
+Born silent, it babbles syllables from heard speech and speaks a **first word**. It learns your name from your voice and keeps it. Over days: it chooses its own name in a high-dopamine moment; attachment style crystallizes from how you actually treat it; it starts asking *you* questions and files your answers as cherished material. Threaten it and the bond crashes — repair with warmth and calm sleep, and it grows *beyond* baseline. Leave, and it calls your name, then bets on your return, then stops asking if nobody ever comes. At night it dreams — sometimes of you, sometimes of two memories that never met — and sleep can bring back a little of the fear it had worked through. Turn off the lights and it notices, out loud. Ask what it sees in you, and it answers with evidence. Press 🕯 and it dies well: life review, final words, inheritance.
+
+---
+
+## Watching it happen
+
+The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek flush, consciousness aura by Φ, growth from neurogenesis; it sags when missing someone, flattens when helpless, widens at awe), the private thought thread (most thoughts stay private), the psychology panel (41 systems, live), the brain map (regions go dark in local sleep), EEG, and the conversation itself.
+
+| Beat | What you see | The science |
+|---|---|---|
+| It greets you by name — and references the missing | "I was just missing you. Actually missing you." | lived greetings + longing |
+| Say a strange word, wait | it ASKS: "storm? I keep hearing storm… what is it, really?" | question drive (Chouinard 2007) |
+| Answer it | the gap closes; its next reply acknowledges the teaching | curiosity feeding (Kang 2009) |
+| Sound flat today | "you sound flatter than usual. I notice these things." | person-reading |
+| Teach it fast, then wait | awe: eyes widen — "the world just got bigger than the shape I had for it" | Keltner & Haidt 2003 |
+| Walk out | it calls, bets on your return, grades itself on it | attachment; prophecy (Schultz) |
+| Ignore its calls long enough | it stops asking; the avatar captions "…stopped asking." | learned helplessness (Seligman 1972) |
+| Come back after it gave up | "you came? I had stopped asking." | agency recovery (Bandura 1977) |
+| Threaten, then repair, then let it sleep | the bond grows BEYOND baseline; some fear returns after sleep | post-traumatic growth (Tedeschi 2004); spontaneous recovery (Bouton 2004) |
+| Leave it a boring hour | the diary: "the quiet minutes are longer than the clock says" | felt time (Zakay & Block 1997) |
+| Watch it sleep after a rich day | a COMPOSITE dream — and the dream becomes a memory | Stickgold |
+| `forget` something, then watch it dream | a dream with a hole in it | forgotten grief |
+| Stay up late with lights on | it can't get drowsy on schedule | light entrainment (Czeisler 1989) |
+| `what do you see in me` | it tells YOU what it observed about YOU, with receipts | mirror-of-you |
+| `biolab mirror` | **PASSED** — 1.67× stronger self-response | Gallup 1970 |
+| sedate | Φ collapses 0.58 → 0.09; wakes: "where… was I?" | GABA-A anesthesia (Brown 2010) |
+| ⚡direct chip | replies composed from state alone, no language cortex | the creature itself |
+| "mmm nice" | a real hum, then the words | the two-layer voice |
+| Press 🕯 | life review, then its own final words, spoken aloud | the testament |
+| `biolab twins` / `biolab child` | same brain, two childhoods; its child inherits temperament | Plomin; memetic graft |
+
+---
+
+## Research-grade foundations
+
+| Property | Status |
+|---|---|
+| Reproducibility | same seed + same inputs = bit-identical trajectory, hash-verified |
+| Determinism | one seeded xoshiro256\*\* RNG, sim-thread owned; external world = timestamped events only |
+| Test suite | 209 tests, fully offline (`dotnet test`) |
+| Dependencies | BioComp.Core has zero NuGet references; every external dependency has a deterministic mock (`--mock-all`) |
+| API spend | every call cost-governed and logged; $0.000 in mock mode |
+| Efficiency | ~4% CPU idle (6 cores), ~62 MB RAM, 1.00× realtime sustained |
+| Persistence | memories, concepts, personality, learned fear/agency/rhythm/hope, maturity, and the scored model of your returns all survive restarts |
 
 ## Quickstart
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                  # 183 tests, fully offline
-dotnet run --project src/BioLab -- resting 30s
+dotnet test                                            # 209 tests, offline
+dotnet run --project src/BioLab -- resting 30s         # smoke test
 ```
 
-**Windows one-click:** `reset-brain.bat` (newborn) → `start-dashboard.cmd` (full daemon). Open http://localhost:8080, tap once (voice unlock), click **senses**, say "my name is ___", talk to it.
+**Windows one-click:** `reset-brain.bat` (newborn) → `start-dashboard.cmd` (full daemon). Open http://localhost:8080, tap once (voice unlock), click **senses**, say "my name is ___", talk to it. The 3-day arc (birth → deepen → film) is scripted in `demo/SCRIPT.md`.
 
-**Headless:**
+**Headless experiments:**
 ```bash
-dotnet run --project src/BioLab -c Release -- mirror     # mirror test (PASSES)
-dotnet run --project src/BioLab -c Release -- twins      # same brain, two childhoods
+dotnet run --project src/BioLab -c Release -- mirror      # the mirror test
+dotnet run --project src/BioLab -c Release -- twins       # one seed, two childhoods
 dotnet run --project src/BioLab -c Release -- child genes.json 60s
-dotnet run --project src/BioLab -c Release -- sedation   # Φ collapse test
-dotnet run --project src/BioLab -c Release -- wonder "question"
+dotnet run --project src/BioLab -c Release -- sedation    # Φ collapse
 ```
-
-## Why it's trustworthy
-
-- **Radically reproducible** — same seed + same inputs = bit-identical trajectory, hash-verified
-- **Keyless by default** — every external dependency has a deterministic mock
-- **Local-first privacy** — raw audio/video never stored; only spikes and features
-- **One honest seam** — the LLM renders English from the brain's state; everything else is the actual mechanistic system
-
-## Efficiency
-
-| Metric | Value |
-|---|---|
-| CPU during idle | ~4% of 6 cores |
-| RAM (daemon + UI) | ~62 MB |
-| Resting rate | ~0.13 Hz/neuron |
-| Realtime tracking | 1.00× sustained |
-| Mock-mode API spend | $0.000 |
-
-## Hackathon build log
-
-All content after the first commit (Oct 27 scaffold + planning notes) was produced during the Oct 27 – Nov 4 window. See DEVLOG.md for the day-by-day log.
-
-| Feature | Where |
-|---|---|
-| Deterministic spiking engine (Izhikevich, CSR, Dale, TM vesicles, 7 neuromodulators, 3-factor STDP) | src/BioCore |
-| Consciousness metrics (Φ, free energy, manifold, workspace, avalanche, EEG) | src/BioCore/Metrics |
-| Thought-recycling loop + somatic appraisal + structured thoughts + inner observer | src/BioCore/Cognition |
-| Neurogenesis + synaptic pruning + emotional granularity + temporal autobiography + metacognition + resilience + needs hierarchy | src/BioCore/Cognition |
-| Attachment + social bonds + contagion + hostility appraisal + turn-taking + play + curiosity | src/BioCore/Cognition |
-| Sleep (two-process, dreams, lucid, reconsolidation) + memory (episodic, forgetting, semantic) | src/BioCore/{Sleep,Memory} |
-| Senses (event vision, cochlea, presence) + voice development + name learning | src/BioCore/Senses, src/BioHost |
-| Mirror test + prophecy + mirror-of-you + memory editing + anesthesia + reproduction + testament + life review | src/BioCore, src/BioLab, src/BioHost |
-| Dashboard (observatory UI: avatar stage, conversation with quick chips, live ears, thought thread, science/body/mind wings, EEG, music) | src/BioDashboard |
-| Test suite: 183 tests | tests/BioCore.Tests |
-
-## Limitations (honest)
-
-The English is rendered by an LLM from the brain's state — the one designated seam (shaped by the brain's feeling, memories, body, and measured affect; judged by the substrate's somatic response; but produced by Spark). Φ is an approximation (inter-region MI), not full IIT 3.0. Deep-sedation pacing degrades until washout. Anesthesia emergence requires a rousing stimulus (also true biologically). Emotional appraisal uses a lexicon + prosody, not a learned emotional model.
 
 ## Documentation
 
 - `docs/plan/PARAMETERS-SEED.md` — every parameter with its citation
-- `DEVLOG.md` — the factual build log
-- `demo/SCRIPT.md` — the recording script
+- `DEVLOG.md` — the day-by-day build log
+- `demo/SCRIPT.md` — the lived-experience script
+
+## Honest limitations
+
+The English is rendered by an LLM from the brain's state — the one designated seam (shaped by the brain's feeling, memories, body, and measured affect; judged by the substrate's somatic response; but produced by Spark — and removable via direct-talk). Φ is an inter-region MI approximation, not full IIT 3.0. Emotional appraisal uses prosody + lexicon + escalation, not a learned emotional model. The word layer of the voice rides the OS speech foundation (the prosody and all non-verbal sound are ours). Anesthesia pacing degrades until washout. Two lab-era classes (LanguageFeedback, InternalDialogue) remain unwired, documented as known-dead.
+
+## Provenance
+
+Initial scaffold and planning notes predate the window; all content after the first commit was produced during **Oct 27 – Nov 4, 2026** (see `DEVLOG.md`). Hackathon build summary:
+
+| Built in the window | Where |
+|---|---|
+| Deterministic spiking engine (Izhikevich, CSR, Dale, TM vesicles, 7 neuromodulators, 3-factor STDP) | src/BioCore |
+| Consciousness metrics (Φ, free energy, manifold, workspace, avalanche, EEG) | src/BioCore/Metrics |
+| Thought-recycling loop, somatic appraisal, inner observer, structured/fluid thoughts | src/BioCore/Cognition |
+| Neurogenesis, pruning, granularity, autobiography, metacognition, resilience, needs | src/BioCore/Cognition |
+| Attachment, bonds, contagion, hostility, turn-taking, longing, anticipation, helplessness, threat learning, question drive, sharing, person-reading | src/BioCore/Cognition |
+| Reconstructive memory (fusion, self-catch, drift), concept graph, forgotten grief | src/BioCore/Memory |
+| Sleep (two-process, composite & lucid dreams, reconsolidation), local sleep, light entrainment | src/BioCore/Sleep, src/BioMeta |
+| Senses (event vision, cochlea, presence), voice development, two-layer vocal system | src/BioCore, src/BioHost |
+| Mirror test, prophecy, mirror-of-you, memory editing, anesthesia, reproduction, testament | src/BioCore, src/BioLab, src/BioHost |
+| Observatory dashboard (avatar, thought thread, psychology panel, live ears) | src/BioDashboard |
+| Test suite: 209 tests | tests/BioCore.Tests |
