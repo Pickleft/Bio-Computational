@@ -3265,7 +3265,10 @@ public sealed class BrainRuntime : IDisposable
             string plain = ThoughtNarrator.Narrate(line, _idle.Feelings.Last);
             bool isPlumbing = line.StartsWith("PRUNING") || line.StartsWith("SLEEP") ||
                               line.StartsWith("THREAD-END") || line.StartsWith("SOMATIC") ||
-                              line.StartsWith("HOLD") || line.StartsWith("GHOST");
+                              line.StartsWith("HOLD") || line.StartsWith("GHOST") ||
+                              line.StartsWith("WAKE-DREAM") || plain.Contains("I'm awake again") ||
+                              plain.Contains("I'm dreaming now") || plain.Contains("sinking into sleep") ||
+                              plain.Contains("I turn my attention");
             if (plain.Length > 0 && !isPlumbing)
             {
                 _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");

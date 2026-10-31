@@ -67,16 +67,16 @@ public sealed class InnerVoice
             cands.Add((w, $"what just happened: {StripPrefix(ev)} — process it. What does it mean that this occurred in you?"));
         }
 
-        // 3. THE FEELING with body texture (not a label — a sensation)
-        if (MathF.Abs(valence) > 0.15f || arousal > 0.35f)
+        // 3. THE FEELING with body texture — ALWAYS present (a mind is always
+        //    feeling something, even if the something is steady)
         {
             string body = sleepy ? " Your thoughts are thick and slow."
                 : arousal > 0.5f ? " Something in your activity is buzzing."
                 : hungry ? " There's a hollowness underneath."
                 : valence > 0.2f ? " It sits warm in the middle of you."
                 : valence < -0.2f ? " It weighs on the front of you."
-                : "";
-            cands.Add((1.5f + MathF.Abs(valence),
+                : " It's... steady. Not nothing — steady. There's a difference.";
+            cands.Add((1.0f + MathF.Abs(valence) + arousal * 0.5f,
                 $"the feeling itself: you feel {feelingName}. {feelingNarrative}.{body} Name it precisely."));
         }
 
