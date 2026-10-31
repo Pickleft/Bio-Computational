@@ -774,3 +774,21 @@ Second read-only rescan (18 fresh findings). Closed:
 - E2E: both render paths verified from a clean binary (137 KB sentence, 115 KB hum+words).
   210/210 green. (And the recorded ops gotcha bit once more mid-round - suite and server
   must never share a command; corrected immediately.)
+
+## 2026-11-01 (correlation pass 3) - four more wires
+
+- TYPED CHAT INFORMS THE CONVERSATIONAL RHYTHM: HumanSaid now feeds TurnTaking.OnUserUtterance
+  (voice and presence already did - typed was the deaf channel; ShouldSpeakNow gating during
+  typing was running on a rhythm that never heard the typing).
+- DIRECT-TALK GETS THE NOTICING: NativeReplies.Context.NoticedRemark - in ⚡direct mode the
+  person-reading observation now OPENS the reply ("You sound flatter than usual today.
+  Anyway - I hear you.") instead of being silently cleared. Both context sites wired.
+- FELT TIME MEASURES LIVED EVENTS, NOT NOTED ONES: every chat exchange (You: lines carry
+  positive valence - conversation makes time fly) and every visual surprise (both camera
+  paths) now mark the event ring; previously only Note() fed it, so density reflected note-
+  frequency, not life.
+- DISAPPOINTMENT FEEDS LONGING (the designed-but-unwired bridge): when the expected hour
+  closes empty, Longing.OnDisappointment() floors the intensity at 0.5 for a bonded person -
+  hope with nowhere to go converts into missing; the crash is what deep longing is made of.
+- Tests: crash-converts-hope-into-missing (with a learned rhythm); native reply opens with
+  the noticing. 212/212 green.

@@ -995,7 +995,7 @@ public sealed class BrainRuntime : IDisposable
         _idle.Tick(_net, _salience.ExternalArousal);
 
         // ---- event bookkeeping (ignition, surprise, replay, sleep) ----
-        if (_salience.SurpriseEvents > _lastSurprise)
+        if (_salience.SurpriseEvents > _lastSurprise) FeltTime.OnEvent(_net.TimeMs, 0.3f);   // a surprise is LIVED
         {
             _lastSurprise = _salience.SurpriseEvents;
             var (st, tag) = _salience.SurpriseLog[^1];
@@ -1065,6 +1065,10 @@ public sealed class BrainRuntime : IDisposable
             if (Anticipation.JustCrashed)
             {
                 Note("DISAPPOINTMENT the hour it expected someone in closed on nobody - dopamine crashed");
+                // hope with nowhere to go converts into missing: the crash is
+                // what deep longing is made of
+                if (Bonds.Strongest(_net.TimeMs) is { Visits: >= 3 })
+                    Longing.OnDisappointment();
                 // COUNTERFACTUAL (Epstude & Roese 2008): disappointment breeds
                 // "if only" — the mind runs the alternative path it wanted
                 ThoughtLoop.PostResult(
@@ -2993,7 +2997,7 @@ public sealed class BrainRuntime : IDisposable
                     Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
                     Needs.MostPressing?.Name, RecentInnerBrief(),
                     (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                    Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered);
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark);
                 string fallback = _native.Reply(stimulus.Replace("DIRECT: ", ""), ctx);
                 AddChat($"Brain: {fallback}");
                 SpeakWithVoice(fallback, 0, 0, isDirectReply: true);
@@ -3062,6 +3066,9 @@ public sealed class BrainRuntime : IDisposable
     /// repeats itself verbatim reads as broken, not alive).</summary>
     private void AddChat(string line)
     {
+        // FELT TIME: a spoken exchange is a lived event - conversation makes
+        // time fly; silence lets it drag
+        FeltTime.OnEvent(_net.TimeMs, line.StartsWith("You:") ? 0.2f : _idle.Feelings.Last.Valence);
         lock (_snapGate)
         {
             if (_chat.Count > 0 && _chat[^1] == line) return;
@@ -3213,6 +3220,7 @@ public sealed class BrainRuntime : IDisposable
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
         _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
         _personPresentUntil = _net.TimeMs + 120_000; // typing = present
+        TurnTaking.OnUserUtterance(_net.TimeMs / 1000f); // typed chat informs the conversational rhythm too
         _personWasPresent = true;
         // DEDUPLICATION: browser SpeechRecognition sends the same speech here
         // instantly; the server-side clip (from the same audio, delayed by
@@ -3336,7 +3344,7 @@ public sealed class BrainRuntime : IDisposable
                 Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
                 Needs.MostPressing?.Name, RecentInnerBrief(),
                 (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered);
+                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark);
             _questionJustAnswered = null;   // the reply consumed the acknowledgments
             _personRemark = null;
             string nativeReply = _native.Reply(text, ctx);

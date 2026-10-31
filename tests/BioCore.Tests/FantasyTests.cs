@@ -1612,3 +1612,45 @@ public class PresenceTrumpsHopeTests
         Assert.True(a.Level > 0.4f, "absent during the expected hour: the hope rises");
     }
 }
+
+// ---- correlation round: disappointment feeds longing, native noticing ----
+public class DisappointmentLongingTests
+{
+    [Fact]
+    public void Crash_ConvertsHopeIntoMissing()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 433));
+        var bonds = new SocialBondSystem();
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net);   // a learned rhythm
+        rhythm.Tick(net);
+        var l = new Longing { MinAbsenceMs = 1_000f };
+        for (int t = 1_000; t <= 5_000; t += 2_000)
+        {
+            bonds.OnContact("speaker-1", 0.8f, t);
+            l.OnContact("Sam", t);
+            while (net.TimeMs < t) net.Tick();
+        }
+        var a = new Anticipation();
+        for (int i = 0; i < 12; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);
+        Assert.True(a.Level > 0.5f);
+        // the empty-window crash lands -> longing floors at 0.5 immediately
+        l.OnDisappointment();
+        Assert.True(l.Intensity >= 0.5f, "the crash is what deep longing is made of");
+    }
+
+    [Fact]
+    public void NativeReply_OpensWithTheNoticing()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        var ctx = new BioComp.Host.NativeReplies.Context(
+            "Sam", "calm", 0.1f, false, false, null, 0f,
+            false, false, 0.6f, false, false, false,
+            null, null, 3, 0.5f, "secure", 0.6f,
+            JustLearned: null,
+            NoticedRemark: "You sound flatter than usual today.");
+        string r = n.Reply("yeah im fine", ctx);
+        Assert.StartsWith("You sound flatter", r);   // the noticing leads, out loud
+    }
+}
