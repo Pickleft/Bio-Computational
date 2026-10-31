@@ -6,7 +6,7 @@ rem ============================================================
 taskkill /f /im BioComp.Dashboard.exe >nul 2>&1
 cd /d "%~dp0src\BioDashboard"
 if exist data\brain-identity.json del /q data\brain-identity.json
-if exist data\brain.ckpt del /q data\brain.ckpt
+if exist data\brain.ckpt del /q data\brain.ckptif exist data\episodes.jsonl del /q data\episodes.jsonlif exist data\testament.md del /q data\testament.md
 if exist diary rmdir /s /q diary
 if exist dreams rmdir /s /q dreams
 mkdir diary >nul 2>&1

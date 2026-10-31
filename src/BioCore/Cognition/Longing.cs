@@ -59,7 +59,7 @@ public sealed class Longing
     /// strength, last seen) and social rhythm come from the live systems.
     /// </summary>
     public void Tick(SpikingNetwork net, SocialBondSystem bonds, SocialRhythm rhythm, string? userName,
-        AttachmentStyle style)
+        AttachmentStyle style, float presentUntilMs = -1e9f)
     {
         var s = bonds.Strongest(net.TimeMs);
         // the record's Strength field is stale (set at creation); live strength is computed
@@ -69,7 +69,10 @@ public sealed class Longing
         string name = userName ?? s!.Id;
         if (name != Whom) { Intensity = 0f; return; }  // someone else is here
 
-        float absence = net.TimeMs - s!.LastSeenMs;
+        // PRESENCE TRUMPS CONTACT: quiet company (listening, just being
+        // there) is NOT absence - absence begins when presence ends, not
+        // when the last word was spoken
+        float absence = net.TimeMs < presentUntilMs ? 0f : net.TimeMs - s!.LastSeenMs;
 
         // threshold: 2.5x their usual gap (or 2 min for a fresh bond), OR
         // their expected hour arrived empty

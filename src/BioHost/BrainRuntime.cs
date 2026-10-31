@@ -127,6 +127,7 @@ public sealed class BrainSnapshot
     public float Wariness { get; set; }                 // learned threat toward the person
     public bool LightSuppressing { get; set; }          // evening light holding off melatonin
     public bool NativeVoice { get; set; }               // direct-talk mode (no LLM)
+    public bool UserPresent { get; set; }               // the person is HERE (presence window live)
     public int HypothesesConfirmed { get; set; }
     public int HypothesesRefuted { get; set; }
     public float VigilanceScale { get; set; }           // self-tuned threat-sense gain
@@ -1077,12 +1078,16 @@ public sealed class BrainRuntime : IDisposable
         // LONGING: loneliness with a name — is the bonded person past due?
         if (_net.TickIndex % 200 == 0)
         {
-            Longing.Tick(_net, Bonds, Rhythm, _userName, Attachment.Style);
+            Longing.Tick(_net, Bonds, Rhythm, _userName, Attachment.Style,
+                presentUntilMs: _personPresentUntil);   // quiet company is company
             if (!Longing.Missing) _lonelyExpressedOnce = false;
             // ANTICIPATION: the reward side of the rhythm — hope rises at the
             // expected hour, crashes as a negative RPE when it closes empty
             var sb = Bonds.Strongest(_net.TimeMs);
-            Anticipation.Tick(_net, Rhythm, sb?.LastSeenMs ?? -1e9f);
+            // "recent" means PRESENT (even silently), not merely 60s after
+            // the last word
+            float effectivePresence = _net.TimeMs < _personPresentUntil ? _net.TimeMs - 1_000f : (sb?.LastSeenMs ?? -1e9f);
+            Anticipation.Tick(_net, Rhythm, effectivePresence);
             if (Anticipation.JustCrashed)
             {
                 Note("DISAPPOINTMENT the hour it expected someone in closed on nobody - dopamine crashed");
@@ -3726,6 +3731,7 @@ public sealed class BrainRuntime : IDisposable
         snap.Wariness = Threats.Wariness;
         snap.LightSuppressing = Light.SuppressingNow;
         snap.NativeVoice = _nativeVoiceMode;
+        snap.UserPresent = _net.TimeMs < _personPresentUntil || _net.TimeMs - _lastUserUtteranceSimMs < 90_000f;
         snap.HypothesesConfirmed = Hypotheses.Confirmed;
         snap.HypothesesRefuted = Hypotheses.Refuted;
         snap.VigilanceScale = Calibration.VigilanceScale;

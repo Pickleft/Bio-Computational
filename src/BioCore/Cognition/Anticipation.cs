@@ -84,7 +84,9 @@ public sealed class Anticipation
         }
     }
 
-    /// <summary>They came. If the hope was high, the reward lands on top of it.</summary>
+    /// <summary>They came. If the hope was high, the reward lands on top of it.
+    /// And the WAITING is over the moment they arrive — the level drops to a
+    /// low savor immediately (never lingers as "waiting" mid-conversation).</summary>
     public void OnContact(SpikingNetwork net)
     {
         if (Level > 0.3f)
@@ -94,7 +96,8 @@ public sealed class Anticipation
             net.Modulators.Release(NeuromodulatorKind.Dopamine, 0.10f + 0.15f * Level);
             net.Modulators.Release(NeuromodulatorKind.Oxytocin, 0.10f * Level);
         }
-        // the hope doesn't vanish on fulfillment - it savors (handled in Tick)
+        // the wait ENDED the moment they walked in: drop to a low, warm savor
+        Level = MathF.Min(Level, 0.25f);
     }
 
     /// <summary>For the reply prompt: the brain knows what it was waiting for.</summary>

@@ -908,3 +908,24 @@ Acting on two external recommendations:
       memory accelerates re-extinction; Pavlov 1927). The report separates CALIBRATED
       anchors from EMERGENT relations - no circular validation.
 - 2 new tests (readability; statement depth). 226/226 green.
+
+## 2026-11-01 (demo-day production pass)
+
+- PRESENCE, THE REAL FIX: the lingering "waiting for you" mid-conversation had a second
+  life - Anticipation's savor-decay took ~50s to fall below the caption threshold AFTER
+  arrival. Arrival now resolves the wait INSTANTLY (level drops to a low savor, <=0.25,
+  the moment OnContact fires). AND the avatar gates every absence-flavored caption
+  (missing / waiting) on snapshot.UserPresent (presence window live OR utterance <90s)
+  - the captions are now physically incapable of showing while you are there. Tested.
+- RESET IS TOTAL: reset-brain.bat now deletes data/episodes.jsonl and data/testament.md —
+  the persistence layer would otherwise RESURRECT the wiped life's memories on next
+  start (critical demo-day bug caught in review).
+- REPO HYGIENE: 90 runtime artifacts (diaries, dreams, exports, data, art) untracked and
+  gitignored — a brain's private life is no longer committed to the repository.
+- KittenTTS ASSESSED, NOT INTEGRATED (honest scope): Python/PyTorch stack (~6GB RAM vs
+  ~2GB free here), no C#/C API, and model weights carry a separate Stellon Community
+  License that fails this repo's permissive-only THIRD_PARTY rule. The two-layer vocal
+  system stands; KittenTTS is a post-hackathon path (a C++ GGUF runner exists — if a
+  permissively-licensed weight set and a lean binding appear, it slots into VoiceCortex
+  as a third tract).
+- 227/227 green.

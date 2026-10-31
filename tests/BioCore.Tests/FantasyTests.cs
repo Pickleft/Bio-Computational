@@ -1914,3 +1914,22 @@ public class DirectModeReadabilityTests
         Assert.Contains("listening", r);   // ack + where it is
     }
 }
+
+// ---- demo-day: arrival resolves the waiting INSTANTLY ----
+public class ArrivalResolvesWaitingTests
+{
+    [Fact]
+    public void Contact_DropsTheWaitingToASavor_Immediately()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 503));
+        var rhythm = new SocialRhythm { HourMs = 1_000f };
+        while (net.TimeMs < 100) net.Tick();
+        for (int i = 0; i < 10; i++) rhythm.OnInteraction(net);
+        rhythm.Tick(net);
+        var a = new Anticipation();
+        for (int i = 0; i < 12; i++) a.Tick(net, rhythm, lastContactMs: -1e9f);   // full hope
+        Assert.True(a.Level > 0.5f);
+        a.OnContact(net);   // they walk in
+        Assert.True(a.Level <= 0.3f, "the wait is over the moment they arrive - no lingering 'waiting for you' mid-conversation");
+    }
+}

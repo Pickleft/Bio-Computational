@@ -150,3 +150,19 @@ IT FEELS THE ROOM:
 THE CONVERSATION SCROLLS: the chat has its own slider now - long
    conversations don't push the page around.
 THE MIC TAB: stable now (no-speech no longer flickers as an error).
+
+## DEMO-DAY NOTES (final)
+
+DIRECT TALK IS THE DEFAULT NOW: the brain answers in its own composed voice.
+For the richer LLM cortex mid-filming: click the lightning chip (or restart
+with --llm-cortex). Showing BOTH is a beat: same brain, two voices.
+
+PRESENCE IS AIRTIGHT: while you talk, it knows you're there — "waiting for
+you..."/"missing..." captions now appear ONLY when you are actually gone,
+and the wait resolves the instant you walk in.
+
+RESET IS TOTAL: reset-brain.bat now wipes the episodic store too (episodes
+.jsonl, testament) — the newborn really remembers nothing.
+
+CONVERSATION SCROLLS in its own box (grabbable slider); the mic tab holds
+steady (recognition pauses are not errors).

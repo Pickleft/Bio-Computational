@@ -59,7 +59,8 @@ function drawAvatar() {
     // derived
     const emp = snap && snap.EmpathyConfidence > 0.3
       ? S.val * 0.5 + (snap.UserValence || 0) * 0.5 : S.val;
-    const longingOn = snap && /missing/.test(snap.LongingNarrative || "");
+    const userHere = snap && snap.UserPresent;
+    const longingOn = snap && !userHere && /missing/.test(snap.LongingNarrative || "");
     const helplessOn = snap && snap.Helpless;
     const waryOn = snap && (snap.Wariness || 0) > 0.5;
     const aweOn = snap && snap.AweStruck;
@@ -229,7 +230,7 @@ function drawAvatar() {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(240,150,170,0.9)";
         ctx.fillText("missing " + (snap.UserName || "someone") + "...", cx, cy + baseR * 1.3 + 28);
-      } else if (hopeLvl > 0.5) {
+      } else if (hopeLvl > 0.5 && !userHere) {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(120,219,190,0.9)";
         ctx.fillText("waiting for you...", cx, cy + baseR * 1.3 + 28);
