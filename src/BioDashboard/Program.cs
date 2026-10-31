@@ -66,9 +66,10 @@ app.MapPost("/api/test-voice", () =>
 // Text arrives already transformed by NeuralVoice (emotional prosody).
 // Rate/pitch come from the brain's neurotransmitter levels. Audio generated
 // on OUR server — no external TTS API.
-// THE BRAIN'S OWN VOICE ENGINE: source-filter formant synthesis built from
-// human voice data (Peterson & Barney 1952 vowels; jitter/shimmer/breathiness
-// norms) with neural-state prosody. BrainTTS (SAPI) stays as fallback.
+// THE BRAIN'S VOICE CORTEX: the two-layer vocal system. Non-verbal sounds
+// (mmm, breaths, moods) are OURS — formant-synthesized from human voice data;
+// words ride the prosthetic vocal tract with prosody composed from the
+// neural state (SSML emphasis/breaths/pitch). Stitched into one WAV.
 app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume) =>
 {
     if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
@@ -78,10 +79,11 @@ app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume)
         var r = Math.Clamp(rate ?? 0.92f, 0.5f, 1.5f);
         var p = Math.Clamp(pitch ?? 1.0f, 0.5f, 1.5f);
         var v = Math.Clamp(volume ?? 1.0f, 0.3f, 1.0f);
-        var wav = new BioComp.Host.VoiceEngine().Speak(text, r, p, v);
+        using var cortex = new BioComp.Host.VoiceCortex();
+        var wav = cortex.Speak(text, r, p, v);
         if (wav.Length > 100)
             return Results.File(wav, "audio/wav");
-        // engine produced nothing parseable: SAPI fallback (with mmm fixed)
+        // prosthetic tract refused (no voice installed?): plain SAPI fallback
         var tts = new BioComp.Host.BrainTTS();
         wav = tts.GenerateWav(BioComp.Host.BrainTTS.NormalizeForSpeech(text), r, p, v);
         tts.Dispose();

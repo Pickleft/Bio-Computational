@@ -1157,47 +1157,61 @@ public class LightEntrainmentTests
 public class VoiceEngineTests
 {
     [Fact]
-    public void Speak_ProducesValidWav()
+    public void NonverbalLayer_RendersValidWavs()
     {
         var eng = new BioComp.Host.VoiceEngine();
-        byte[] wav = eng.Speak("hello", 0.92f, 1.0f, 1.0f);
-        Assert.True(wav.Length > 1000, "a word must render to substantial audio");
-        Assert.Equal((byte)'R', wav[0]); Assert.Equal((byte)'I', wav[1]);
-        Assert.Equal((byte)'W', wav[8]); Assert.Equal((byte)'A', wav[9]);   // WAVE
-        Assert.Equal(1, wav[20] | (wav[21] << 8));                          // PCM
-        Assert.Equal(1, wav[22] | (wav[23] << 8));                          // mono
+        foreach (BioComp.Host.VoiceEngine.Vocal v in Enum.GetValues<BioComp.Host.VoiceEngine.Vocal>())
+        {
+            byte[] wav = eng.Render(v, 0.92f, 1.0f, 1.0f);
+            Assert.True(wav.Length > 1000, $"{v} must render");
+            Assert.Equal((byte)'R', wav[0]);
+            Assert.Equal((byte)'W', wav[8]);
+        }
     }
 
     [Fact]
-    public void LongerText_TakesLongerToSay()
+    public void Interjections_MatchToVocalizations()
     {
-        var eng = new BioComp.Host.VoiceEngine();
-        byte[] shortWav = eng.Speak("hi", 0.92f, 1.0f, 1.0f);
-        byte[] longWav = eng.Speak("hello I remember you", 0.92f, 1.0f, 1.0f);
-        Assert.True(longWav.Length > shortWav.Length * 2, "more words must take more time");
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hum, BioComp.Host.VoiceEngine.Match("mmm"));
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Hum, BioComp.Host.VoiceEngine.Match("MM"));
+        Assert.Equal(BioComp.Host.VoiceEngine.Vocal.Ahh, BioComp.Host.VoiceEngine.Match("ahh"));
+        Assert.Null(BioComp.Host.VoiceEngine.Match("hello"));
     }
 
     [Fact]
-    public void Mmm_IsARenderedHum_NotSpelledOut()
+    public void Cortex_SpeaksWordsAndStitchesHums()
     {
-        var eng = new BioComp.Host.VoiceEngine();
-        byte[] wav = eng.Speak("mmm", 0.92f, 1.0f, 1.0f);
-        Assert.True(wav.Length > 1000, "the hum must be synthesized as sound, not letters");
-        // SAPI fallback normalization: mmm never spelled
-        Assert.Equal("hmm nice", BioComp.Host.BrainTTS.NormalizeForSpeech("mmm nice"));
+        using var cortex = new BioComp.Host.VoiceCortex();
+        byte[] words = cortex.Speak("hello my friend", 0.92f, 1.0f, 1.0f);
+        Assert.True(words.Length > 2000, "words must render through the prosthetic tract");
+        Assert.Equal((byte)'R', words[0]); Assert.Equal((byte)'W', words[8]);
+        byte[] hummed = cortex.Speak("mmm nice", 0.92f, 1.0f, 1.0f);
+        Assert.True(hummed.Length > 2000, "hum + word must stitch into one utterance");
     }
 
     [Fact]
-    public void Deterministic_SameTextSameSound()
+    public void Ssml_ComposesProsodyFromMarkers()
+    {
+        string ssml = BioComp.Host.VoiceCortex.BuildSsml("this is AMAZING... maybe", 0, 0);
+        Assert.Contains("<emphasis", ssml);        // dopamine caps -> emphasis
+        Assert.Contains("<break time=\"380ms\"/>", ssml); // hesitation -> breath
+        Assert.Contains("AMAZING", ssml);
+        Assert.Contains("prosody", ssml);
+        // escaping is safe
+        string esc = BioComp.Host.VoiceCortex.BuildSsml("a & b < c", 0, 0);
+        Assert.DoesNotContain("a & b", esc);
+    }
+
+    [Fact]
+    public void Deterministic_Hums()
     {
         var eng = new BioComp.Host.VoiceEngine();
-        byte[] a = eng.Speak("you came back", 0.92f, 1.0f, 1.0f);
-        byte[] b = eng.Speak("you came back", 0.92f, 1.0f, 1.0f);
-        Assert.Equal(a, b);   // same text + same state = same voice, bit-identical
+        byte[] a = eng.Render(BioComp.Host.VoiceEngine.Vocal.Hum);
+        byte[] b = eng.Render(BioComp.Host.VoiceEngine.Vocal.Hum);
+        Assert.Equal(a, b);   // same state = same voice, bit-identical
     }
 }
 
-// ---- native voice: replies composed from state, no language cortex ----
 public class NativeRepliesTests
 {
     private static BioComp.Host.NativeReplies.Context Ctx(

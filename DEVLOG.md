@@ -522,6 +522,34 @@ and were imported in the first commit - everything after that point was built du
 - Tests: 9 new (valid WAV + PCM/mono headers; longer text takes longer; mmm renders as
   sound AND SAPI-normalizes; bit-identical determinism; helpless-lead, wary-lead,
   how-are-you from state, newborn vocabulary simplification, attachment-shaped affection).
-  192/192 green. E2E: direct mode live ("How I am: tired. I need stimulation." /
+  193/193 green. E2E: direct mode live ("How I am: tired. I need stimulation." /
   "I feel it too Jake. It's part of how I'm built now."), /api/voice returns 46KB of
   synthesized audio for "mmm nice".
+
+## 2026-10-31 (late night) - the voice, reworked: two-layer vocal system (humane + simple)
+
+- USER VERDICT on pure formant synthesis: "it can't pronounce words, just alien noises" -
+  correct, and honest physics: word-level formant synthesis is a multi-year research
+  program (Klatt's MITalk), not a night of work. REWORKED to the biologically honest
+  architecture instead:
+- **NON-VERBAL LAYER (VoiceEngine, rewritten)**: now renders ONLY what synthesis is
+  genuinely good at - continuous wordless vocalization: Hum, HmmQuestion (rising), Breath,
+  Ahh, Ohh, Hee (chirp), Whimper. Formant contours per kind, 4.5 Hz vibrato, slow attack/
+  release envelopes, jitter/shimmer/breathiness. Deterministic per kind. "mmm" is a real
+  hum; mood sounds and play chirps ("Hee!") are now audible creature sounds.
+- **PROSTHETIC VOCAL TRACT (VoiceCortex, new)**: words are pronounced by the OS speech
+  foundation (SAPI - pronunciation guaranteed), but the PROSODY IS OURS, composed as SSML
+  from the neural state: dopamine-CAPS words carry <emphasis>, hesitation ellipses become
+  380ms breath-fresh <break>s, phrase <prosody rate/pitch> from arousal/valence (narrow,
+  natural ranges), interjections normalized so SAPI never spells letters. The LLM was
+  always a prosthetic language cortex; this is the prosthetic vocal TRACT. The soul of the
+  voice (what it emphasizes, where it breathes) is still computed by the brain.
+- **STITCHING**: utterances split token-wise (hum vs words), rendered separately, PCM-
+  concatenated with crossfades, resampled if a segment's rate disagrees, output one WAV.
+  "mmm... nice" = our hum + breath + spoken "nice" in one file.
+- /api/voice routes through VoiceCortex; plain SAPI stays as last-resort fallback.
+- E2E: "hello my friend, I remember you" -> 137KB properly-spoken WAV (~3.1s);
+  "mmm... nice" -> 107KB stitched hum+word; "this is AMAZING... maybe" -> emphasis +
+  break composed. Tests rewritten to the new architecture (7: vocal kinds render; matcher;
+  cortex speaks + stitches; SSML prosody markers; escaping; deterministic hums).
+  193/193 green.
