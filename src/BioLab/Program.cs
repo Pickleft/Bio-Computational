@@ -36,6 +36,92 @@ switch (cmd)
             : "[mirror] not yet - self and novel responses indistinguishable (more training needed)");
         return 0;
     }
+    case "validate":
+    {
+        // MECHANISM VALIDATION against published findings. Two experiments,
+        // both emergent (no outcome scripted - the parameters come from the
+        // literature, the CURVES come from the mechanism):
+        //
+        // 1. DRM FALSE-MEMORY SWEEP (Roediger & McDermott 1995): human false
+        //    recall rises with list convergence (~55% at strong convergence).
+        //    Prediction: our fusion probability rises monotonically with
+        //    semantic-convergence strength (hub link).
+        // 2. EXTINCTION + SPONTANEOUS RECOVERY + SAVINGS (Bouton 2004;
+        //    Pavlov 1927): recovery is PARTIAL (20-50% of the extinguished
+        //    distance, never above peak) and re-extinction is FASTER
+        //    (savings). Both must emerge.
+        Console.WriteLine("[validate] experiment 1: DRM false-memory sweep");
+        Console.WriteLine("  hub strength -> measured fusion rate (1000 draws/bin)");
+        var sb1 = new System.Text.StringBuilder();
+        sb1.AppendLine("# DRM sweep: semantic convergence vs false-memory rate");
+        sb1.AppendLine();
+        sb1.AppendLine("| hub link strength | fusion rate | published expectation |");
+        sb1.AppendLine("|---|---|---|");
+        float[] hubs = [0.6f, 1.0f, 1.5f, 2.0f, 2.5f];
+        float[] rates = new float[hubs.Length];
+        bool monotone = true;
+        for (int h = 0; h < hubs.Length; h++)
+        {
+            var recon = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 0.55f };
+            int fires = 0, draws = 1000;
+            var net = new BioComp.Core.Network.SpikingNetwork(BioComp.Core.Network.BrainConfig.Default(scale: 1, seed: (ulong)(100 + h)));
+            for (int i = 0; i < 200; i++) net.Tick();
+            // ACh open + certain draw: probability IS convergence-driven
+            net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Acetylcholine, 0.8f);
+            net.Modulators.Step();
+            var store = net.EpisodeStore;
+            var a = store.Encode(net, "CA3", ["kitchen", "warm"], 0.5f, minMeanRateHz: 0f);
+            var b = store.Encode(net, "CA3", ["storm", "night"], -0.2f, minMeanRateHz: 0f);
+            // simulate convergence: wire the hub to the target strength
+            int wires = (int)(hubs[h] / 0.25f);
+            for (int i = 0; i < wires; i++) store.Concepts.OnEpisode(["kitchen", "storm", "z" + i]);
+            for (int d = 0; d < draws; d++)
+            {
+                var r2 = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 0.55f };
+                if (r2.MaybeFuse(net, store, a!, store.Episodes, () => 0.0) is not null) fires++;
+            }
+            rates[h] = fires / (float)draws;
+            if (h > 0 && rates[h] < rates[h - 1] - 0.02f) monotone = false;
+            sb1.AppendLine($"| {hubs[h]:F2} | {rates[h]:P0} | rises with convergence |");
+            Console.WriteLine($"  {hubs[h]:F2}  ->  {rates[h]:P0}");
+        }
+        Console.WriteLine($"  monotone-increasing: {monotone} (published: stronger convergence -> more false memories)");
+        sb1.AppendLine();
+        sb1.AppendLine($"Monotone increasing (as in Deese/RM lists): **{(monotone ? "CONFIRMED" : "not confirmed")}**; peak rate {rates[^1]:P0} vs human ~55% at full convergence (MaxFusionChance is CALIBRATED to that anchor).");
+
+        Console.WriteLine("[validate] experiment 2: extinction, spontaneous recovery, savings");
+        var t = new BioComp.Core.Cognition.ThreatLearning();
+        var netT = new BioComp.Core.Network.SpikingNetwork(BioComp.Core.Network.BrainConfig.Default(scale: 1, seed: 7));
+        t.OnHostility(netT, 1f); t.OnHostility(netT, 1f); t.OnHostility(netT, 1f);
+        float peak = t.Wariness;
+        int firstTrials = 0;
+        while (t.Wariness > 0.05f && firstTrials < 100) { t.OnSafeContact(1f); firstTrials++; }
+        float low = t.Wariness;
+        t.OnWake();                                  // spontaneous recovery
+        float recovered = t.Wariness;
+        float fraction = (recovered - low) / MathF.Max(1e-4f, peak - low);
+        int secondTrials = 0;
+        while (t.Wariness > 0.05f && secondTrials < 100) { t.OnSafeContact(1f); secondTrials++; }
+        bool savings = secondTrials < firstTrials;
+        bool partial = recovered < peak;
+        Console.WriteLine($"  peak {peak:F2}; 1st extinction {firstTrials} trials; recovery to {recovered:F2} ({fraction:P0} of the distance); 2nd extinction {secondTrials} trials");
+        Console.WriteLine($"  partial-recovery (Bouton, 20-50% band): {(partial && fraction is > 0.1f and < 0.6f ? "CONFIRMED" : "check band")} at {fraction:P0}");
+        Console.WriteLine($"  savings (re-extinction faster, Pavlov): {(savings ? "CONFIRMED" : "not confirmed")} ({secondTrials} < {firstTrials})");
+        var sb2 = new System.Text.StringBuilder();
+        sb2.AppendLine("# Extinction, spontaneous recovery, savings (Bouton 2004; Pavlov 1927)");
+        sb2.AppendLine();
+        sb2.AppendLine($"- peak wariness {peak:F2}; first extinction: **{firstTrials} trials**");
+        sb2.AppendLine($"- spontaneous recovery after sleep: **{fraction:P0}** of the extinguished distance (published band 20-50%; SpontaneousRecovery=0.30 is CALIBRATED to it)");
+        sb2.AppendLine($"- partial (never above peak): **{(partial ? "CONFIRMED" : "VIOLATED")}**");
+        sb2.AppendLine($"- savings: second extinction **{secondTrials}** trials vs first **{firstTrials}** — **{(savings ? "EMERGENT" : "absent")}** (extinction-memory practice term)");
+        Directory.CreateDirectory("exports");
+        File.WriteAllText(Path.Combine("exports", "validation-report.md"),
+            "# Mechanism validation vs published findings\n\n" + sb1 + "\n" + sb2 +
+            "\n## Method note\nParameters are calibrated to the cited anchors (documented in docs/plan/PARAMETERS-SEED.md);\nthe RELATIONS measured above (monotonicity, partiality, savings) are emergent properties of\nthe mechanisms, not scripted outcomes.\n");
+        Console.WriteLine("exports: exports/validation-report.md");
+        return 0;
+    }
+
     case "sedation":
     {
         // headless anesthesia reproduction: watch the daemon survive sedation

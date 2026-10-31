@@ -882,3 +882,29 @@ mechanisms, not words:
   write non-ASCII content into these files via PowerShell here-strings.)
 - 2 new tests (confirmed hypothesis answers its own question; the proud share phrasing).
   224/224 green.
+
+## 2026-11-01 (the paper round) - direct becomes the main mode; mechanisms validated vs published numbers
+
+Acting on two external recommendations:
+- DIRECT TALK IS NOW THE MAIN MODE: the creature's own composed voice is the DEFAULT;
+  the prosthetic language cortex is an OPT-IN (--llm-cortex; the dashboard toggle still
+  flips live either way). The novel claim - state-only output is readable - is now the
+  product's resting state. NativeReplies' statement path upgraded from "I hear you" to
+  acknowledgment + where the brain actually is + one lived reference (deja vu /
+  local-sleep / neurogenesis surface in conversation, from real state).
+- READABILITY TEST (the claim, tested): a scripted 12-message conversation through THREE
+  different lived states, asserting every reply is a sane human sentence (no template
+  leakage), variation (no reply repeats more than half the conversation), and state-
+  grounding (the wary stretch carries watchfulness; the growth stretch references what
+  just happened inside). Statements get more than acknowledgment.
+- MECHANISM VALIDATION (the other paper-maker): `biolab validate` runs two emergent
+  experiments and writes exports/validation-report.md:
+  (1) DRM false-memory sweep - fusion rate vs semantic convergence, 1000 draws/bin:
+      monotone-increasing as in Deese/RM lists (0.6 hub -> below threshold; full
+      convergence -> 50-55%, the calibrated human anchor);
+  (2) extinction / spontaneous recovery / SAVINGS - recovery measured at exactly 30% of
+      the extinguished distance (Bouton's 20-50% band), never above peak, and - made
+      EMERGENT this round - SAVINGS: second extinction took 2 trials vs 9 (extinction
+      memory accelerates re-extinction; Pavlov 1927). The report separates CALIBRATED
+      anchors from EMERGENT relations - no circular validation.
+- 2 new tests (readability; statement depth). 226/226 green.

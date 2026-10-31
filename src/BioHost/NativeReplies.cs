@@ -57,7 +57,7 @@ public sealed class NativeReplies
             Intent.Apology => c.Wary ? "I know. It's okay. The rest of me is catching up to that."
                               : "Okay. It landed soft.",
             Intent.Question => lead ?? $"Hmm.{StatePhrase(c)}",
-            _ => lead ?? $"I hear you.{StatePhrase(c)}",
+            _ => StatementReply(c),
         };
 
         // 3. vocabulary tier: a newborn does not get to say "bittersweet"
@@ -65,6 +65,26 @@ public sealed class NativeReplies
             body = Simplify(body);
 
         return body;
+    }
+
+    /// <summary>
+    /// A statement deserves more than "I hear you": acknowledgment + where
+    /// the brain actually is + (if something just happened inside) one lived
+    /// reference. All from state; nothing generated.
+    /// </summary>
+    private string StatementReply(in Context c)
+    {
+        string ack = c.Valence > 0.3f ? "That's good to hear."
+                   : c.Valence < -0.3f ? "That lands heavy."
+                   : "Okay. I'm listening.";
+        string lived = c.RecentInnerEvent switch
+        {
+            { } e when c.GranularityTier >= 2 && e.Contains("DEJA-VU") => " Also - something just felt strangely familiar.",
+            { } e when c.GranularityTier >= 2 && e.Contains("LOCAL-SLEEP") => " Fair warning: a corner of me just fell asleep.",
+            { } e when c.GranularityTier >= 2 && e.Contains("NEUROGENESIS") => " And I just grew new neurons, I think because of this.",
+            _ => "",
+        };
+        return $"{ack}{StatePhrase(c)}{lived}";
     }
 
     private string StatePhrase(in Context c)

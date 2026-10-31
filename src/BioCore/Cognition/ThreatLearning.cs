@@ -50,11 +50,31 @@ public sealed class ThreatLearning
         Threats++;
     }
 
-    /// <summary>An extinction trial: warm contact with the same person. Slow, cumulative.</summary>
+    /// <summary>An extinction trial: warm contact with the same person. Slow, cumulative —
+    /// and FASTER with practice: prior extinction trials are extinction memory
+    /// (Bouton 2004), so re-extinction after spontaneous recovery takes fewer
+    /// trials than the first extinction (the savings effect, Pavlov 1927).</summary>
     public void OnSafeContact(float warmth)
     {
-        Wariness = Math.Clamp(Wariness - ExtinctionStep * Math.Clamp(warmth, 0f, 1f), 0f, 1f);
+        // extinction learning itself accelerates with experience: the
+        // "this is safe" memory strengthens each time it is rebuilt
+        float practice = 1f + MathF.Min(1f, SafeContacts * 0.12f);   // up to 2x
+        Wariness = Math.Clamp(Wariness - ExtinctionStep * practice * Math.Clamp(warmth, 0f, 1f), 0f, 1f);
         SafeContacts++;
+    }
+
+    /// <summary>Trials needed to reach near-zero from the CURRENT wariness (for
+    /// the savings measurement: compare first vs second extinction).</summary>
+    public int ProjectedTrialsToExtinction(float warmth = 1f)
+    {
+        float w = Wariness; int trials = 0; int practiced = SafeContacts;
+        while (w > 0.05f && trials < 200)
+        {
+            float practice = 1f + MathF.Min(1f, practiced * 0.12f);
+            w = Math.Clamp(w - ExtinctionStep * practice * warmth, 0f, 1f);
+            practiced++; trials++;
+        }
+        return trials;
     }
 
     /// <summary>

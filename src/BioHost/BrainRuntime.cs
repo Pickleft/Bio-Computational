@@ -15,6 +15,9 @@ public sealed class BrainRuntimeConfig
     public bool? LiveCamera { get; init; }
     public bool? LiveMic { get; init; }
     public bool LiveMeta { get; init; }
+    /// <summary>Attach the prosthetic language cortex (LLM replies). Default OFF:
+    /// the brain's own composed voice is the main mode; the cortex is opt-in.</summary>
+    public bool LlmCortex { get; init; }
     public bool DemoMode { get; init; }
     public bool UseVoice { get; init; }
     public ulong Seed { get; init; } = 42;
@@ -24,6 +27,7 @@ public sealed class BrainRuntimeConfig
         LiveCamera = args.Contains("--mock-cam") ? false : args.Contains("--camera") ? true : null,
         LiveMic = args.Contains("--mock-mic") ? false : args.Contains("--mic") ? true : null,
         LiveMeta = args.Contains("--live-meta"),
+        LlmCortex = args.Contains("--llm-cortex"),
         DemoMode = args.Contains("--demo"),
         UseVoice = args.Contains("--voice"),
         Seed = ulong.TryParse(args.FirstOrDefault(a => a.StartsWith("--seed="))?["--seed=".Length..], out var s) ? s : 42,
@@ -422,6 +426,9 @@ public sealed class BrainRuntime : IDisposable
         if (cfg.DemoMode) _idle.Sleep.DayLengthMs = 120_000; // 2-minute demo day: sleep on camera
         if (cfg.DemoMode) _idle.AmbientEncodeIntervalMs = 12_000; // short wake windows still bank memories
         LocalSleep.PressureReader = _ => _idle.Sleep.SleepPressure;
+        // DIRECT TALK IS THE MAIN MODE: the creature's own voice is the
+        // default; the prosthetic language cortex is an opt-in (--llm-cortex)
+        _nativeVoiceMode = !cfg.LlmCortex;
         _idle.DejaVu = DejaVu;
         DejaVu.FamiliarityStruck += desc =>
         {

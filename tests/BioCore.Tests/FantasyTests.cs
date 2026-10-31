@@ -1858,3 +1858,59 @@ public class SelfTaughtTests
         Assert.Contains("nobody told me", s);
     }
 }
+
+// ---- the novel claim: state-only output is readable (no LLM anywhere) ----
+public class DirectModeReadabilityTests
+{
+    private static BioComp.Host.NativeReplies.Context Ctx(
+        float val = 0.1f, bool wary = false, bool helpless = false, bool missing = false,
+        int tier = 2, string? brief = null) =>
+        new("Sam", val > 0.2f ? "calm" : val < -0.2f ? "heavy" : "steady", val, false,
+            missing, "Sam", missing ? 0.8f : 0f, false, helpless, helpless ? 0.2f : 0.6f,
+            wary, false, false, null, brief, tier, 0.5f, "secure", 0.6f);
+
+    [Fact]
+    public void TwelveMessageConversation_IsReadable_Varied_StateGrounded()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string[] script =
+        [
+            "hey", "how are you?", "i like being here with you", "what do you think about storms?",
+            "i love you", "im sorry", "yeah im fine", "goodbye for now", "im back",
+            "you look nice today", "tell me something", "how are you feeling now",
+        ];
+        // three different states across the conversation (it lives, it changes)
+        var states = new[]
+        {
+            Ctx(val: 0.1f, tier: 2),
+            Ctx(val: 0.5f, tier: 3, brief: "NEUROGENESIS 4 new neurons"),
+            Ctx(val: -0.4f, wary: true, tier: 3),
+        };
+        var replies = new List<string>();
+        for (int i = 0; i < script.Length; i++)
+            replies.Add(n.Reply(script[i], states[i / 4]));
+        // READABLE: every reply is a non-empty human sentence
+        foreach (var r in replies)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(r));
+            Assert.True(r.Length > 5 && r.Length < 220, $"reply length sane: '{r}'");
+            Assert.DoesNotContain("{", r);   // no template leakage
+        }
+        // VARIED: no more than half identical (the template grave)
+        int maxDupes = replies.GroupBy(r => r).Max(g => g.Count());
+        Assert.True(maxDupes <= script.Length / 2, $"too repetitive: a reply repeats {maxDupes}x");
+        // STATE-GROUNDED: the wary stretch carries wariness; the happy-growth
+        // stretch references what just happened inside
+        Assert.Contains(replies[8..12], r => r.Contains("watching") || r.Contains("residue") || r.Contains("heavy") || r.Contains("listening"));
+        Assert.Contains(replies[4..8], r => r.Contains("neurons") || r.Contains("I feel it") || r.Contains("keeping"));
+    }
+
+    [Fact]
+    public void Statement_GetsMoreThanAnAcknowledgment()
+    {
+        var n = new BioComp.Host.NativeReplies();
+        string r = n.Reply("i finally fixed my car", Ctx(val: 0.1f, tier: 2));
+        Assert.False(r.Trim().Equals("I hear you.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("listening", r);   // ack + where it is
+    }
+}
