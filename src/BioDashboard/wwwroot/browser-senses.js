@@ -123,10 +123,11 @@ async function enableBrowserSenses() {
       const vadEl = document.getElementById("audio-vad");
       if (vadEl) vadEl.textContent = rms > 0.01 ? "VOICE" : "quiet";
 
-      // send to server and Meta ASR at most every 50ms — lower the gate to
-      // near-zero for Meta (it handles silence detection itself)
+      // send to server and Meta ASR at most every 50ms — gate at speech level
+      // (sending silence makes Meta hallucinate "Yeah"; we only send when
+      // there's actual voice energy)
       const now = Date.now();
-      if (now - lastSend > 50 && rms > 0.0001) {
+      if (now - lastSend > 50 && rms > 0.004) {
         lastSend = now;
         // resample to 16 kHz
         const ratio = audioCtx.sampleRate / 16000;

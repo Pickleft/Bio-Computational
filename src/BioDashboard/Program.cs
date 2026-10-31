@@ -200,6 +200,10 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
 
     var transcriptLoop = Task.Run(async () =>
     {
+        // dedup: reject the SAME transcript repeated within 10 seconds (ASR
+        // sometimes emits the same phrase twice on endpointing boundaries)
+        string lastSent = "";
+        DateTime lastSentAt = DateTime.MinValue;
         try
         {
             while (!cts.Token.IsCancellationRequested && browserWs.State == WebSocketState.Open)
@@ -210,12 +214,42 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
                 var bytes = System.Text.Encoding.UTF8.GetBytes(json);
                 await browserWs.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cts.Token);
 
-                // FINAL transcripts go directly to the brain — no round-trip
-                // through the browser's /api/say call
+                // FINAL transcripts go directly to the brain — but FILTER
+                // hallucinated fillers from silence (Meta says "Yeah" to
+                // background noise; a real person says something)
                 if (evt.IsFinal && !string.IsNullOrWhiteSpace(evt.Text) && evt.Text.Length > 1)
                 {
-                    Console.WriteLine($"[transcribe] FINAL: \"{evt.Text}\"");
-                    runtime.HumanSaid(evt.Text);
+                    string trimmed = evt.Text.Trim().TrimEnd('.', '!', '?', ',', ' ');
+                    // lone filler words from the ASR are hallucinations — only
+                    // accept them if they're part of a longer phrase
+                    bool isLoneFiller = trimmed.Length <= 5 &&
+                        (trimmed.Equals("yeah", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("yeah.", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("uh", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("um", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("huh", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("mm", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("hmm", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("oh", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("okay", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.Equals("ok", StringComparison.OrdinalIgnoreCase));
+
+                    if (isLoneFiller)
+                    {
+                        Console.WriteLine($"[transcribe] FILTERED hallucinated filler: \"{trimmed}\"");
+                    }
+                    else if (trimmed == lastSent && (DateTime.UtcNow - lastSentAt).TotalSeconds < 10)
+                    {
+                        Console.WriteLine($"[transcribe] DEDUPED repeated: \"{trimmed}\"");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[transcribe] FINAL: \"{evt.Text}\"");
+                        lastSent = trimmed;
+                        lastSentAt = DateTime.UtcNow;
+                        runtime.HumanSaid(evt.Text);
+                    }
                 }
                 else if (evt.Type == "partial" && !string.IsNullOrEmpty(evt.Text))
                 {
