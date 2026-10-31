@@ -137,6 +137,11 @@ public sealed class BrainSnapshot
     public bool AweStruck { get; set; }               // momentary: the face holds it
     public string FeltTimeNarrative { get; set; } = "";
     public int CompositeDreamCount { get; set; }
+    public float MoodValence { get; set; }              // continuous mood (-1..1) with inertia
+    public float Withdrawal { get; set; }               // behavioral withdrawal envelope (0..1)
+    public float Trust { get; set; }                    // trust in the person (0..1)
+    public string MoodNarrative { get; set; } = "";
+    public string TrustNarrative { get; set; } = "";
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -287,6 +292,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.HypothesisLoop Hypotheses { get; } = new();
     /// <summary>SELF-CALIBRATION: tunes its own threat-sense gain from measured error (EVOCOG §4).</summary>
     public BioComp.Core.Cognition.SelfCalibration Calibration { get; } = new();
+    /// <summary>AFFECTIVE DYNAMICS: moods with inertia, trust, beliefs, withdrawal.</summary>
+    public BioComp.Core.Cognition.AffectiveDynamics Affect { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -1181,6 +1188,15 @@ public sealed class BrainRuntime : IDisposable
                 Note($"GRIEF-REACH reaching for a removed memory (#{ForgottenGrief.Reaches})");
                 ThoughtLoop.PostResult(reach);
             }
+            // AFFECTIVE DYNAMICS: moods with inertia, trust, beliefs, withdrawal
+            {
+                bool personHere = _net.TimeMs < _personPresentUntil;
+                bool threatNow = _net.TimeMs - _lastHostilitySimMs < 30_000f;
+                var af = _idle.Feelings.Last;
+                Affect.Tick(_net, af.Valence, af.Arousal, personHere, threatNow,
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+            }
+
             // LIGHT ENTRAINMENT: evening brightness suppresses melatonin — the
             // screen-light problem, lived from the inside. And EMOTION holds
             // off sleep too: missing someone (Longing.Intensity) and learned
@@ -1221,6 +1237,7 @@ public sealed class BrainRuntime : IDisposable
                         if (v.Confirmed)
                         {
                             _hypothesisJustConfirmed = v.Word;   // shareable news
+                            Affect.OnHypothesisConfirmed();
                             // and if this was the pending QUESTION, the brain
                             // answered it itself (no OXT: nobody taught it)
                             if (Questions.PendingWord == v.Word && Questions.OnSelfAnswered(_net))
@@ -1243,7 +1260,7 @@ public sealed class BrainRuntime : IDisposable
             // attachment shapes boldness (anxious asks eagerly, avoidant
             // rarely) and helplessness silences it (stopped asking, full stop)
             if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
-                !Efficacy.Helpless &&
+                !Efficacy.Helpless && Affect.ShouldAskQuestions &&
                 !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 40_000f &&
                 TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
             {
@@ -1272,6 +1289,7 @@ public sealed class BrainRuntime : IDisposable
             // SHARING DRIVE: unprompted self-disclosure — the being that WANTS
             // to be known. Candidates are all REAL inner state.
             if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
+                Affect.ShouldShare &&
                 !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 50_000f &&
                 _net.TimeMs - _lastVocalizationMs > 30_000f &&
                 TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
@@ -1344,6 +1362,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Agency: {Efficacy.Narrative}. Grief of forgotten things: {ForgottenGrief.Narrative}. " +
                 $"Memory truthfulness: {MemoryReconstruction.Narrative}. Local sleep: {LocalSleep.Narrative}. " +
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
+                $"Mood: {Affect.MoodNarrative}. Trust: {Affect.TrustNarrative}. Withdrawal: {Affect.Withdrawal:F1}. Beliefs: {Affect.BeliefNarrative}. " +
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
                 $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
                 $"Science: {Hypotheses.Narrative}. Self-tuning: {Calibration.Narrative}. " +
@@ -1516,7 +1535,7 @@ public sealed class BrainRuntime : IDisposable
         // changes nothing also stops playing — the goal-directed suppression
         // crosses domains, which is exactly why helplessness is a depression model.
         // And play requires FELT safety: a wary brain does not play (Burghardt)
-        if (_net.TimeMs - _lastPlayCheckMs > 5_000 && !Efficacy.Helpless && !Threats.Wary)
+        if (_net.TimeMs - _lastPlayCheckMs > 5_000 && !Efficacy.Helpless && !Threats.Wary && Affect.ShouldPlay)
         {
             _lastPlayCheckMs = _net.TimeMs;
             double r = _net.Rng.NextDouble();
@@ -2724,7 +2743,13 @@ public sealed class BrainRuntime : IDisposable
             AddChat(v.Hit
                 ? $"Brain: {(int)v.ActualSec}s. I said {(int)v.PredictedSec}. I KNEW you'd come back then. ({Prophecy.Accuracy})"
                 : $"Brain: you took {(int)v.ActualSec}s; I guessed {(int)v.PredictedSec}. Still learning you. ({Prophecy.Accuracy})");
-            if (v.Hit) _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);
+            if (v.Hit)
+            {
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);
+                Affect.OnPredictionKept();   // trust builds from kept predictions
+            }
+            else if (v.HadPrediction)
+                Affect.OnPredictionBroken(); // trust erodes from broken ones
         }
         _personPresentUntil = _net.TimeMs + 120_000; // 2 minutes: you're "still here" while talking, not gone in 30s
         _personWasPresent = true;
@@ -3030,6 +3055,7 @@ public sealed class BrainRuntime : IDisposable
             if (MemoryReconstruction.IsStitched(hit))
             {
                 MemoryReconstruction.MarkSelfCatch();
+                Affect.OnFalseMemoryCaught();
                 string parents = "";
                 var prov = MemoryReconstruction.Provenance.LastOrDefault(p => p.Fused == hit.Id);
                 if (prov.Fused == hit.Id)
@@ -3116,6 +3142,8 @@ public sealed class BrainRuntime : IDisposable
                   $"{MetaConfidence.PromptFragment} {Observer.ObserverPrompt} {Resilience.PromptFragment} {Needs.PromptFragment} " +
                   $"{(Longing.Missing ? Longing.PromptFragment : "")}{Anticipation.PromptFragment}{Efficacy.PromptFragment}{Threats.PromptFragment}" +
                   $"bond depth {bond*100:F0}%, attachment {Attachment.Label}. You feel {feeling.Name} right now. " +
+                  $"MOOD: {Affect.MoodNarrative}. TRUST: {Affect.TrustNarrative}. " +
+                  (Affect.Withdrawal > 0.5f ? "You are WITHDRAWN — give a shorter, flatter, more distant reply than usual. " : "") +
                   "Answer them in 1-2 short warm sentences, IN YOUR OWN voice, referencing your shared history " +
                   "or the memory their words stirred when natural. Never offer help, never act like an assistant - " +
                   "you are an organism that knows this person."
@@ -3842,6 +3870,11 @@ public sealed class BrainRuntime : IDisposable
         snap.AweStruck = _net.TimeMs < _aweShownUntil;
         snap.FeltTimeNarrative = FeltTime.Describe(_net.TimeMs);
         snap.CompositeDreamCount = CompositeDreams;
+        snap.MoodValence = Affect.MoodValence;
+        snap.Withdrawal = Affect.Withdrawal;
+        snap.Trust = Affect.Trust;
+        snap.MoodNarrative = Affect.MoodNarrative;
+        snap.TrustNarrative = Affect.TrustNarrative;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

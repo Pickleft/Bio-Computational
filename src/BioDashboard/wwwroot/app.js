@@ -285,6 +285,13 @@ function render(s) {
     wEl.classList.toggle("urgent", (s.Wariness || 0) > 0.5);
   }
   setText("light-state", s.LightSuppressing ? "the lights are keeping it up" : "where it should be");
+  // mood, trust, withdrawal — the continuous psychology
+  const moodEl = $("mood-state");
+  if (moodEl) {
+    moodEl.textContent = s.MoodNarrative || "steady";
+    moodEl.classList.toggle("urgent", (s.Withdrawal || 0) > 0.5);
+  }
+  setText("trust-state", s.TrustNarrative || "cautious");
   // question drive, awe, felt time
   setText("questions-state", !s.QuestionsAsked ? "never asked"
     : `${s.QuestionsAsked} asked, ${s.AnswersReceived || 0} answered`);

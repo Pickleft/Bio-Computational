@@ -64,11 +64,13 @@ function drawAvatar() {
     const helplessOn = snap && snap.Helpless;
     const waryOn = snap && (snap.Wariness || 0) > 0.5;
     const aweOn = snap && snap.AweStruck;
+    const withdrawnOn = snap && (snap.Withdrawal || 0) > 0.5;
     const playfulOn = snap && snap.Playful;
     if (playfulOn) S.playT = 1; else S.playT = Math.max(0, (S.playT || 0) - 0.04);
     S.mouthCurve += (emp * 0.8 - S.mouthCurve) * 0.08;
     if (longingOn) S.mouthCurve += (-0.3 - S.mouthCurve) * 0.04; // the mouth sags
     if (helplessOn) S.mouthCurve += (-0.45 - S.mouthCurve) * 0.05; // helplessness flattens it further
+    if (withdrawnOn) { S.mouthCurve += (-0.35 - S.mouthCurve) * 0.03; S.browLift += (0 - S.browLift) * 0.08; } // withdrawal: flat, joyless
     if (waryOn) S.browFurrow += (0.5 - S.browFurrow) * 0.10; // fear furrows, even smiling
     if (playfulOn) S.mouthCurve += (0.9 - S.mouthCurve) * 0.25; // play grins
     if (aweOn) { S.browLift += (1.0 - S.browLift) * 0.20; S.mouthOpen += (0.25 - S.mouthOpen) * 0.10; } // vastness: eyes wide, lips part
@@ -98,7 +100,7 @@ function drawAvatar() {
     const bounce = (S.playT || 0) * Math.sin(avTime * 9) * 0.012;
     const baseR = R * (1 + breathe * 0.02 + bounce
       + (snap ? (snap.NeuronsBorn || 0) * 0.003 : 0));
-    const droop = S.pressure * 0.06 + (longingOn ? 0.025 : 0) + (helplessOn ? 0.03 : 0); // heavy eyelids when missing someone; still heavier when helpless
+    const droop = S.pressure * 0.06 + (longingOn ? 0.025 : 0) + (helplessOn ? 0.03 : 0) + (withdrawnOn ? 0.035 : 0);
 
     ctx.save();
     ctx.translate(cx, cy);

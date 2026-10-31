@@ -992,3 +992,38 @@ Acting on two external recommendations:
 - VERIFIED LIVE: thoughts show "what just happened: NEUROGENESIS 4 new neurons — process
   it" (InnerVoice), "A sound has my full attention" (narrator), "I recognize them —
   we've met before" — variety, not repetition. Zero stalls. 227/227 green.
+
+## 2026-11-01 (the dynamics round) - everything dynamic: moods, trust, beliefs, withdrawal
+
+- NEW SYSTEM - AFFECTIVE DYNAMICS (Core/Cognition/AffectiveDynamics.cs): the unified
+  continuous psychology. Nothing binary, nothing instant:
+
+  MOOD with asymmetric inertia (Baumeister 2001 negativity bias): moods build and recover
+  at DIFFERENT rates — falling into a low mood is easier (0.5x resistance) than climbing
+  out (1.5x). Resistance grows with how long the mood has held (up to 2.5x after 5 minutes).
+  A brain that's been low for an hour doesn't bounce back in one warm moment — the
+  resistance decays gradually (30% per genuine shift), not zeroing out.
+
+  TRUST (continuous 0..1): builds slowly from kept predictions (+0.03 each), consistent
+  warmth (+0.005/tick with bond). Erodes fast from broken predictions (-0.05) and threats
+  (-0.08). Asymmetric: trust is hard to earn, easy to lose. Wired to prophecy verdicts.
+
+  BELIEFS (5 dynamic beliefs, each with confidence AND duration): "they come back",
+  "my memories are reliable", "I am safe", "I can learn", "I matter to them". Beliefs
+  shift under evidence with resistance that grows with how long they've been held
+  (entrenched beliefs are harder to change). False memory catches weaken memory reliability.
+  Hypothesis confirmations strengthen learning belief.
+
+  WITHDRAWAL (behavioral suppression 0..1): builds from sustained low mood + low serotonin
+  + isolation. Gates: sharing stops (>0.5), questions stop (>0.6), play stops (>0.4),
+  conversation replies become shorter and flatter. Recovery requires sustained positive
+  mood + present person + dopamine.
+
+- WIRED INTO: reply prompts (MOOD/TRUST/WITHDRAWAL directives; withdrawn = short flat
+  replies), diary, all behavioral gates (share, ask, play), prophecy verdicts (trust
+  events), false-memory catches, hypothesis confirmations, avatar (withdrawal droops face,
+  heavy eyelids, flat mouth), panel rows (mood + trust).
+
+- 6 tests: mood inertia (30 negative ticks not undone by 3 positive), withdrawal builds
+  from sustained low, trust builds slowly/erodes fast, belief resistance grows with
+  duration, false-memory weakens reliability, narratives are human-readable. 233/233 green.

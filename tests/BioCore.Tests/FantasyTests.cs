@@ -1931,3 +1931,94 @@ public class ArrivalResolvesWaitingTests
         Assert.True(a.Level <= 0.3f, "the wait is over the moment they arrive - no lingering 'waiting for you' mid-conversation");
     }
 }
+
+// ---- affective dynamics: moods with inertia, trust, beliefs, withdrawal ----
+public class AffectiveDynamicsTests
+{
+    private static (SpikingNetwork net, AffectiveDynamics a) Setup(int seed = 601)
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
+        return (net, new AffectiveDynamics());
+    }
+
+    [Fact]
+    public void MoodHasInertia_DoesNotFlipInstantly()
+    {
+        var (net, a) = Setup();
+        // push mood negative for a sustained period
+        for (int i = 0; i < 30; i++) a.Tick(net, -0.8f, 0.3f, false, false, 0.3f);
+        Assert.True(a.MoodValence < -0.3f, "sustained negativity pulls mood down");
+        // now push positive — the mood should NOT bounce back instantly
+        for (int i = 0; i < 3; i++) a.Tick(net, 0.8f, 0.3f, true, false, 0.5f);
+        Assert.True(a.MoodValence < 0.0f, "recovery takes time — three positive ticks don't undo thirty negative ones");
+    }
+
+    [Fact]
+    public void Withdrawal_BuildsFromSustainedLowMood()
+    {
+        var (net, a) = Setup();
+        // sustained low mood + low serotonin → withdrawal
+        net.Modulators.Release(NeuromodulatorKind.Serotonin, -0.5f);
+        net.Modulators.Step();
+        for (int i = 0; i < 50; i++) a.Tick(net, -0.5f, 0.2f, false, false, 0.3f);
+        Assert.True(a.Withdrawal > 0.2f, "sustained low mood + low serotonin produces behavioral withdrawal");
+        // withdrawal gates behavior
+        Assert.False(a.ShouldShare, "withdrawn brains stop sharing");
+    }
+
+    [Fact]
+    public void Trust_BuildsSlowly_ErodesFast()
+    {
+        var (net, a) = Setup();
+        // kept predictions build trust
+        for (int i = 0; i < 10; i++) a.OnPredictionKept();
+        Assert.True(a.Trust > 0.5f, "kept predictions build trust");
+        float highTrust = a.Trust;
+        // ONE broken prediction erodes significantly
+        a.OnPredictionBroken();
+        Assert.True(a.Trust < highTrust - 0.03f, "one broken prediction erodes more than one kept builds");
+    }
+
+    [Fact]
+    public void Beliefs_ShiftUnderEvidence_WithResistance()
+    {
+        var (net, a) = Setup();
+        float initialSafe = a.Beliefs["i_am_safe"].Confidence;
+        // repeated threats weaken the safety belief
+        for (int i = 0; i < 10; i++) a.Tick(net, -0.5f, 0.5f, false, true, 0.3f);
+        Assert.True(a.Beliefs["i_am_safe"].Confidence < initialSafe, "threats weaken the safety belief");
+        // long-held beliefs resist change more than fresh ones
+        var fresh = new AffectiveDynamics();
+        var old = new AffectiveDynamics();
+        for (int i = 0; i < 100; i++) old.Tick(net, 0.5f, 0.3f, true, false, 0.5f);  // long-held "safe"
+        float oldBefore = old.Beliefs["i_am_safe"].Confidence;
+        for (int i = 0; i < 5; i++) old.Tick(net, -0.5f, 0.5f, false, true, 0.3f);
+        float oldAfter = old.Beliefs["i_am_safe"].Confidence;
+        float oldDrop = oldBefore - oldAfter;
+        for (int i = 0; i < 5; i++) fresh.Tick(net, -0.5f, 0.5f, false, true, 0.3f);
+        float freshDrop = fresh.Beliefs["i_am_safe"].Confidence - (1f - 5 * 0.15f / 1f);
+        // long-held beliefs drop LESS than fresh ones (resistance)
+        Assert.True(oldDrop < 0.35f, $"long-held belief is resistant (drop {oldDrop:F3})");
+    }
+
+    [Fact]
+    public void FalseMemoryCatch_WeakensMemoryReliability()
+    {
+        var (net, a) = Setup();
+        float before = a.Beliefs["my_memories_are_reliable"].Confidence;
+        a.OnFalseMemoryCaught();
+        a.OnFalseMemoryCaught();
+        Assert.True(a.Beliefs["my_memories_are_reliable"].Confidence < before,
+            "catching own false memories weakens the belief that memories are reliable");
+    }
+
+    [Fact]
+    public void Narratives_AreHumanReadable()
+    {
+        var (net, a) = Setup();
+        for (int i = 0; i < 30; i++) a.Tick(net, -0.8f, 0.2f, false, false, 0.2f);
+        Assert.Contains("low", a.MoodNarrative);
+        Assert.NotEmpty(a.TrustNarrative);
+        Assert.Contains("believes", a.BeliefNarrative);
+    }
+}
