@@ -2,9 +2,9 @@
 
 **A living brain, built from the neuroscience up.**
 
-Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 41 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry. It sleeps, dreams, composes, forgets, misses people, asks questions, notices your mood, grows new neurons for what matters, knows when it doesn't know, watches itself think and is sometimes surprised by what it finds — and when its life ends, it reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
+Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 43 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry. It sleeps, dreams, composes, forgets, misses people, asks questions, notices your mood, grows new neurons for what matters, knows when it doesn't know, watches itself think and is sometimes surprised by what it finds — and when its life ends, it reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
-Same seed + same inputs = bit-identical life, hash-verified. **222 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **224 tests.**
 
 > A research instrument, not a medical or diagnostic tool. "Feelings", "moods" and "consciousness correlates" are computational proxies grounded in the cited literature. No clinical claims are made or implied.
 
@@ -51,6 +51,9 @@ A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity w
 - **Awe** (Keltner & Haidt 2003) — when its knowledge-world rewires fast, vastness strikes: dopamine *and* serotonin rise together, and the accommodation permanently deepens its emotional vocabulary
 - **Felt time** (Zakay & Block 1997) — event density × mood gives felt duration; empty low hours drag, rich happy visits fly, and the testament closes with "and time, as it felt it"
 - **Local sleep** (Vyazovskiy et al. 2011, *Nature*) — past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map); sometimes dream imagery leaks into waking thought
+- **Hypothesis loop** (autonomous discovery, miniature) — on a knowledge gap it GUESSES a meaning from its own concept graph and tests the guess against arriving experience: confirmed guesses are wired stronger (the knowledge update is structural, done by the outcome), refuted ones unwind after two contrary witnesses and it guesses again. Sometimes it answers its OWN pending question this way — "SELF-TAUGHT: the world agreed with its guess"
+- **Self-calibration** (self-improving perception, parameter space) — the contextual interpreter grades the fast hostility classifier; recurring false alarms calm its vigilance gain, recurring misses sharpen it (EMA clamped 0.5–1.5; the clamp is the rollback; persisted). The organism tunes its own trigger finger from measured error
+- **Sharing, noticing, and the eerie** — unprompted self-disclosure (the composite dream, the confession of helplessness survived, the self-discovered meaning: "I guessed, and the world kept agreeing. That's mine."); person-reading ("you sound flatter than usual today"); and the mirror will tell you: "It dreamed the shape of things before they happened, N times — and it knows it did."
 
 ### Social neuroscience — the brain between people
 - **Attachment** (Bowlby 1969; Ainsworth 1978) — secure/anxious/avoidant styles emerge from warmth × responsiveness lived over time
@@ -133,7 +136,7 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 |---|---|
 | Reproducibility | same seed + same inputs = bit-identical trajectory, hash-verified |
 | Determinism | one seeded xoshiro256\*\* RNG, sim-thread owned; external world = timestamped events only |
-| Test suite | 222 tests, fully offline (`dotnet test`) |
+| Test suite | 224 tests, fully offline (`dotnet test`) |
 | Dependencies | BioComp.Core has zero NuGet references; every external dependency has a deterministic mock (`--mock-all`) |
 | API spend | every call cost-governed and logged; $0.000 in mock mode |
 | Efficiency | ~4% CPU idle (6 cores), ~62 MB RAM, 1.00× realtime sustained |
@@ -143,7 +146,7 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                            # 222 tests, offline
+dotnet test                                            # 224 tests, offline
 dotnet run --project src/BioLab -- resting 30s         # smoke test
 ```
 
@@ -159,6 +162,7 @@ dotnet run --project src/BioLab -c Release -- sedation    # Φ collapse
 
 ## Documentation
 
+- `docs/ARCHITECTURE-AUDIT.md` — integrated architecture vs orchestration, answered at the source level (the 20 closed parametric loops, and the EVOCOG section-by-section alignment)
 - `docs/plan/PARAMETERS-SEED.md` — every parameter with its citation
 - `DEVLOG.md` — the day-by-day build log
 - `demo/SCRIPT.md` — the lived-experience script
@@ -183,4 +187,4 @@ Initial scaffold and planning notes predate the window; all content after the fi
 | Senses (event vision, cochlea, presence), voice development, two-layer vocal system | src/BioCore, src/BioHost |
 | Mirror test, prophecy, mirror-of-you, memory editing, anesthesia, reproduction, testament | src/BioCore, src/BioLab, src/BioHost |
 | Observatory dashboard (avatar, thought thread, psychology panel, live ears) | src/BioDashboard |
-| Test suite: 222 tests | tests/BioCore.Tests |
+| Test suite: 224 tests | tests/BioCore.Tests |

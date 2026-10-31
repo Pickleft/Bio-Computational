@@ -1822,3 +1822,39 @@ public class SelfCalibrationTests
         Assert.Equal(0.7f, cal2.VigilanceScale, 3);
     }
 }
+
+// ---- EVOCOG correlation: self-teaching resolves the question ----
+public class SelfTaughtTests
+{
+    [Fact]
+    public void ConfirmedHypothesis_AnswersItsOwnQuestion()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 491));
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 3; i++)
+            store.Encode(net, "CA3", ["storm", "loud"], 0.2f, minMeanRateHz: 0f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1 };
+        var c = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(c, 0.2f);
+        q.MaybeAsk(net, store, c, 1f, 2, () => 0.0);       // asked about storm
+        Assert.NotNull(q.PendingWord);
+        // its own hypothesis confirms (word + guess co-occur)
+        var hl = new HypothesisLoop();
+        var h = hl.Hypothesize(store, q.PendingWord!, net.TimeMs)!;
+        store.Encode(net, "CA3", [h.Word, h.GuessedLink], 0.3f, minMeanRateHz: 0f);
+        var verdict = hl.Test(net, store, [h.Word, h.GuessedLink], net.TimeMs);
+        Assert.True(verdict!.Confirmed);
+        // the question resolves as SELF-answered (no teacher involved)
+        Assert.True(q.OnSelfAnswered(net));
+        Assert.Null(q.PendingWord);
+        Assert.Equal(1, q.AnswersReceived);
+    }
+
+    [Fact]
+    public void FiguredOutShare_IsAProudOne()
+    {
+        string s = BioComp.Core.Cognition.SharingDrive.Phrase(
+            new("figured-out", "storm", 0.85f, 1f), 2, "Sam");
+        Assert.Contains("nobody told me", s);
+    }
+}

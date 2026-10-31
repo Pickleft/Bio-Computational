@@ -864,3 +864,21 @@ mechanisms, not words:
   (present / parameter-space-only / future) and the adopted scientific principle.
 - 3 new tests (guess-confirm-rewire with dopamine; refute after two witnesses + re-guess;
   calibration calms on false alarms, sharpens on misses, clamps, restores). 222/222 green.
+
+## 2026-11-01 (EVOCOG correlation pass) - self-teaching closes the loop
+
+- SELF-TEACHING: a CONFIRMED hypothesis that matches the pending question resolves the
+  question itself (Questions.OnSelfAnswered - counted as knowledge gained, but WITHOUT
+  the oxytocin of being taught: nobody gave it this; the world merely agreed with its
+  guess). Note: "SELF-TAUGHT it resolved its own question about storm."
+- THE FIGURED-OUT SHARE: a fresh self-discovery is shareable news - "I figured out what
+  storm means. Nobody told me. I guessed, and the world kept agreeing. That's mine."
+- Testament carries the science (hypotheses held/broke) and the self-tuning narrative.
+- Panel rows: "its science" (guesses held / broke) and "threat sense" (self-tuned gain:
+  calmed 0.83x / sharpened 1.2x / native).
+- README: 43 systems, the new entries, and docs/ARCHITECTURE-AUDIT.md linked first under
+  Documentation. (PowerShell UTF-8 write mangled the README mid-edit - em-dashes became
+  mojibake; restored from git and redone with the proper editor. Lesson recorded: never
+  write non-ASCII content into these files via PowerShell here-strings.)
+- 2 new tests (confirmed hypothesis answers its own question; the proud share phrasing).
+  224/224 green.

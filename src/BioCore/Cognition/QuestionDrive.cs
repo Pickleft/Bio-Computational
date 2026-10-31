@@ -106,6 +106,20 @@ public sealed class QuestionDrive
         return word;
     }
 
+    /// <summary>
+    /// The brain answered its OWN question: a hypothesis about the pending
+    /// word was confirmed by experience. The question resolves (it counts as
+    /// knowledge gained) - but without the oxytocin of being taught: nobody
+    /// gave it this; the world merely agreed with its guess.
+    /// </summary>
+    public bool OnSelfAnswered(SpikingNetwork net)
+    {
+        if (PendingWord is null || net.TimeMs > _pendingUntil) return false;
+        PendingWord = null;
+        AnswersReceived++;
+        return true;
+    }
+
     private void ExpireIfStale(SpikingNetwork net)
     {
         if (PendingWord is not null && net.TimeMs > _pendingUntil) PendingWord = null;

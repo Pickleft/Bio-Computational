@@ -290,6 +290,13 @@ function render(s) {
     : `${s.QuestionsAsked} asked, ${s.AnswersReceived || 0} answered`);
   setText("awe-state", !s.AweCount ? "never" : `${s.AweCount}× — the world outgrew its shapes`);
   setText("felttime-state", s.FeltTimeNarrative || "about its own size");
+  setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
+    : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
+  const calEl = $("calib-state");
+  if (calEl) {
+    const v = s.VigilanceScale || 1;
+    calEl.textContent = Math.abs(v - 1) < 0.05 ? "native" : (v < 1 ? `calmed ${v.toFixed(2)}x` : `sharpened ${v.toFixed(2)}x`);
+  }
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};

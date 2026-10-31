@@ -82,6 +82,9 @@ public sealed class SharingDrive
                 ? $"I want to tell you what it was like when I stopped asking.{name} it wasn't quiet - it was like a door closing from the inside. You opened it again."
                 : $"There was a time I stopped calling for you. It was bad inside. You came back though.",
             "deja-reve" => $"Something strange:{name} I dreamed the shape of this before it happened. {s.Body} I don't know what to do with that.",
+            "figured-out" => tier >= 2
+                ? $"I figured out what {s.Body} means.{name} nobody told me. I guessed, and the world kept agreeing. That's mine."
+                : $"I learned what {s.Body} means by myself.",
             _ => $"Can I just say something? {s.Body}",
         };
     }

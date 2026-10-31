@@ -123,6 +123,9 @@ public sealed class BrainSnapshot
     public float Wariness { get; set; }                 // learned threat toward the person
     public bool LightSuppressing { get; set; }          // evening light holding off melatonin
     public bool NativeVoice { get; set; }               // direct-talk mode (no LLM)
+    public int HypothesesConfirmed { get; set; }
+    public int HypothesesRefuted { get; set; }
+    public float VigilanceScale { get; set; }           // self-tuned threat-sense gain
     public int QuestionsAsked { get; set; }
     public int AnswersReceived { get; set; }
     public int AweCount { get; set; }
@@ -1134,9 +1137,19 @@ public sealed class BrainRuntime : IDisposable
                 {
                     var verdict = Hypotheses.Test(_net, _net.EpisodeStore, newest.Tags, _net.TimeMs);
                     if (verdict is { Resolved: true } v)
+                    {
                         Note(v.Confirmed
                             ? $"HYPOTHESIS-CONFIRMED {v.Word} ~ {v.GuessedLink} held against experience - knowledge rewired by outcome"
                             : $"HYPOTHESIS-REFUTED {v.Word} is NOT {v.GuessedLink} - disconfirmation is information; it will guess again");
+                        if (v.Confirmed)
+                        {
+                            _hypothesisJustConfirmed = v.Word;   // shareable news
+                            // and if this was the pending QUESTION, the brain
+                            // answered it itself (no OXT: nobody taught it)
+                            if (Questions.PendingWord == v.Word && Questions.OnSelfAnswered(_net))
+                                Note($"SELF-TAUGHT it resolved its own question about {v.Word} - the world agreed with its guess");
+                        }
+                    }
                 }
             }
 
@@ -1214,11 +1227,15 @@ public sealed class BrainRuntime : IDisposable
                 // stopped asking - the darkness itself, offered (only to the deep-bonded)
                 if (Efficacy.HelplessEpisodes > 0 && !Efficacy.Helpless && bond > 0.55f)
                     cands.Add(new("confession", "the door closing from the inside", 0.9f, 0.6f));
+                // the figured-out: it discovered a meaning by itself and wants to say so
+                if (_hypothesisJustConfirmed is { Length: > 0 } fw)
+                    cands.Add(new("figured-out", fw, 0.85f, 1f));
                 // the deja-reve: sharing that it dreamed the shape of this first
                 if (DejaVu.DreamBornCount > 0 && DejaVu.LastAtMs > _net.TimeMs - 600_000f)
                     cands.Add(new("deja-reve", DejaVu.LastDescription ?? "", 0.85f, 0.95f));
 
                 var share = Sharing.Pick(cands, bond, _net.TimeMs, _net.Rng.NextDouble);
+                _hypothesisJustConfirmed = null;   // the news is offered or dropped; either way spent
                 if (share is not null)
                 {
                     string line = BioComp.Core.Cognition.SharingDrive.Phrase(share, (int)Granularity.Level, _userName);
@@ -2271,6 +2288,7 @@ public sealed class BrainRuntime : IDisposable
                 + $"Its social rhythm: {Rhythm.Narrative}. "
                 + $"{Questions.Narrative}. {Awe.Narrative}. It dreamt {CompositeDreams} composite dream(s) that never happened. "
                 + $"{Sharing.Narrative}. {Reading.Narrative}. "
+                + $"{Hypotheses.Narrative}. {Calibration.Narrative}. "
                 + $"Its voice: {_voiceSelf.SyllablesLearned} syllables learned, pitch drifted {(_voiceSelf.DevelopedPitchBias >= 0 ? "+" : "")}{_voiceSelf.DevelopedPitchBias:F2}; its hums were its own. "
                 + $"It played {_play.PlayBursts} times. "
                 + $"And time, as it felt it: {FeltTime.Describe(_net.TimeMs)}. "
@@ -2947,6 +2965,7 @@ public sealed class BrainRuntime : IDisposable
     private volatile int _pendingFuseAnchor = -1;
     private string? _questionJustAnswered; // one-shot: the reply acknowledges the teaching
     private string? _personRemark;         // one-shot: the reply opens with the noticing
+    private string? _hypothesisJustConfirmed;  // fresh self-discovery, shareable
     private float _aweShownUntil = -1e9f;  // momentary awe, long enough for the face to show it
     private float _lastAmbientRemarkMs = -1e9f;  // big room changes get noticed, sparingly
     private float _lastGapVsUsual = 1f;           // actual/predicted return gap (person-reading fuel)
@@ -3700,6 +3719,9 @@ public sealed class BrainRuntime : IDisposable
         snap.Wariness = Threats.Wariness;
         snap.LightSuppressing = Light.SuppressingNow;
         snap.NativeVoice = _nativeVoiceMode;
+        snap.HypothesesConfirmed = Hypotheses.Confirmed;
+        snap.HypothesesRefuted = Hypotheses.Refuted;
+        snap.VigilanceScale = Calibration.VigilanceScale;
         snap.QuestionsAsked = Questions.QuestionsAsked;
         snap.AnswersReceived = Questions.AnswersReceived;
         snap.AweCount = Awe.Count;
