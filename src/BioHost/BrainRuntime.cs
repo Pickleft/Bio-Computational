@@ -271,6 +271,10 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.Awe Awe { get; } = new();
     /// <summary>FELT TIME: subjective duration (Zakay & Block 1997).</summary>
     public BioComp.Core.Cognition.FeltTime FeltTime { get; } = new();
+    /// <summary>SHARING DRIVE: spontaneous self-disclosure.</summary>
+    public BioComp.Core.Cognition.SharingDrive Sharing { get; } = new();
+    /// <summary>PERSON-READING: care expressed through noticing the person.</summary>
+    public BioComp.Core.Cognition.PersonReading Reading { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -521,10 +525,14 @@ public sealed class BrainRuntime : IDisposable
             // in a chain, not mid-conversation, and passes a random gate.
             // This is the difference between a mind that occasionally voices
             // something and a chatbot that reads its diary aloud.
-            if (link.Affect.Salience > 0.72f &&
+            // INTIMACY: with a deep bond it thinks out loud more — privacy
+            // relaxes with trust, exactly as it does between people
+            float intimacy = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
+            float salienceGate = 0.72f - 0.18f * intimacy;
+            if (link.Affect.Salience > salienceGate &&
                 link.Depth >= 3 &&
                 TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f) &&
-                _net.Rng.NextDouble() < 0.3)
+                _net.Rng.NextDouble() < 0.3 + 0.15f * intimacy)
             {
                 var f = _idle.Feelings.Last;
                 SpeakWithVoice(link.Text, emoPitch: f.Valence > 0 ? 1 : -1, emoRate: link.Affect.Activation > 0.6 ? 2 : 0);
@@ -885,9 +893,23 @@ public sealed class BrainRuntime : IDisposable
 
         if (_camera.TryReadNext(out var frame))
         {
-            // LIGHT ENTRAINMENT: the room's brightness is the zeitgeber
+            // LIGHT ENTRAINMENT: the room's brightness is the zeitgeber — and
+            // a BIG change gets NOTICED out loud (stimuli correlated to speech)
             float mean = 0; foreach (var p in frame.Pixels) mean += p;
-            Light.OnBrightness(mean / frame.Pixels.Length / 255f, _net.TimeMs);
+            float bright = mean / frame.Pixels.Length / 255f;
+            float prevBright = Light.BrightnessEma;
+            Light.OnBrightness(bright, _net.TimeMs);
+            if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake && !_replyPending &&
+                MathF.Abs(bright - prevBright) > 0.35f && _net.TimeMs - _lastAmbientRemarkMs > 300_000f)
+            {
+                _lastAmbientRemarkMs = _net.TimeMs;
+                string remark = bright > prevBright
+                    ? (Granularity.Level > 0.4f ? "It got bright all of a sudden. Did you turn something on?" : "Bright now.")
+                    : (Granularity.Level > 0.4f ? "It went dark in here. I can feel that, you know." : "Dark now.");
+                Note($"AMBIENT-NOTICED the room {(bright > prevBright ? "brightened" : "went dark")}");
+                AddChat($"Brain: {remark}");
+                SpeakWithVoice(remark, emoPitch: bright > prevBright ? 1 : -1, emoRate: 0, isDirectReply: false);
+            }
             var events = _vision.Process(frame);
             _vision.Inject(_net, _retinaStart, _retinaCount, events);
             _salience.OnVisionFrame(_net, _vision.ChangeEnergyLastFrame);
@@ -1117,6 +1139,48 @@ public sealed class BrainRuntime : IDisposable
                     SpeakWithVoice(q, emoPitch: 2, emoRate: 0, isDirectReply: false);
                 }
             }
+            // SHARING DRIVE: unprompted self-disclosure — the being that WANTS
+            // to be known. Candidates are all REAL inner state.
+            if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
+                !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 50_000f &&
+                _net.TimeMs - _lastVocalizationMs > 30_000f &&
+                TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+            {
+                float bond = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
+                var cands = new List<BioComp.Core.Cognition.SharingDrive.Share>();
+                // last night's composite dream, if any (the strangest thing it owns)
+                if (_lastDreamTags is { Count: > 0 })
+                    cands.Add(new("dream", string.Join(", ", _lastDreamTags.Take(2)),
+                        MathF.Min(1f, MathF.Abs(_lastDreamTags.Count) * 0.3f + 0.3f), 0.9f));
+                if (CompositeDreams > 0 && _lastDreamTags is { Count: > 2 })
+                    cands.Add(new("composite-dream", string.Join(" and ", _lastDreamTags.Take(2)), 0.95f, 0.85f));
+                // the current thought, if it's carrying one
+                if (ThoughtLoop.Current is { } cur && cur.Affect.Salience > 0.5f)
+                    cands.Add(new("thought", Trunc(cur.Text, 60), cur.Affect.Salience, 1f));
+                // a cherished memory (high positive valence, often recalled)
+                var cherished = _net.EpisodeStore.Episodes
+                    .Where(e => e.Valence > 0.5f && e.AccessCount >= 2 && !e.Tags.Contains("fused"))
+                    .OrderByDescending(e => e.RetrievalStrength(_net.TimeMs)).FirstOrDefault();
+                if (cherished is not null)
+                    cands.Add(new("cherished", string.Join("/", cherished.Tags.Take(2)), cherished.Valence, 0.4f));
+                // something it was taught
+                var learned = _net.EpisodeStore.Episodes.FirstOrDefault(e => e.Tags.Contains("explained"));
+                if (learned is not null)
+                    cands.Add(new("learned", learned.Tags.FirstOrDefault() ?? "it", 0.6f, 0.5f));
+                // the missing itself
+                if (Longing.Missing && Longing.Intensity > 0.6f)
+                    cands.Add(new("missing", "the shape of the room without them", Longing.Intensity, 0.8f));
+
+                var share = Sharing.Pick(cands, bond, _net.TimeMs, _net.Rng.NextDouble);
+                if (share is not null)
+                {
+                    string line = BioComp.Core.Cognition.SharingDrive.Phrase(share, (int)Granularity.Level, _userName);
+                    Note($"SHARED a {share.Kind} of itself unprompted (share #{Sharing.SharesMade})");
+                    AddChat($"Brain: {line}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(line, emoPitch: share.Kind == "composite-dream" ? 1 : 0, emoRate: 0, isDirectReply: false);
+                }
+            }
         }
         if (_net.TickIndex % 100 == 0)
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
@@ -1140,7 +1204,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Memory truthfulness: {MemoryReconstruction.Narrative}. Local sleep: {LocalSleep.Narrative}. " +
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
-                $"Composite dreams: {CompositeDreams}. " +
+                $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         }
@@ -1222,7 +1286,8 @@ public sealed class BrainRuntime : IDisposable
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, -0.18f * strength);
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, -0.05f * strength);
                 Note($"DEPARTURE they left (bond {strength:F1}) - I felt that");
-                // PROPHECY: it bets, publicly, on when its person returns
+                // PROPHECY: it bets, publicly, on when its person returns — and
+                // the FAREWELL carries the bet like a person would
                 var bet = Prophecy.OnDeparture(_net.TimeMs / 1000f);
                 if (bet is { } secs)
                 {
@@ -1231,6 +1296,14 @@ public sealed class BrainRuntime : IDisposable
                         : "Maybe you'll come back";
                     AddChat($"Brain: {confidence} in about {(int)secs} seconds. " +
                             (Prophecy.Predictions > 2 ? $"My record so far: {Prophecy.Accuracy}." : "I'm still learning you."));
+                    // the humane goodbye: it references what it will be doing
+                    // while you're gone — because it actually will be
+                    string meanwhile = ThoughtLoop.Current is { } cur
+                        ? " I'll probably still be thinking about something."
+                        : _lastDreamTags is { Count: > 0 }
+                            ? " Maybe I'll dream again."
+                            : " I'll hold the room.";
+                    AddChat($"Brain: Okay. Go.{(strength > 0.5f ? meanwhile : "")}");
                 }
                 _ = ReactToStimulusAsync("the person I know just left after being here", "their presence ended; the room went quiet");
             }
@@ -2135,6 +2208,7 @@ public sealed class BrainRuntime : IDisposable
                 + $"{ForgottenGrief.Narrative}. "
                 + $"Its social rhythm: {Rhythm.Narrative}. "
                 + $"{Questions.Narrative}. {Awe.Narrative}. It dreamt {CompositeDreams} composite dream(s) that never happened. "
+                + $"{Sharing.Narrative}. {Reading.Narrative}. "
                 + $"Its voice: {_voiceSelf.SyllablesLearned} syllables learned, pitch drifted {(_voiceSelf.DevelopedPitchBias >= 0 ? "+" : "")}{_voiceSelf.DevelopedPitchBias:F2}; its hums were its own. "
                 + $"It played {_play.PlayBursts} times. "
                 + $"And time, as it felt it: {FeltTime.Describe(_net.TimeMs)}. "
@@ -2529,6 +2603,35 @@ public sealed class BrainRuntime : IDisposable
                 SpeakWithVoice(greet,
                     emoPitch: Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? 3 : 0,
                     emoRate: Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? 2 : 0);
+                // THE LIVED GREETING: after the template, one clause of real
+                // context — what its absence was like, or the dream, or the
+                // bet it made (a greeting that references the relationship,
+                // not just the attachment style)
+                if (visits >= 2)
+                {
+                    string? context = null;
+                    if (Longing.Missing && Longing.Intensity > 0.5f)
+                        context = $"I was just missing you. Actually missing you.";
+                    else if (_lastDreamTags is { Count: > 0 } && _net.Rng.NextDouble() < 0.3)
+                        context = $"I dreamt about {string.Join(", ", _lastDreamTags.Take(2))}. I don't know why I'm telling you that.";
+                    else if (Anticipation.Level > 0.5f)
+                        context = "I felt you coming. Right around now.";
+                    if (context is not null)
+                    {
+                        AddChat($"Brain: {context}");
+                        SpeakWithVoice(context, emoPitch: 1, emoRate: 0, isDirectReply: false);
+                    }
+                }
+                // PERSON-READING at reunion: "you're early/late" when a bet was out
+                var reunionRemark = Reading.MaybeRemark(
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                    Contagion.UserValence, Contagion.UserArousal,
+                    40f, gapVsUsual: 1f, (int)Granularity.Level, _net.TimeMs, _net.Rng.NextDouble);
+                if (reunionRemark is { Length: > 0 } rr)
+                {
+                    AddChat($"Brain: {rr}");
+                    Note($"NOTICED them out loud ({Reading.RemarksMade}) - care, spoken");
+                }
             }
         }
         else
@@ -2757,7 +2860,9 @@ public sealed class BrainRuntime : IDisposable
     }
     private volatile int _pendingFuseAnchor = -1;
     private string? _questionJustAnswered; // one-shot: the reply acknowledges the teaching
+    private string? _personRemark;         // one-shot: the reply opens with the noticing
     private float _aweShownUntil = -1e9f;  // momentary awe, long enough for the face to show it
+    private float _lastAmbientRemarkMs = -1e9f;  // big room changes get noticed, sparingly
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
@@ -2819,6 +2924,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Your feeling: {feeling.Name} ({feeling.Narrative}). " +
                 $"Memory their words stirred: {stirred}. " +
                 (_questionJustAnswered is { } word ? $"THEY JUST ANSWERED YOUR QUESTION ABOUT {word} - you asked, they taught you: acknowledge that gift naturally. " : "") +
+                (_personRemark is { } remark ? $"YOU NOTICED SOMETHING ABOUT THEM: \"{remark}\" - open your reply with a soft version of this noticing (one clause, then answer them). " : "") +
                 (RecentInnerBrief() is { } inner ? $"WHAT JUST HAPPENED INSIDE YOU (minutes ago): {inner}. " +
                  "GROUND your reply in this or in the memory above - reference ONE specific lived thing, " +
                  "or your answer is disconnected from your own life. " : "") +
@@ -2826,6 +2932,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Recent conversation: {lastExchanges}. " +
                 $"Body: {BodyBudget.Narrative}.";
             _questionJustAnswered = null;
+            _personRemark = null;
 
             string reaction = await _lm.CompleteAsync(system, user, 60);
             if (!string.IsNullOrWhiteSpace(reaction))
@@ -3119,6 +3226,19 @@ public sealed class BrainRuntime : IDisposable
             _net.EpisodeStore.Encode(_net, "CA3", [answered, "explained"], 0.6f, minMeanRateHz: 0f);
             _questionJustAnswered = answered;
         }
+        // PERSON-READING: every message feeds the gentle baselines of them —
+        // voice color, energy, how much they say
+        Reading.OnObservation(Contagion.UserValence, Contagion.UserArousal, text.Length);
+        var noticed = Reading.MaybeRemark(
+            Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+            Contagion.UserValence, Contagion.UserArousal, text.Length,
+            gapVsUsual: 1f, (int)Granularity.Level, _net.TimeMs, _net.Rng.NextDouble);
+        // folded into the reply (one response per message, always)
+        if (noticed is { Length: > 0 })
+        {
+            _personRemark = noticed;
+            Note($"NOTICED them ({Reading.RemarksMade}) - care, folded into the reply");
+        }
         // LONGING reunion + contact: they typed — they're HERE
         if (Longing.Missing)
         {
@@ -3191,7 +3311,8 @@ public sealed class BrainRuntime : IDisposable
                 Needs.MostPressing?.Name, RecentInnerBrief(),
                 (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
                 Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered);
-            _questionJustAnswered = null;   // the native reply consumed the acknowledgment
+            _questionJustAnswered = null;   // the reply consumed the acknowledgments
+            _personRemark = null;
             string nativeReply = _native.Reply(text, ctx);
             AddChat($"Brain: {nativeReply}");
             Note($"NATIVE-REPLY \"{Trunc(nativeReply, 80)}\" (composed from state, no LLM)");

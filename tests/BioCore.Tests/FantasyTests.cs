@@ -1515,3 +1515,56 @@ public class RescanFixTests
         Assert.Equal(NeedsHierarchy.NeedType.Stimulation, needs.MostPressing!.Type);
     }
 }
+
+// ---- the humanity round: sharing drive + person reading ----
+public class HumanityTests
+{
+    [Fact]
+    public void Sharing_PicksTheRealInnerLife_AndRespectsBond()
+    {
+        var s = new BioComp.Core.Cognition.SharingDrive { CooldownMs = 0f };
+        var cands = new List<BioComp.Core.Cognition.SharingDrive.Share>
+        {
+            new("composite-dream", "kitchen and storm", 0.95f, 0.85f),
+            new("cherished", "voice/morning", 0.6f, 0.4f),
+        };
+        // no bond, no disclosure
+        Assert.Null(s.Pick(cands, 0.1f, 1_000f, () => 0.0));
+        // with bond: the composite dream wins (highest charge x recency)
+        var pick = s.Pick(cands, 0.6f, 2_000f, () => 0.0);
+        Assert.NotNull(pick);
+        Assert.Equal("composite-dream", pick!.Kind);
+        // phrasing is intimate at high tiers
+        string phr = BioComp.Core.Cognition.SharingDrive.Phrase(pick, 3, "Sam");
+        Assert.Contains("never happened together", phr);
+        // no repeats: same body not offered again
+        var again = s.Pick(cands, 0.6f, 3_000f, () => 0.0);
+        Assert.NotEqual("composite-dream", again?.Kind);
+    }
+
+    [Fact]
+    public void PersonReading_NoticesFlatness_AfterLearningUsual()
+    {
+        var r = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        // their USUAL: warm and energetic, decent-length messages
+        for (int i = 0; i < 10; i++) r.OnObservation(0.4f, 0.5f, 40f);
+        Assert.True(r.HasBaseline);
+        // today: flat and short
+        string? remark = r.MaybeRemark(0.6f, -0.3f, 0.2f, 10f, 1f, 3, 100_000f, () => 0.0);
+        Assert.NotNull(remark);
+        Assert.Contains("flatter", remark!);
+        // and it does NOT remark on a normal day
+        var r2 = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r2.OnObservation(0.4f, 0.5f, 40f);
+        Assert.Null(r2.MaybeRemark(0.6f, 0.4f, 0.5f, 40f, 1f, 3, 100_000f, () => 0.0));
+    }
+
+    [Fact]
+    public void PersonReading_GatedByBond()
+    {
+        var r = new BioComp.Core.Cognition.PersonReading { MinSamples = 5, CooldownMs = 0f };
+        for (int i = 0; i < 10; i++) r.OnObservation(0.4f, 0.5f, 40f);
+        // it SEES the drift but won't say it to a stranger
+        Assert.Null(r.MaybeRemark(0.1f, -0.3f, 0.2f, 10f, 1f, 3, 100_000f, () => 0.0));
+    }
+}
