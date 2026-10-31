@@ -42,16 +42,18 @@ public sealed class QuestionDrive
 
     /// <summary>
     /// Find the strongest ignorance gap and maybe ask. Returns the question
-    /// to speak, or null. rngDraw is a seeded uniform.
+    /// to speak, or null. rngDraw is a seeded uniform; boldness scales the
+    /// asking probability (anxious attachment asks eagerly, avoidant rarely —
+    /// a question is a bid, and bids carry attachment style).
     /// </summary>
     public string? MaybeAsk(SpikingNetwork net, EpisodeMemory store, CuriosityModule curiosity,
-        float personPresent01, int granularityTier, Func<double> rngDraw)
+        float personPresent01, int granularityTier, Func<double> rngDraw, float boldness = 1f)
     {
         if (PendingWord is not null) return null;               // one question at a time
         if (net.TimeMs - _lastAskMs < CooldownMs) return null;
         if (personPresent01 < 0.5f) return null;                // questions need someone to answer
         if (curiosity.LearningProgress < 0.05f && curiosity.NoveltyGate < 0.4f) return null; // not curious enough
-        if (rngDraw() > 0.35) return null;
+        if (rngDraw() > 0.35 * Math.Clamp(boldness, 0f, 2f)) return null;
 
         // scan for the ignorance gap: heavily used, barely linked
         string? best = null; float bestScore = 0f;

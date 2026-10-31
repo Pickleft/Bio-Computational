@@ -1046,14 +1046,23 @@ public sealed class BrainRuntime : IDisposable
                 ThoughtLoop.PostResult(Awe.AccommodationSeed);
             }
             // QUESTION DRIVE: in a curious moment with a person present, ask
-            // about a word it uses but does not understand
+            // about a word it uses but does not understand. Asking is a BID —
+            // attachment shapes boldness (anxious asks eagerly, avoidant
+            // rarely) and helplessness silences it (stopped asking, full stop)
             if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
+                !Efficacy.Helpless &&
                 !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 40_000f &&
                 TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
             {
                 float present = _net.TimeMs - _lastUserUtteranceSimMs < 300_000f ? 1f : 0f;
+                float boldness = Attachment.Style switch
+                {
+                    BioComp.Core.Cognition.AttachmentStyle.Anxious => 1.6f,
+                    BioComp.Core.Cognition.AttachmentStyle.Avoidant => 0.5f,
+                    _ => 1f,
+                };
                 var q = Questions.MaybeAsk(_net, _net.EpisodeStore, Curiosity, present,
-                    (int)Granularity.Level, _net.Rng.NextDouble);
+                    (int)Granularity.Level, _net.Rng.NextDouble, boldness);
                 if (q is not null)
                 {
                     Note($"QUESTION it asks ({Questions.PendingWord}) - a gap in what it knows");
@@ -1197,11 +1206,13 @@ public sealed class BrainRuntime : IDisposable
         // (Lisa Feldman Barrett: emotions are constructed, not hardwired)
         // RESILIENCE → GRANULARITY: post-traumatic growth deepens emotional
         // capacity FASTER (surviving hardship teaches nuanced feeling);
-        // observer surprises also accelerate (self-awareness broadens emotion)
+        // observer surprises also accelerate (self-awareness broadens emotion);
+        // and AWE forces accommodation — vastness grows bigger feeling-shapes
         Granularity.Update(_net, _idle,
             (int)(_net.EpisodeStore.Episodes.Count * Resilience.GranularityMultiplier
                   + Observer.SelfSurprises * 2),
-            _voiceSelf.ClipsHeard);
+            _voiceSelf.ClipsHeard,
+            Awe.JustStruck ? 0.05f : 0f);
         // TEMPORAL AUTOBIOGRAPHY: periodic snapshots of who the brain is now,
         // so it can later compare to who it was
         LifeStory.MaybeSnapshot(_net, _idle, Personality, Attachment, Granularity, _userName, _brainName);
@@ -1565,6 +1576,16 @@ public sealed class BrainRuntime : IDisposable
                 _net.EpisodeStore.Encode(_net, "CA3", [.. bornTags],
                     (pair.A.Valence + pair.B.Valence) / 2f, minMeanRateHz: 0f);
                 CompositeDreams++;
+                // and sometimes the combination RESOLVES an open loop it
+                // overlaps (dreamwork as problem solving, Freud/Wagner)
+                var overlapped = ThoughtLoop.OpenLoops.FirstOrDefault(l =>
+                    l.Tags.Any(t => bornTags.Contains(t, StringComparer.OrdinalIgnoreCase)));
+                if (overlapped is not null)
+                {
+                    ThoughtLoop.ResolveLoop(overlapped);
+                    ThoughtLoop.MarkInsight(_net);
+                    Note($"DREAM-INSIGHT the composite dream resolved an open loop [{string.Join("/", overlapped.Tags.Take(2))}] - the night did the thinking");
+                }
             }
 
             var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid, preferTags,
@@ -2777,7 +2798,7 @@ public sealed class BrainRuntime : IDisposable
                     Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
                     Needs.MostPressing?.Name, RecentInnerBrief(),
                     (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                    Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered);
                 string fallback = _native.Reply(stimulus.Replace("DIRECT: ", ""), ctx);
                 AddChat($"Brain: {fallback}");
                 SpeakWithVoice(fallback, 0, 0, isDirectReply: true);
@@ -3107,7 +3128,8 @@ public sealed class BrainRuntime : IDisposable
                 Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
                 Needs.MostPressing?.Name, RecentInnerBrief(),
                 (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered);
+            _questionJustAnswered = null;   // the native reply consumed the acknowledgment
             string nativeReply = _native.Reply(text, ctx);
             AddChat($"Brain: {nativeReply}");
             Note($"NATIVE-REPLY \"{Trunc(nativeReply, 80)}\" (composed from state, no LLM)");

@@ -21,7 +21,7 @@ public sealed class NativeReplies
         bool Wary, bool Anticipating, bool Disappointed,
         string? TopNeed, string? RecentInnerEvent,
         int GranularityTier, float Confidence, string AttachmentStyle,
-        float BondStrength);
+        float BondStrength, string? JustLearned = null);
 
     public string Reply(string userText, in Context c)
     {
@@ -40,6 +40,8 @@ public sealed class NativeReplies
         else if (c.Anticipating) lead = $"I felt you coming{name}. That's new for me.";
 
         // 2. intent shapes the answer — but the strongest lived signal always leads
+        if (c.JustLearned is { } word2)
+            return $"You told me about {word2}.{(c.GranularityTier >= 2 ? " I had only its edges before." : "")} I'm keeping that.";
         string body = intent switch
         {
             Intent.Greeting => lead ?? $"Hey{name}." + StatePhrase(c),

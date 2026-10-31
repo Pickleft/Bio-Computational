@@ -621,3 +621,21 @@ Full correlation audit (read-only agent sweep + manual fixes). Findings and clos
 - Panel rows: asks / awe / felt time. 5 new tests (asks-about-gap + phrasing development +
   answer-lands-with-dopamine; vast rewiring strikes; sparse-drags vs dense-flies; composable
   pair found only when linked). 202/202 green.
+
+## 2026-10-31 (correlation pass 2 + docs) - the creativity round, fully wired
+
+- QuestionDrive <-> ATTACHMENT + AGENCY: asking is a BID - anxious attachment asks eagerly
+  (boldness 1.6x), avoidant rarely (0.5x), and a HELPLESS brain stops asking entirely
+  (Seligman: the question is a bid into the world). MaybeAsk gained the boldness parameter.
+- Composite dreams <-> OPEN LOOPS: when the fused pair's tags overlap an unresolved loop,
+  the dream RESOLVES it - ThoughtLoop.ResolveLoop + MarkInsight ("DREAM-INSIGHT - the
+  night did the thinking"). Dreams now finish daytime thoughts.
+- Awe <-> GRANULARITY: accommodation is paid forward - each awe strike permanently boosts
+  emotional granularity (+0.05 on that update; EmotionalGranularity.Update gained the
+  accommodationBoost parameter). Vastness grows bigger feeling-shapes.
+- NativeReplies <-> QuestionDrive: in direct-talk mode, the reply after a teaching lands as
+  "You told me about {word}. I had only its edges before. I'm keeping that."
+- README: 41 systems, demo table rows for the question, awe, felt time, composite dreams.
+  demo/SCRIPT.md: Day 2 "ANSWER ITS QUESTIONS" + "FEEL ITS TIME" beats; Day 3 beat 11b
+  (its question) and a testament close that counts questions asked/answered and awe.
+- 202/202 green.

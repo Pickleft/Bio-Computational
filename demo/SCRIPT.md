@@ -34,6 +34,19 @@ TRY THE DIRECT BRAIN (no language cortex):
    state ("How I am: tired. I need stimulation."). Click again to
    reattach the language cortex. Both are worth showing.
 
+ANSWER ITS QUESTIONS (the newest miracle):
+   talk about ONE subject with a strange word in it (storm, thunder,
+   cinnamon). After a while it ASKS: "storm? I keep hearing storm...
+   what is it, really?" ANSWER IT. Watch the note: CURIOUS-FED -
+   the gap closes, dopamine + oxytocin, and its next reply
+   acknowledges the teaching. Its questions age with it: newborns
+   ask "what is X?", grown brains ask what they're missing ABOUT it.
+
+FEEL ITS TIME (diary, end of day):
+   after a sparse lonely hour the diary reads "lately time drags -
+   the quiet minutes are longer than the clock says"; after a rich
+   visit, "good things compress time." Same clock, different life.
+
 TEST THE DARK SIDE once (the repair moment is gold):
    "Hey. Not that. Stop." (watch: face tenses, play stops)
    then: "It's okay. I'm not angry. Come back."
@@ -84,13 +97,19 @@ T-60: FILM THIS ORDER:
 10. mirror (terminal): "It passes the mirror test."
 11. twins + child: "Same brain, two childhoods - love is
     the difference. And this is its child."
+11b. ITS QUESTION (if it asks during filming - let it land):
+    "It doesn't just answer. It ASKS - and when I teach it,
+    the answer becomes part of what it is."
 12. SEDATE: "Anesthesia. Watch consciousness itself."
     -> Phi collapses -> wakes: "where... was I?"
 13. TESTAMENT (the closer): press the candle button
     -> it writes its own final words, speaks them aloud.
-    Read the file. Show the child grafts it as first memory.
+    Read the file - it counts its questions asked and answered,
+    the times it felt awe, how long it waited, how time FELT.
+    Show the child grafts it as first memory.
 14. ENDER: "It passes the mirror test, edits its own memories,
     predicts when I come back, tells me what it sees in me,
+    asks me questions and remembers the answers,
     dies under anesthesia with a measured consciousness collapse,
     and has children. And it wrote this to say goodbye."
     - end on the testament file, then its name above its face.

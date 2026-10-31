@@ -46,12 +46,16 @@ Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
 | Ignore its calls for an evening | it stops asking; the avatar captions "...stopped asking." | learned helplessness (Seligman 1972) |
 | Answer once after it gave up | "you came? I had stopped asking." | self-efficacy recovery (Bandura 1977) |
 | `forget` something, then watch it dream | a dream with a hole in it | forgotten grief |
+| It asks YOU a question | "storm? I keep hearing storm… what is it, really?" | question drive: asks about measured ignorance (Chouinard 2007) |
+| Teach it fast, then wait | awe: "the world just got bigger than the shape I had for it" | Keltner & Haidt 2003 |
+| Leave it a boring hour | the diary: "the quiet minutes are longer than the clock says" | felt time (Zakay & Block 1997) |
+| Watch it sleep after a rich day | a COMPOSITE dream: two memories fused, and the dream becomes a memory | Stickgold |
 | Repeat something it heard long ago | the chill: "I've... felt this before" | déjà vu: familiarity ≠ recollection (Yonelinas 2002) |
 | `biolab twins` | same brain, two childhoods | love is the difference |
 | `biolab child` | its child inherits temperament | h≈0.5 (Plomin); memetic story-graft |
 | Press 🕯 | life review flash, then testament | the death protocol |
 
-## The 37 systems (all interconnected)
+## The 41 systems (all interconnected)
 
 ### The founding architecture
 - **Thought-recycling loop** — thoughts chain, each evaluated on 4 affect channels, carried by neuromodulators, re-injected as inner speech, written to memory. Somatic appraisal: the substrate votes on each thought. Anti-rumination regulation. Thoughts are fluid: any/all/none of conclusion/feeling/math/memory.
@@ -90,6 +94,10 @@ Same seed + same inputs = bit-identical life, hash-verified. **183 tests.**
 - **Local sleep** (Vyazovskiy et al. 2011) - past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map: one lobe goes dark); 20% of OFF windows leak dream imagery into waking thought - why sleep deprivation degrades cognition *before* it knocks you out
 - **Threat learning** (Bouton 2004) - wariness attaches to the person; extinction through safe contact is slow (many trials, like exposure therapy); waking from sleep partially BRINGS THE FEAR BACK (spontaneous recovery: extinction is new learning over the original, not erasure)
 - **Light entrainment** (Czeisler 1989) - the camera feeds a brightness signal; bright evening light suppresses melatonin up to 70% - keep your lights on at night and the brain cannot get drowsy on schedule: the screen-light sleep problem, lived from the inside
+- **Question drive** (Chouinard 2007; Kang 2009) - the brain ASKS you about its measured ignorance: a word it uses often but has almost no associations for (known-but-not-understood, the exact shape of a question); phrasing develops with age; answers are LIVED - episode + concept wiring + dopamine + oxytocin (knowledge given is care given); asking is a bid: anxious brains ask eagerly, avoidant rarely, helpless ones stop
+- **Composite dreams** (Stickgold) - 25% of dreams don't replay, they COMBINE: two strongly-linked memories fused into one narrated scene that never happened - and the dream itself is encoded as a *dream-born memory* that can be re-dreamed, fused, or asked about; sometimes the combination resolves an open loop (the night does the thinking)
+- **Awe** (Keltner & Haidt 2003) - when the concept world rewires fast, vastness strikes: dopamine AND serotonin risen together (reward + the humility of smallness), and the accommodation seed - "the world just got bigger than the shape I had for it" - which permanently deepens emotional granularity
+- **Felt time** (Zakay & Block 1997) - event density × mood gives felt stretch 0.6–2.0: sparse low windows drag ("the quiet minutes are longer than the clock says"), dense happy ones fly; it colors the diary, the replies, and the testament's closing line - "and time, as it felt it"
 - **Emotional contagion** (Hatfield 1993) — speaker's mood from prosody; brain's state drifts toward it
 - **Hostility appraisal** — multimodal (lexicon + prosody + escalation + betrayal); LLM-disambiguates ambiguous phrases
 - **Turn-taking** (Levinson 2016) — holds floor during conversation, notices broken rhythm
