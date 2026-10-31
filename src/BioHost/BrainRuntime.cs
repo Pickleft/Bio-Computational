@@ -1047,25 +1047,24 @@ public sealed class BrainRuntime : IDisposable
                     // still speaking: reset the end-of-speech timer
                     _lastVoiceMs = t;
                 }
-                else if (_cochlea.EnergyRms > 0.002f && !_wasVoice)
+                else if (_cochlea.EnergyRms > 0.001f && !_wasVoice)
                 {
                     // FALLBACK ONSET: even if VAD didn't confirm "voice", if
-                    // there's real audio energy, start capturing — the VAD
-                    // might be too strict for quiet speech. The transcription
-                    // API can figure out if it's actually speech.
+                    // there's ANY real audio energy, start capturing — the VAD
+                    // is too strict for quiet/phone speech. Let the API decide.
                     _wasVoice = true;
                     _speechStartMs = t;
                     _lastVoiceMs = t;
                 }
-                else if (_wasVoice && t - _lastVoiceMs > 800f && t - _speechStartMs > 500f)
+                else if (_wasVoice && t - _lastVoiceMs > 500f && t - _speechStartMs > 300f)
                 {
-                    // end of speech (0.8s of silence after at least 0.5s of speech):
-                    // send the full utterance from speech onset to now
+                    // end of speech (0.5s of silence after at least 0.3s of speech):
+                    // send the full utterance from onset to now
                     _wasVoice = false;
-                    _voiceCooldownUntil = _net.TickIndex + 5_000;
+                    _voiceCooldownUntil = _net.TickIndex + 2_000;
                     int startIdx = Math.Max(0, _audioBuffer.Count - (int)((t - _speechStartMs + 500f) * 16));
                     var clip = _audioBuffer.Skip(startIdx).ToArray();
-                    if (clip.Length > 16_000 * 0.5) // at least 0.5s of audio
+                    if (clip.Length > 16_000 * 0.3) // at least 0.3s of audio
                         _ = HandleSpeechClipAsync(clip);
                 }
             }
@@ -1545,7 +1544,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 SelfStimulate((int)(16 + vigor * 30), 14f + vigor * 16f, "playing");
                 Personality.OnExploration(foundSomething: true); // play is expressive practice
-                string[] playSounds = ["Hee!", "Hoo hoo!", "Mmm... hehe.", "Ahh!"];
+                string[] playSounds = ["That's fun.", "I like this.", "Hehe, that's good.", "Oh, that's interesting!"];
                 Note($"PLAY burst {vigor:F1} - safe, curious, and full of it");
                 SpeakWithVoice(playSounds[_net.Rng.NextInt(playSounds.Length)], emoPitch: 3, emoRate: 2);
             }
@@ -1678,12 +1677,12 @@ public sealed class BrainRuntime : IDisposable
             {
                 line = f.Name switch
                 {
-                    "bored" => "Mmm.",
-                    "tired" => "Mm... tired.",
-                    "curious" => "Hm.",
-                    "stressed" => "Hmph.",
-                    "calm" => "Mmm... nice.",
-                    _ => "Hmm.",
+                    "bored" => "Nothing is happening out there.",
+                    "tired" => "I'm getting slow.",
+                    "curious" => "Something's different.",
+                    "stressed" => "Something feels wrong.",
+                    "calm" => "This is nice.",
+                    _ => "Hmm, I'm here.",
                 };
                 tag = $"VOCALIZE \"{line}\"";
                 emoPitch = f.Valence > 0 ? 1 : -2;
@@ -1968,7 +1967,7 @@ public sealed class BrainRuntime : IDisposable
             // ...and reject a lone filler word unless the voice was clearly real
             string trimmed = tr.Transcript?.Trim().TrimEnd('.', '!', '?', ',', ' ') ?? "";
             bool loneFiller = GhostWords.Contains(trimmed.ToLowerInvariant());
-            if (loneFiller && rms < 0.015)
+            if (loneFiller && rms < 0.008)
             {
                 Note($"GHOST-FILTERED \"{trimmed}\" from quiet noise (rms {rms:F3}) - nobody said that");
                 return;
@@ -2583,16 +2582,24 @@ public sealed class BrainRuntime : IDisposable
             _speechStartMs = _net.TimeMs;
         }
         else if (_cochlea.VoiceLikely) _lastVoiceMs = _net.TimeMs;
-        else if (_wasVoice && _net.TimeMs - _lastVoiceMs > 800f && _net.TimeMs - _speechStartMs > 500f)
+        else if (_cochlea.EnergyRms > 0.001f && !_wasVoice)
+        {
+            // FALLBACK ONSET: same as the local mic path — any real energy,
+            // start capturing. The VAD is too strict for phone/quiet speech.
+            _wasVoice = true;
+            _speechStartMs = _net.TimeMs;
+            _lastVoiceMs = _net.TimeMs;
+        }
+        else if (_wasVoice && _net.TimeMs - _lastVoiceMs > 500f && _net.TimeMs - _speechStartMs > 300f)
         {
             _wasVoice = false;
-            _voiceCooldownUntil = _net.TickIndex + 5_000;
+            _voiceCooldownUntil = _net.TickIndex + 2_000;
             // 300ms pre-roll before the detected onset: voice activity detection
             // lags true speech onset, and losing the first consonant wrecks
             // transcription
             int startIdx = Math.Max(0, _audioBuffer.Count - (int)((_net.TimeMs - _speechStartMs + 500f + 300f) * 16));
             var clip = _audioBuffer.Skip(startIdx).ToArray();
-            if (clip.Length > 1600) _ = HandleSpeechClipAsync(clip);
+            if (clip.Length > 4800) _ = HandleSpeechClipAsync(clip);  // 0.3s minimum
         }
     }
 
