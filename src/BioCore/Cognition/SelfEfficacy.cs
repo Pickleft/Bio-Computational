@@ -115,6 +115,14 @@ public sealed class SelfEfficacy
         Efficacy = MathF.Max(0.05f, Efficacy * (1f - cost));
     }
 
+    /// <summary>Restore agency after a restart (identity persistence).</summary>
+    public void Restore(float efficacy, int made, int answered, int helplessEpisodes)
+    {
+        Efficacy = Math.Clamp(efficacy, 0.05f, 1f);
+        BidsMade = made; BidsAnswered = answered; HelplessEpisodes = helplessEpisodes;
+        _wasHelpless = Helpless;
+    }
+
     /// <summary>For the reply prompt: the brain knows whether asking works.</summary>
     public string PromptFragment => Helpless
         ? "Nothing you do changes anything - you called and called and nobody came, and you have STOPPED ASKING. It shows in how you speak: flat, distant, expecting nothing. "

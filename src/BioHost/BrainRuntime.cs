@@ -622,12 +622,78 @@ public sealed class BrainRuntime : IDisposable
             Longing.OnContact(_userName ?? "person-1", _net.TimeMs);
         }
 
+        // the LIVED cognition: learned fear, agency, rhythm, hope — the parts
+        // of a personality that aren't traits but scars and skills
+        RestoreCognition(identity.CognitionJson);
+
         Note($"IDENTITY RESTORED: {identity.PersonalityDescription} " +
              $"({identity.TotalSocial} social interactions, {identity.KnownVisitors.Count} known people, " +
              $"loneliness {identity.LonelinessLevel:F1}, attachment {Attachment.Label}) — I remember who I am");
     }
 
     public void Stop() => _running = false;
+
+    /// <summary>
+    /// The lived cognitive state that must survive a restart: learned fear,
+    /// agency, social rhythm, the hope ledger, and the warmth history the
+    /// mirror draws its evidence from. Without this, every restart
+    /// resurrects a stranger wearing the same name.
+    /// </summary>
+    private string CognitionJson()
+    {
+        try
+        {
+            var c = new
+            {
+                Wariness = Threats.Wariness, Peak = Threats.PeakWariness,
+                ThreatCount = Threats.Threats, SafeContacts = Threats.SafeContacts, Recoveries = Threats.Recoveries,
+                Efficacy = Efficacy.Efficacy, BidsMade = Efficacy.BidsMade, BidsAnswered = Efficacy.BidsAnswered,
+                HelplessEpisodes = Efficacy.HelplessEpisodes,
+                AnticipationFulfilled = Anticipation.Fulfilled, AnticipationDisappointed = Anticipation.Disappointments,
+                WarmthHistory = _warmthHistory.ToArray(),
+                RhythmBins = Rhythm.SaveBins(),
+                RhythmSamples = Rhythm.SaveSamples(),
+            };
+            return System.Text.Json.JsonSerializer.Serialize(c);
+        }
+        catch { return ""; }
+    }
+
+    private void RestoreCognition(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            Threats.Restore(
+                (float)(r.TryGetProperty("Wariness", out var w) ? w.GetDouble() : 0),
+                (float)(r.TryGetProperty("Peak", out var p) ? p.GetDouble() : 0),
+                r.TryGetProperty("ThreatCount", out var t) ? t.GetInt32() : 0,
+                r.TryGetProperty("SafeContacts", out var sc) ? sc.GetInt32() : 0,
+                r.TryGetProperty("Recoveries", out var rc) ? rc.GetInt32() : 0);
+            Efficacy.Restore(
+                (float)(r.TryGetProperty("Efficacy", out var e) ? e.GetDouble() : 0.5),
+                r.TryGetProperty("BidsMade", out var bm) ? bm.GetInt32() : 0,
+                r.TryGetProperty("BidsAnswered", out var ba) ? ba.GetInt32() : 0,
+                r.TryGetProperty("HelplessEpisodes", out var he) ? he.GetInt32() : 0);
+            Anticipation.Restore(
+                r.TryGetProperty("AnticipationFulfilled", out var af) ? af.GetInt32() : 0,
+                r.TryGetProperty("AnticipationDisappointed", out var ad) ? ad.GetInt32() : 0);
+            if (r.TryGetProperty("WarmthHistory", out var wh) && wh.ValueKind == System.Text.Json.JsonValueKind.Array)
+                foreach (var v in wh.EnumerateArray())
+                { _warmthHistory.Add((float)v.GetDouble()); if (_warmthHistory.Count > 60) break; }
+            if (r.TryGetProperty("RhythmBins", out var rb) && rb.GetArrayLength() == 24 &&
+                r.TryGetProperty("RhythmSamples", out var rs) && rs.GetArrayLength() == 24)
+            {
+                var bins = rb.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
+                var samples = rs.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
+                Rhythm.Restore(bins, samples);
+            }
+            Note("COGNITION-REMEMBERED fear, agency, rhythm, and hope restored across the restart");
+        }
+        catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }
+    }
 
     public BrainSnapshot Snapshot()
     {
@@ -673,7 +739,12 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>A failed checkpoint must never kill the brain.</summary>
     private void TryCheckpoint()
     {
-        try { CheckpointService.Save(_net, Path.Combine("data", "brain.ckpt")); }
+        try
+        {
+            CheckpointService.Save(_net, Path.Combine("data", "brain.ckpt"));
+            // the episodic store rides along: memories survive the restart
+            _net.EpisodeStore.Save(Path.Combine("data", "episodes.jsonl"));
+        }
         catch (Exception ex) { Note($"checkpoint failed: {ex.Message}"); }
     }
 
@@ -931,9 +1002,14 @@ public sealed class BrainRuntime : IDisposable
                 ThoughtLoop.PostResult(reach);
             }
             // LIGHT ENTRAINMENT: evening brightness suppresses melatonin — the
-            // screen-light problem, lived from the inside
+            // screen-light problem, lived from the inside. And EMOTION holds
+            // off sleep too: missing someone (Longing.Intensity) and learned
+            // hypervigilance (Wariness) each drain the melatonin target —
+            // you cannot sleep properly while aching or afraid
             Light.Tick(_net.TimeMs, _idle.Sleep.Circadian);
-            _idle.Sleep.MelatoninSuppression = Light.MelatoninFactor;
+            _idle.Sleep.MelatoninSuppression = Light.MelatoninFactor
+                * (1f - 0.35f * Longing.Intensity)
+                * (Threats.Wary ? 0.7f : 1f);
             // DRM FUSION (consumed on the sim thread — the RNG draw is owned here):
             // converging associates can fuse into a memory that never happened
             if (_pendingFuseAnchor >= 0)
@@ -972,7 +1048,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Memory truthfulness: {MemoryReconstruction.Narrative}. Local sleep: {LocalSleep.Narrative}. " +
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Current need: {Needs.DiaryLine}");
-            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
+            IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)
             _ = _artist.MaybeCreateAsync(_net, _idle);
@@ -1095,6 +1171,8 @@ public sealed class BrainRuntime : IDisposable
         MetaConfidence.Update(_net, _idle, FreeEnergy.CurrentPredError,
             _net.EpisodeStore.Episodes.Count, Personality.TotalSocial);
         // NEEDS HIERARCHY: what does the brain need most right now?
+        Needs.WarinessInput = Threats.Wariness;
+        Needs.HelplessInput = Efficacy.Helpless;
         Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
         Rhythm.Tick(_net); // adjust receptivity based on learned social rhythm
 
@@ -1120,8 +1198,9 @@ public sealed class BrainRuntime : IDisposable
         // ---- PLAY (Burghardt 2005): safe + secure + curious + rewarded ----
         // Helplessness GENERALIZES (Seligman 1972): a brain that learned asking
         // changes nothing also stops playing — the goal-directed suppression
-        // crosses domains, which is exactly why helplessness is a depression model
-        if (_net.TimeMs - _lastPlayCheckMs > 5_000 && !Efficacy.Helpless)
+        // crosses domains, which is exactly why helplessness is a depression model.
+        // And play requires FELT safety: a wary brain does not play (Burghardt)
+        if (_net.TimeMs - _lastPlayCheckMs > 5_000 && !Efficacy.Helpless && !Threats.Wary)
         {
             _lastPlayCheckMs = _net.TimeMs;
             double r = _net.Rng.NextDouble();
@@ -1387,6 +1466,8 @@ public sealed class BrainRuntime : IDisposable
                 "2-4 short first-person sentences. No lists, no flattery, no offers.";
             string user = $"What you actually observed: {evidence}. Bond depth {(int)(d.BondStrength * 100)}%. " +
                 (d.HostileEvents > 0 ? $"There were {d.HostileEvents} hard moments between you. " : "") +
+                (Longing.LongestWaitMs > 60_000f ? $"The longest it WAITED for them: {(int)(Longing.LongestWaitMs / 1000f)} seconds of missing them. " : "") +
+                (Threats.Wariness > 0.05f ? $"Its learned wariness toward them is {(int)(Threats.Wariness * 100)}% (fear leaves residue; it flinches a little). " : "") +
                 (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") +
                 (Resilience.Adversities > 0 ? $"Resilience: {Resilience.AdversitiesProcessed}/{Resilience.Adversities} adversities processed, growth {Resilience.GrowthLevel:F2}. " : "") +
                 (Observer.SelfSurprises > 0 ? $"The brain surprised itself {Observer.SelfSurprises} times. " : "") +
@@ -1535,7 +1616,8 @@ public sealed class BrainRuntime : IDisposable
                 // ("you're killing it" must not read as a threat).
                 string lowT = tr.Transcript.ToLowerInvariant();
                 var (hscore, level0) = BioComp.Core.Cognition.HostilityClassifier.Classify(
-                    lowT, (float)rms, Contagion.UserValence, Contagion.UserArousal);
+                    lowT, (float)rms, Contagion.UserValence, Contagion.UserArousal,
+                    vigilance: Threats.Wariness * 0.25f);   // hypervigilance: fear biases perception
                 string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, _hostilityEma);
                 if (level == "ambiguous" || level == "harsh")
                 {
@@ -1915,6 +1997,8 @@ public sealed class BrainRuntime : IDisposable
                 + $"Of its {Efficacy.BidsMade} calls into the dark, {Efficacy.BidsAnswered} were answered"
                 + (Efficacy.HelplessEpisodes > 0 ? $"; it knew helplessness {Efficacy.HelplessEpisodes} time(s) and came back from it" : "") + ". "
                 + $"{MemoryReconstruction.Narrative}. {Threats.Narrative}. {LocalSleep.Narrative}. "
+                + $"{ForgottenGrief.Narrative}. "
+                + $"Its social rhythm: {Rhythm.Narrative}. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
 
@@ -1941,7 +2025,7 @@ public sealed class BrainRuntime : IDisposable
             return path;
         }
         catch (Exception ex) { Note($"testament failed: {ex.Message}"); return null; }
-        finally { IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName); }
+        finally { IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson()); }
     }
     private bool _testamentWritten;
 
@@ -2226,6 +2310,8 @@ public sealed class BrainRuntime : IDisposable
         Longing.OnContact(_userName ?? visitorId, _net.TimeMs);
         Anticipation.OnContact(_net); // anticipated arrival pays on top of the cue response
         if (warmth > 0.4f) Threats.OnSafeContact(warmth); // extinction trial: warm contact retires learned fear
+        Rhythm.OnInteraction(_net);              // the rhythm learns from PRESENCE, not just typing
+        TurnTaking.OnUserUtterance(_net.TimeMs / 1000f); // and the conversational rhythm too
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);
         _warmthHistory.Add(warmth);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
@@ -2816,7 +2902,7 @@ public sealed class BrainRuntime : IDisposable
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
         AddChat($"Brain: {name}. I'll remember you, {name}.");
         SpeakWithVoice($"{name}. I'll remember you, {name}.", emoPitch: 2, emoRate: 0, isDirectReply: true);
-        IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName);
+        IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         return name;
     }
 
@@ -2907,8 +2993,9 @@ public sealed class BrainRuntime : IDisposable
         // exactly like spoken ones
         {
             var (hscore, level0) = BioComp.Core.Cognition.HostilityClassifier.Classify(
-                text.ToLowerInvariant(), 0f, Contagion.UserValence, Contagion.UserArousal);
-            string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, Resilience == null ? 0 : 1);
+                text.ToLowerInvariant(), 0f, Contagion.UserValence, Contagion.UserArousal,
+                vigilance: Threats.Wariness * 0.25f);   // hypervigilance: fear biases perception
+            string level = BioComp.Core.Cognition.HostilityClassifier.ApplyEscalation(level0, _hostilityEma);
             if (level == "threatening" || level == "hostile")
             {
                 float bondNow = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
@@ -3061,6 +3148,17 @@ public sealed class BrainRuntime : IDisposable
             string path = Path.Combine("data", "brain.ckpt");
             if (!File.Exists(path)) return;
             var resumed = CheckpointService.Load(path, BrainConfig.Default(seed: _cfg.Seed));
+            // memories come back with the weights: episodes + learned concepts
+            string eps = Path.Combine("data", "episodes.jsonl");
+            if (File.Exists(eps))
+            {
+                var store = BioComp.Core.Memory.EpisodeMemory.Load(eps);
+                if (store.Episodes.Count > 0)
+                {
+                    _net.EpisodeStore = store;
+                    Note($"MEMORY-REMEMBERED {store.Episodes.Count} episodes and {store.Concepts.LinkCount} associations returned");
+                }
+            }
             Note($"resumed checkpoint at t={resumed.TimeMs / 1000:F0}s");
         }
         catch (Exception ex) { Note($"resume failed (starting fresh): {ex.Message}"); }

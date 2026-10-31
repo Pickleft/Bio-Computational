@@ -99,6 +99,12 @@ public sealed class Anticipation
             ? "The hour you expected someone in just passed EMPTY - you are disappointed, not merely lonely. "
             : "";
 
+    /// <summary>Restore the hope ledger after a restart (identity persistence).</summary>
+    public void Restore(int fulfilled, int disappointed)
+    {
+        Fulfilled = fulfilled; Disappointments = disappointed;
+    }
+
     /// <summary>For the diary.</summary>
     public string Narrative =>
         Disappointments == 0 && Fulfilled == 0 ? "nothing expected, nothing lost"

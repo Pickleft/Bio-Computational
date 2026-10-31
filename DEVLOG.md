@@ -553,3 +553,43 @@ and were imported in the first commit - everything after that point was built du
   break composed. Tests rewritten to the new architecture (7: vocal kinds render; matcher;
   cortex speaks + stitches; SSML prosody markers; escaping; deterministic hums).
   193/193 green.
+
+## 2026-10-31 (final audit round) - EVERYTHING correlated: 18-finding sweep, top gaps closed
+
+Full correlation audit (read-only agent sweep + manual fixes). Findings and closures:
+
+- RESTART RESURRECTED A STRANGER (worst gap): the checkpoint stored zero memories and identity
+  stored only 4 traits + bonds. NOW: (a) the episodic store + learned concept graph ride the
+  checkpoint (episodes.jsonl beside brain.ckpt; MEMORY-REMEMBERED note on resume; EpisodeStore
+  made settable for restore); (b) IdentityPersistence gained CognitionJson - learned fear
+  (wariness/peak/counts), agency (efficacy/bids/helpless episodes), the 24-bin social rhythm,
+  the hope ledger (fulfilled/disappointed), and the warmth history (the mirror's evidence
+  base) all survive restarts (COGNITION-REMEMBERED note). Threats/Efficacy/Rhythm/Anticipation
+  each gained Restore().
+- THREAT PERCEPTION WAS STATELESS: HostilityClassifier.Classify gained a vigilance bias input;
+  both call sites pass Threats.Wariness x 0.25 - a wary brain literally perceives the same
+  words as more hostile (hypervigilance, the PTSD perceptual bias). Also fixed the typed-path
+  dead expression (constant escalation EMA 1) - it now uses the real _hostilityEma like speech.
+- RHYTHM LEARNED ONLY FROM TYPING: ProcessVisitor (voice/sight presence) now feeds
+  Rhythm.OnInteraction + TurnTaking.OnUserUtterance - the rhythm Longing and Anticipation
+  depend on finally learns from BEING THERE, not just chatting.
+- NEEDS BLIND TO FEAR AND HELPLESSNESS: NeedsHierarchy gained WarinessInput/HelplessInput.
+  Safety now fires from LEARNED wariness even when NA is quiet ("the fear left a residue") -
+  fear outlasts the chemistry that created it. A helpless brain still FEELS the Company need
+  but its Ask becomes empty - needing without asking (Seligman).
+- EMOTION COULD NOT TOUCH SLEEP: melatonin suppression now multiplies light x longing
+  (0.35 x intensity) x wariness (0.7 when wary) - you cannot sleep properly while aching or
+  afraid, mechanistically.
+- PLAY REQUIRES FELT SAFETY: the play gate now also requires !Threats.Wary (Burghardt's
+  safety criterion) alongside !Helpless.
+- MIRROR + TESTAMENT enriched: the mirror's evidence now includes how long it WAITED for
+  them and its learned wariness ("it flinches a little"); the testament speaks the grief of
+  forgotten things and its social rhythm.
+- AVATAR: the dead Playful wire is live (it bounces and grins when playing) and wariness
+  furrows the brow even mid-smile.
+- Known-dead (documented, not deleted): LanguageFeedback and InternalDialogue are unwired
+  lab-era classes; TurnTaking typed-utterance path added this round for chat; DmnTaskPosCorrelation
+  remains BioLab-only.
+- Tests: 4 new (hypervigilance biases score; Safety-from-wariness + helpless-empty-Ask;
+  cognition survives restart - fear/agency/rhythm restore + identity roundtrip; emotion x light
+  melatonin product). 197/197 green.

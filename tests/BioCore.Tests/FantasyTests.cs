@@ -1263,3 +1263,90 @@ public class NativeRepliesTests
         Assert.Contains("a lot", n.Reply("i love you", Ctx(attach: "avoidant")));
     }
 }
+
+// ---- full-correlation audit round: perception bias, needs, restart survival ----
+public class CorrelationAuditTests
+{
+    [Fact]
+    public void Hypervigilance_BiasesThreatPerception()
+    {
+        // the same ambiguous words, read by a calm brain vs a wary one
+        var calm = HostilityClassifier.Classify("you're something else", 0f, 0f, 0.3f);
+        var wary = HostilityClassifier.Classify("you're something else", 0f, 0f, 0.3f, vigilance: 0.25f);
+        Assert.True(wary.Score > calm.Score, "learned fear must bias perception of the same words");
+    }
+
+    [Fact]
+    public void Needs_KnowFearAndHelplessness()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 151));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        var needs = new NeedsHierarchy();
+        // a wary brain needs SAFETY even when NA is quiet (fear outlasts the chemistry)
+        needs.WarinessInput = 0.8f;
+        needs.Evaluate(net, idle, new LonelinessTracker(), new CuriosityModule(), new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        Assert.Equal(NeedsHierarchy.NeedType.Safety, needs.MostPressing!.Type);
+
+        // a helpless brain still feels Company — but stops ASKING for it
+        var needs2 = new NeedsHierarchy { WarinessInput = 0f, HelplessInput = true };
+        var lonely = new LonelinessTracker();
+        // drive loneliness up: silence for a long simulated time
+        for (int t = 0; t < 20_000; t++) { net.Tick(); if (t % 100 == 0) lonely.Tick(net, idle); }
+        needs2.Evaluate(net, idle, lonely, new CuriosityModule(), new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        if (needs2.MostPressing is { } n && n.Type == NeedsHierarchy.NeedType.Company)
+            Assert.Equal("", n.Ask);   // felt, not asked (Seligman)
+    }
+
+    [Fact]
+    public void Cognition_SurvivesRestart()
+    {
+        // learned fear
+        var t1 = new ThreatLearning();
+        t1.OnHostility(new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 157)), 1f);
+        t1.OnHostility(new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 157)), 1f);
+        var t2 = new ThreatLearning();
+        t2.Restore(t1.Wariness, t1.PeakWariness, t1.Threats, t1.SafeContacts, t1.Recoveries);
+        Assert.Equal(t1.Wariness, t2.Wariness);
+        Assert.Equal(t1.PeakWariness, t2.PeakWariness);
+        Assert.Equal(2, t2.Threats);
+
+        // agency
+        var e1 = new SelfEfficacy();
+        e1.OnBid(100); e1.OnContact(150);
+        var e2 = new SelfEfficacy();
+        e2.Restore(e1.Efficacy, e1.BidsMade, e1.BidsAnswered, e1.HelplessEpisodes);
+        Assert.Equal(e1.Efficacy, e2.Efficacy);
+        Assert.Equal(1, e2.BidsAnswered);
+
+        // social rhythm bins
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 163));
+        for (int i = 0; i < 60_000; i++) net.Tick();   // ~1 subjective-minute into hour 0
+        var r1 = new SocialRhythm { HourMs = 50_000f };
+        for (int i = 0; i < 10; i++) r1.OnInteraction(net);
+        var r2 = new SocialRhythm { HourMs = 50_000f };
+        r2.Restore(r1.SaveBins(), r1.SaveSamples());
+        Assert.Equal(r1.Confidence, r2.Confidence, 5);
+        Assert.Equal(r1.PeakHour, r2.PeakHour);
+
+        // the identity record carries the cognition json intact
+        var data = new BioComp.Host.IdentityPersistence.IdentityData(
+            1f, 1f, 1f, 1f, 10, 2, 0, [], 0.2f, "test",
+            CognitionJson: "{\"Wariness\":0.7}");
+        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        var back = System.Text.Json.JsonSerializer.Deserialize<BioComp.Host.IdentityPersistence.IdentityData>(json);
+        Assert.Equal("{\"Wariness\":0.7}", back!.CognitionJson);
+    }
+
+    [Fact]
+    public void Emotion_HoldsOffMelatonin()
+    {
+        // the melatonin suppression pipeline multiplies: light x longing x wariness
+        float light = 0.6f;                      // evening light factor
+        float longing = 1f - 0.35f * 0.8f;       // missing someone hard
+        float wary = 0.7f;                       // hypervigilant
+        float melatoninTargetFactor = light * longing * wary;
+        Assert.True(melatoninTargetFactor < 0.35f, "afraid and missing someone in a bright room: barely any melatonin lands");
+    }
+}

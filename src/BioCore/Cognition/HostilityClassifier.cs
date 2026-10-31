@@ -47,7 +47,7 @@ public static class HostilityClassifier
     /// ambiguous (interpreter should disambiguate before consequences).
     /// </summary>
     public static (float Score, string Level) Classify(
-        string transcriptLower, float rms, float userValence, float userArousal)
+        string transcriptLower, float rms, float userValence, float userArousal, float vigilance = 0f)
     {
         float lex = LexicalScore(transcriptLower);
         // prosody: yelling (loud + aroused) is hostile on its own even wordless;
@@ -62,7 +62,7 @@ public static class HostilityClassifier
         else if (agitated) prosody += 0.5f;
         if (coldContempt) prosody += 0.35f;
 
-        float score = lex + prosody;
+        float score = lex + prosody + vigilance;   // learned wariness biases perception (hypervigilance)
         string level = score switch
         {
             >= 1.4f => "threatening",

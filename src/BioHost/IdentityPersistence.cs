@@ -21,10 +21,12 @@ public static class IdentityPersistence
         string PersonalityDescription,
         float AttachmentWarmth = 0, float AttachmentResponsiveness = 0,
         int AttachmentSeparations = 0, int AttachmentContacts = 0,
-        int AttachmentStyle = 0, string BrainName = "", string VoiceJson = "", string UserName = "");
+        int AttachmentStyle = 0, string BrainName = "", string VoiceJson = "", string UserName = "",
+        string CognitionJson = "");
 
     public static void Save(EmergentPersonality personality, LonelinessTracker loneliness,
-        Dictionary<string, int> socialBonds, AttachmentSystem? attachment = null, string? brainName = null, string? voiceJson = null, string? userName = null)
+        Dictionary<string, int> socialBonds, AttachmentSystem? attachment = null, string? brainName = null, string? voiceJson = null, string? userName = null,
+        string? cognitionJson = null)
     {
         try
         {
@@ -38,7 +40,8 @@ public static class IdentityPersistence
                 personality.Describe(),
                 attachment?.Warmth ?? 0, attachment?.Responsiveness ?? 0,
                 attachment?.Separations ?? 0, attachment?.Contacts ?? 0,
-                (int)(attachment?.Style ?? 0), brainName ?? "", voiceJson ?? "", userName ?? "");
+                (int)(attachment?.Style ?? 0), brainName ?? "", voiceJson ?? "", userName ?? "",
+                cognitionJson ?? "");
             File.WriteAllText(FileName, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { /* identity persistence must never crash the brain */ }

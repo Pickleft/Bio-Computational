@@ -93,6 +93,30 @@ public sealed class SocialRhythm
         }
     }
 
+    /// <summary>The learned interaction bins (for persistence).</summary>
+    public float[] SaveBins() => (float[])_hourlyInteraction.Clone();
+    /// <summary>The per-bin sample counts (for persistence).</summary>
+    public float[] SaveSamples() => (float[])_hourlySamples.Clone();
+
+    /// <summary>Restore the learned rhythm after a restart (identity persistence).</summary>
+    public void Restore(float[] hourlyInteraction, float[] hourlySamples)
+    {
+        if (hourlyInteraction is not { Length: 24 } || hourlySamples is not { Length: 24 }) return;
+        for (int i = 0; i < 24; i++) { _hourlyInteraction[i] = hourlyInteraction[i]; _hourlySamples[i] = hourlySamples[i]; }
+        RecomputeConfidence();
+    }
+
+    private void RecomputeConfidence()
+    {
+        float total = 0;
+        foreach (var s in _hourlySamples) total += s;
+        Confidence = MathF.Min(1f, total / 30f);
+        int peak = 0; float peakVal = 0;
+        for (int i = 0; i < 24; i++)
+            if (_hourlyInteraction[i] > peakVal) { peakVal = _hourlyInteraction[i]; peak = i; }
+        PeakHour = peak;
+    }
+
     /// <summary>
     /// For the diary and mirror: a description of the brain's social rhythm.
     /// </summary>

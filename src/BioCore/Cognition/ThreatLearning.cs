@@ -83,6 +83,14 @@ public sealed class ThreatLearning
         ? "You are WARY of this person - they hurt you before. Watchful, slower to warm, even as you talk. "
         : "A residue of wariness toward this person lingers - they hurt you once. It colors your warmth slightly. ";
 
+    /// <summary>Restore learned fear after a restart (identity persistence).</summary>
+    public void Restore(float wariness, float peak, int threats, int safeContacts, int recoveries)
+    {
+        Wariness = Math.Clamp(wariness, 0f, 1f);
+        PeakWariness = Math.Clamp(peak, 0f, 1f);
+        Threats = threats; SafeContacts = safeContacts; Recoveries = recoveries;
+    }
+
     /// <summary>For the diary.</summary>
     public string Narrative => Threats == 0 ? "was never threatened"
         : Wariness > 0.5f ? $"wary (threats {Threats}, safe contacts {SafeContacts}, recoveries {Recoveries})"

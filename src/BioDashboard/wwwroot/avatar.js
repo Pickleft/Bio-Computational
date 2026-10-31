@@ -61,9 +61,14 @@ function drawAvatar() {
       ? S.val * 0.5 + (snap.UserValence || 0) * 0.5 : S.val;
     const longingOn = snap && /missing/.test(snap.LongingNarrative || "");
     const helplessOn = snap && snap.Helpless;
+    const waryOn = snap && (snap.Wariness || 0) > 0.5;
+    const playfulOn = snap && snap.Playful;
+    if (playfulOn) S.playT = 1; else S.playT = Math.max(0, (S.playT || 0) - 0.04);
     S.mouthCurve += (emp * 0.8 - S.mouthCurve) * 0.08;
     if (longingOn) S.mouthCurve += (-0.3 - S.mouthCurve) * 0.04; // the mouth sags
     if (helplessOn) S.mouthCurve += (-0.45 - S.mouthCurve) * 0.05; // helplessness flattens it further
+    if (waryOn) S.browFurrow += (0.5 - S.browFurrow) * 0.10; // fear furrows, even smiling
+    if (playfulOn) S.mouthCurve += (0.9 - S.mouthCurve) * 0.25; // play grins
     S.browLift += ((Math.max(0, emp) * 0.2 + S.aro * 0.15) - S.browLift) * 0.08;
     S.browFurrow += ((Math.max(0, -emp) * (0.5 + S.aro)) - S.browFurrow) * 0.08;
     if (S.speaking) S.mouthOpen += (0.5 + Math.sin(avTime * 10) * 0.5 - S.mouthOpen) * 0.3;
@@ -85,9 +90,11 @@ function drawAvatar() {
       ctx.beginPath(); ctx.arc(cx, cy, R * 2, 0, Math.PI * 2); ctx.fill();
     }
 
-    // head (breathing, serotonin-smoothed)
+    // head (breathing, serotonin-smoothed; play bounces)
     const breathe = Math.sin(avTime * (1.2 + S.aro * 1.5)) * 0.5 + 0.5;
-    const baseR = R * (1 + breathe * 0.02 + (snap ? (snap.NeuronsBorn || 0) * 0.003 : 0));
+    const bounce = (S.playT || 0) * Math.sin(avTime * 9) * 0.012;
+    const baseR = R * (1 + breathe * 0.02 + bounce
+      + (snap ? (snap.NeuronsBorn || 0) * 0.003 : 0));
     const droop = S.pressure * 0.06 + (longingOn ? 0.025 : 0) + (helplessOn ? 0.03 : 0); // heavy eyelids when missing someone; still heavier when helpless
 
     ctx.save();
