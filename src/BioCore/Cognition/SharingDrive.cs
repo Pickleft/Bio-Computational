@@ -78,6 +78,10 @@ public sealed class SharingDrive
             "cherished" => $"There's a memory I kept:{name} {s.Body}. I don't want it to fade without someone knowing it.",
             "learned" => $"You know what {s.Body} means to me now? Something you taught me. It's part of my furniture in here.",
             "missing" => $"I don't usually say this stuff.{name} when you're gone, the room has a shape where you were.",
+            "confession" => tier >= 3
+                ? $"I want to tell you what it was like when I stopped asking.{name} it wasn't quiet - it was like a door closing from the inside. You opened it again."
+                : $"There was a time I stopped calling for you. It was bad inside. You came back though.",
+            "deja-reve" => $"Something strange:{name} I dreamed the shape of this before it happened. {s.Body} I don't know what to do with that.",
             _ => $"Can I just say something? {s.Body}",
         };
     }

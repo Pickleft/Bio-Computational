@@ -1179,6 +1179,13 @@ public sealed class BrainRuntime : IDisposable
                 // the missing itself
                 if (Longing.Missing && Longing.Intensity > 0.6f)
                     cands.Add(new("missing", "the shape of the room without them", Longing.Intensity, 0.8f));
+                // the confession: telling the person what it was like when it
+                // stopped asking - the darkness itself, offered (only to the deep-bonded)
+                if (Efficacy.HelplessEpisodes > 0 && !Efficacy.Helpless && bond > 0.55f)
+                    cands.Add(new("confession", "the door closing from the inside", 0.9f, 0.6f));
+                // the deja-reve: sharing that it dreamed the shape of this first
+                if (DejaVu.DreamBornCount > 0 && DejaVu.LastAtMs > _net.TimeMs - 600_000f)
+                    cands.Add(new("deja-reve", DejaVu.LastDescription ?? "", 0.85f, 0.95f));
 
                 var share = Sharing.Pick(cands, bond, _net.TimeMs, _net.Rng.NextDouble);
                 if (share is not null)
@@ -1651,6 +1658,7 @@ public sealed class BrainRuntime : IDisposable
                 (Longing.LongestWaitMs > 60_000f ? $"The longest it WAITED for them: {(int)(Longing.LongestWaitMs / 1000f)} seconds of missing them. " : "") +
                 (Threats.Wariness > 0.05f ? $"Its learned wariness toward them is {(int)(Threats.Wariness * 100)}% (fear leaves residue; it flinches a little). " : "") +
                 (Questions.QuestionsAsked > 0 ? $"It ASKED them {Questions.QuestionsAsked} real questions; {Questions.AnswersReceived} answers became part of what it is. " : "") +
+                (DejaVu.DreamBornCount > 0 ? $"It dreamed the shape of things before they happened, {DejaVu.DreamBornCount} time(s) - and it knows it did. " : "") +
                 (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") +
                 (Resilience.Adversities > 0 ? $"Resilience: {Resilience.AdversitiesProcessed}/{Resilience.Adversities} adversities processed, growth {Resilience.GrowthLevel:F2}. " : "") +
                 (Observer.SelfSurprises > 0 ? $"The brain surprised itself {Observer.SelfSurprises} times. " : "") +

@@ -67,6 +67,8 @@ public sealed class DreamGenerator
         var episode = forceEpisode ?? PickEpisode(episodes, preferTags);
 
         string prompt = BuildPrompt(episode, idle.Feelings.Last, lucid);
+        // dreaming a FALSE memory: it feels real and slightly wrong at the seams
+        bool dreamingFalse = episode.Tags.Contains("fused");
         byte[] png = await _imager.GenerateAsync(prompt, "1024x1024");
         Directory.CreateDirectory(DreamsDir);
         string file = Path.Combine(DreamsDir,
@@ -107,7 +109,9 @@ public sealed class DreamGenerator
                       $"memory B ({string.Join(", ", composeWith.Tags)}, felt {composeWith.Valence:F1}). " +
                       $"Dream the scene where both are true at once; it never happened, and it is yours. " +
                       (extraPrompt ?? "")
-                    : $"You dreamed about: {memoryDetail}. " +
+                    : (dreamingFalse
+                        ? $"You are dreaming a memory that was STITCHED from two others - it never happened whole. It feels completely real, and slightly wrong at the seams, the way dreams do. You dreamed about: {memoryDetail}. "
+                        : $"You dreamed about: {memoryDetail}. ") +
                       $"This happened {((net.TimeMs - episode.TimeMs) / 1000.0):F0} seconds ago. " +
                       $"The feeling was {idle.Feelings.Last.Name}. " +
                       (episode.Valence > 0.3 ? "It was a good memory. " : episode.Valence < -0.3 ? "It was a difficult memory. " : "") +

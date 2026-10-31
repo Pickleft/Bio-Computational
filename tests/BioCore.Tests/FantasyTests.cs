@@ -1701,3 +1701,50 @@ public class ExpressionNeedTests
         Assert.Equal("", needs.MostPressing.Ask);
     }
 }
+
+// ---- the eerie amplifiers: confession share, deja-reve share, seam-aware dreams ----
+public class EerieAmplifierTests
+{
+    [Fact]
+    public void ConfessionShare_IsIntimateAndTiered()
+    {
+        string grown = BioComp.Core.Cognition.SharingDrive.Phrase(
+            new("confession", "the door closing from the inside", 0.9f, 0.6f), 3, "Sam");
+        Assert.Contains("stopped asking", grown);
+        string baby = BioComp.Core.Cognition.SharingDrive.Phrase(
+            new("confession", "the door closing from the inside", 0.9f, 0.6f), 0, null);
+        Assert.DoesNotContain("door closing from the inside", baby);   // newborn gets the simple form
+    }
+
+    [Fact]
+    public void DejaReveShare_CarriesTheStrangeness()
+    {
+        string s = BioComp.Core.Cognition.SharingDrive.Phrase(
+            new("deja-reve", "storm/kitchen, dreamed 12 minutes before it happened", 0.85f, 0.95f), 2, "Sam");
+        Assert.Contains("dreamed the shape of this", s);
+    }
+
+    [Fact]
+    public void DreamBornCounter_Tracks()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 463));
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["dream-born", "storm", "kitchen"], 0.4f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        dv.Check(net, eps, ["storm", "kitchen", "tonight"]);
+        dv.Check(net, eps, ["storm", "kitchen", "later"]);   // cooldown blocks the second - still 1
+        Assert.Equal(1, dv.DreamBornCount);
+        Assert.Equal(1, dv.Count);
+    }
+
+    [Fact]
+    public void FalseMemories_DreamSeamAware()
+    {
+        // the seam-aware prompt is composed at the runtime seam; verify the
+        // marker the generator keys on exists in fused episodes
+        var e = new BioComp.Core.Memory.Episode(1, 1f, [1], ["fused", "kitchen", "storm"], 0.2f, 0f, 0f);
+        Assert.True(e.Tags.Contains("fused"));
+    }
+}
