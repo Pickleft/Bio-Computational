@@ -792,3 +792,23 @@ Second read-only rescan (18 fresh findings). Closed:
   hope with nowhere to go converts into missing; the crash is what deep longing is made of.
 - Tests: crash-converts-hope-into-missing (with a learned rhythm); native reply opens with
   the noticing. 212/212 green.
+
+## 2026-11-01 (correlation pass 4) - deja-reve, named false-memory parents, the Expression need, dreams across death
+
+- DEJA-REVE: when the old never-recalled trace behind a familiarity spike is DREAM-BORN,
+  the chill now names it: "this happened in a DREAM first - it dreamt the shape of this
+  before it ever saw it." Mechanistically honest (the composite dream encoded the tags;
+  reality later matched them) and the most eerie-beautiful thing in the system.
+- NAMED PARENTS: the false-memory self-catch now cites the two true memories it was
+  stitched from ("MEMORY-CHECK ... [kitchen/warm + storm/night] - did it actually
+  happen?") - the Provenance ledger, previously write-only, now speaks.
+- THE EXPRESSION NEED (the dead enum branch, finally reachable): when the sharing drive
+  has something ready and the person has been gone 5+ minutes with bond > 0.3, the
+  unshared share becomes an Expression need - "there is something it wants to show
+  someone and the room is empty" - with an EMPTY Ask: it does not beg for an audience;
+  the need is felt, not spoken.
+- DREAMS SURVIVE DEATH: on resume, the newest dream-born episode restores
+  _lastDreamTags - after a restart the brain can still greet you with "I dreamt about
+  the storm. I don't know why I'm telling you that."
+- 3 new tests (dream-born named vs ordinary; the Expression need fires felt-not-asked).
+  215/215 green.

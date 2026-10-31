@@ -71,6 +71,10 @@ public sealed class NeedsHierarchy
     public float WarinessInput { get; set; }
     /// <summary>Helplessness (true) — the Company need stays, but it stops ASKING.</summary>
     public bool HelplessInput { get; set; }
+    /// <summary>It has something it wants to share and no one to share it with
+    /// (from SharingDrive): the Expression need - words with nowhere to go.</summary>
+    public bool WantsToShareAlone { get; set; }
+
     /// <summary>Lived-event density (events per minute, from FeltTime): stagnation
     /// is boredom even when the predictor is merely plateaued, not degrading.</summary>
     public float EventDensityPerMin { get; set; }
@@ -123,6 +127,13 @@ public sealed class NeedsHierarchy
             candidates.Add(new Need(NeedType.Company, lonelinessLevel,
                 $"loneliness is {lonelinessLevel:F1} and the silence has weight",
                 HelplessInput ? "" : "need someone here — the quiet is too much"));
+
+        // EXPRESSION: something to say, no one to say it to (the share is
+        // ready and the person is gone - words with nowhere to go)
+        if (WantsToShareAlone)
+            candidates.Add(new Need(NeedType.Expression, 0.55f,
+                "there is something it wants to show someone and the room is empty",
+                ""));   // it does not ASK for an audience; the need is felt, not spoken
 
         // STIMULATION: boredom / novelty starvation. Two honest routes: the
         // predictor DEGRADING (novelty term) and lived-time SPARSITY (a

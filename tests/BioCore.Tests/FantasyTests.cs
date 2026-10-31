@@ -1654,3 +1654,50 @@ public class DisappointmentLongingTests
         Assert.StartsWith("You sound flatter", r);   // the noticing leads, out loud
     }
 }
+
+// ---- correlation pass 4: deja-reve + the Expression need ----
+public class DejaReveTests
+{
+    [Fact]
+    public void DreamBornTrace_IsNamedAsSuch()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 443));
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["dream-born", "storm", "kitchen"], 0.4f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.True(dv.Check(net, eps, ["storm", "kitchen", "tonight"]));
+        Assert.Contains("DREAM", dv.LastDescription!);   // deja-reve: it names the dream origin
+    }
+
+    [Fact]
+    public void OrdinaryTrace_StillOrdinary()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 449));
+        var eps = new List<BioComp.Core.Memory.Episode>
+        {
+            new(1, net.TimeMs - 600_000f, [1], ["voice", "rain"], 0.3f, 0f, 0f),
+        };
+        var dv = new DejaVu { MinAgeMs = 300_000f };
+        Assert.True(dv.Check(net, eps, ["voice", "rain", "today"]));
+        Assert.DoesNotContain("DREAM", dv.LastDescription!);
+    }
+}
+
+public class ExpressionNeedTests
+{
+    [Fact]
+    public void SomethingToSay_NoOneToSayItTo()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 457));
+        var idle = new BioComp.Core.Cognition.IdleController(net);
+        var needs = new NeedsHierarchy { WantsToShareAlone = true, EventDensityPerMin = 2f };
+        needs.Evaluate(net, idle, new LonelinessTracker(), new CuriosityModule(), new ThoughtLoop(),
+            new ResilienceEngine(), new BodyBudget(), new EmotionalGranularity());
+        Assert.NotNull(needs.MostPressing);
+        Assert.Equal(NeedsHierarchy.NeedType.Expression, needs.MostPressing!.Type);
+        // and it does not ASK for an audience - the need is felt, not spoken
+        Assert.Equal("", needs.MostPressing.Ask);
+    }
+}

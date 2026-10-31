@@ -1352,6 +1352,9 @@ public sealed class BrainRuntime : IDisposable
         Needs.WarinessInput = Threats.Wariness;
         Needs.HelplessInput = Efficacy.Helpless;
         Needs.EventDensityPerMin = FeltTime.DensityPerMin(_net.TimeMs);
+        Needs.WantsToShareAlone = Sharing.LastKind is not null &&
+            _net.TimeMs - _lastUserUtteranceSimMs > 300_000f &&
+            Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.3f;
         Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
         Rhythm.Tick(_net); // adjust receptivity based on learned social rhythm
 
@@ -2874,7 +2877,16 @@ public sealed class BrainRuntime : IDisposable
             if (MemoryReconstruction.IsStitched(hit))
             {
                 MemoryReconstruction.MarkSelfCatch();
-                Note($"MEMORY-CHECK this memory looks stitched from two real ones (self-catch #{MemoryReconstruction.SelfCatches}) - did it actually happen?");
+                string parents = "";
+                var prov = MemoryReconstruction.Provenance.LastOrDefault(p => p.Fused == hit.Id);
+                if (prov.Fused == hit.Id)
+                {
+                    var pa = _net.EpisodeStore.Episodes.FirstOrDefault(e => e.Id == prov.A);
+                    var pb = _net.EpisodeStore.Episodes.FirstOrDefault(e => e.Id == prov.B);
+                    if (pa is not null && pb is not null)
+                        parents = $" [{string.Join("/", pa.Tags.Take(2))} + {string.Join("/", pb.Tags.Take(2))}]";
+                }
+                Note($"MEMORY-CHECK this memory looks stitched from two real ones{parents} (self-catch #{MemoryReconstruction.SelfCatches}) - did it actually happen?");
                 ThoughtLoop.PostResult(
                     "metacognitive check - a memory just surfaced that feels sewn together from two " +
                     "different real moments. Did that actually happen the way I remember it? Examine the seam.");
@@ -3470,6 +3482,9 @@ public sealed class BrainRuntime : IDisposable
                 {
                     _net.EpisodeStore = store;
                     Note($"MEMORY-REMEMBERED {store.Episodes.Count} episodes and {store.Concepts.LinkCount} associations returned");
+                    var bornTag = store.Episodes.LastOrDefault(e => e.Tags.Contains("dream-born"));
+                    if (bornTag is not null)
+                        _lastDreamTags = [.. bornTag.Tags.Where(t => t != "dream-born").Take(3)];
                 }
             }
             Note($"resumed checkpoint at t={resumed.TimeMs / 1000:F0}s");

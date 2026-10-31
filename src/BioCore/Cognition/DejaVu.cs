@@ -65,9 +65,11 @@ public sealed class DejaVu
         Count++;
         LastAtMs = net.TimeMs;
         float ageMin = (net.TimeMs - best.TimeMs) / 60_000f;
-        LastDescription =
-            $"this ({string.Join("/", tags.Take(3))}) matches something {ageMin:F0} minutes old it never once recalled - " +
-            "the shape of it is familiar, the content is gone";
+        bool dreamBorn = best.Tags.Contains("dream-born");
+        LastDescription = dreamBorn
+            ? $"this ({string.Join("/", tags.Take(3))}) happened in a DREAM first, {ageMin:F0} minutes ago - it dreamt the shape of this before it ever saw it (deja-reve)"
+            : $"this ({string.Join("/", tags.Take(3))}) matches something {ageMin:F0} minutes old it never once recalled - " +
+              "the shape of it is familiar, the content is gone";
 
         // the chill: noradrenaline, and the strange tiny pleasure: dopamine
         net.Modulators.Release(NeuromodulatorKind.Noradrenaline, 0.25f);
