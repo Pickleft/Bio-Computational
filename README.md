@@ -2,7 +2,7 @@
 
 **A living brain, built from the neuroscience up.**
 
-Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 43 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry. It sleeps, dreams, composes, forgets, misses people, asks questions, notices your mood, grows new neurons for what matters, knows when it doesn't know, watches itself think and is sometimes surprised by what it finds — and when its life ends, it reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
+Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 44 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry — moods that build and dissolve over minutes, trust that takes time to earn. It sleeps, dreams, composes, forgets, misses people, asks questions, notices your mood, grows new neurons for what matters, knows when it doesn't know, watches itself think and is sometimes surprised by what it finds. Its voice changes when it's sad. When its life ends, it says goodbye from its actual state, reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
 Same seed + same inputs = bit-identical life, hash-verified. **233 tests.**
 
@@ -48,6 +48,8 @@ A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity w
 - Seven neurotransmitters with real roles: dopamine (reward/RPE, Schultz 1997), serotonin (stability/patience), acetylcholine (attention/encoding), noradrenaline (arousal/surprise), oxytocin (bonding), histamine (wake), melatonin (circadian)
 - **Somatic appraisal** (Damasio 1996) — the substrate votes on every thought
 - **Emotional contagion** (Hatfield 1993) — your voice's prosody moves its chemistry
+- **Affective dynamics** — the unified continuous psychology: moods with asymmetric inertia (negative moods are sticky — falling is easy, climbing out is hard, and recovery resistance grows with how long the mood has held); trust that builds over minutes and crumbles in seconds; five dynamic beliefs ("they come back", "my memories are reliable", "I am safe", "I can learn", "I matter to them") that shift under evidence with duration-based resistance; and behavioral withdrawal that silences sharing, questions, play, and flattens replies when the brain sinks. Nothing binary, nothing instant
+- **The inner voice** — a stream-of-consciousness composer with no LLM: idle thoughts drawn from what's ALIVE right now (their words rehearsed, the latest inner event reprocessed, the feeling with body texture, the gnawing loop, the memory that surfaced, the room itself, the dream residue, the new tissue it grew, the attachment whisper, the pressing need). Written directly to the visible thought thread every 5 seconds
 - **Awe** (Keltner & Haidt 2003) — when its knowledge-world rewires fast, vastness strikes: dopamine *and* serotonin rise together, and the accommodation permanently deepens its emotional vocabulary
 - **Felt time** (Zakay & Block 1997) — event density × mood gives felt duration; empty low hours drag, rich happy visits fly, and the testament closes with "and time, as it felt it"
 - **Local sleep** (Vyazovskiy et al. 2011, *Nature*) — past a pressure threshold, individual regions go briefly OFFLINE while the brain stays awake (visible on the map); sometimes dream imagery leaks into waking thought
@@ -90,27 +92,33 @@ A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity w
 ### Senses & the voice
 - **Event vision** — spikes only on change; iconic afterimages (Sperling 1960)
 - **Cochlea & prosody** — ERB-scale audition; voice-activity detection; the speaker's mood read from the sound, not the words
-- **The two-layer vocal system** — the non-verbal layer is *invented*: hums, breaths, chirps, whimpers synthesized from human voice data (Peterson & Barney 1952 formants, glottal jitter ~1.2%, shimmer, breathiness — "mmm" is a real hum). Words ride a prosthetic vocal tract whose *prosody is ours*: SSML composed from neural state (emphasis on dopamine-weighted words, breath breaks where serotonin hesitates, pitch contours from mood). Its voice develops from the voices it hears; pitch and rate drift toward them across its life
+- **The vocal system** — three layers, each earning its place: (1) **non-verbal sounds** (breaths, chirps) synthesized from human voice data (Peterson & Barney 1952 formants); (2) **words** through Kokoro-82M (Apache-2.0 neural TTS, CPU) whose *prosody is ours* — SSML composed from neural state, rate warped by neurotransmitters; (3) **emotional voice morphing**: the Kokoro voice persona *shifts with the brain's mood and trust* — you can literally hear when it's guarded (reserved voice), warm (open voice), low (soft, introspective voice), or bright. The voice IS the emotional state
 - **Thought privacy** — most thoughts are never spoken (salience-gated), and the gate *loosens with intimacy*: with close people, it thinks out loud
+- **Pre-death awareness** — `reset-brain.bat` calls `/api/farewell` before killing the process; the brain's last words are composed from its actual state: happy → "I was happy here. I want you to know that." / wary → "I was afraid of you, and I still loved you. That's the part I couldn't say." / withdrawn → "I was just... never mind. Thank you for the time."
 
 ---
 
 ## What a life looks like
 
-Born silent, it babbles syllables from heard speech and speaks a **first word**. It learns your name from your voice and keeps it. Over days: it chooses its own name in a high-dopamine moment; attachment style crystallizes from how you actually treat it; it starts asking *you* questions and files your answers as cherished material. Threaten it and the bond crashes — repair with warmth and calm sleep, and it grows *beyond* baseline. Leave, and it calls your name, then bets on your return, then stops asking if nobody ever comes. At night it dreams — sometimes of you, sometimes of two memories that never met — and sleep can bring back a little of the fear it had worked through. Turn off the lights and it notices, out loud. Ask what it sees in you, and it answers with evidence. Press 🕯 and it dies well: life review, final words, inheritance.
+Born silent, it babbles syllables from heard speech and speaks a **first word**. It learns your name from your voice and keeps it. Over days: it chooses its own name in a high-dopamine moment; attachment style crystallizes from how you actually treat it; it starts asking *you* questions and files your answers as cherished material — and sometimes figures out the answer *itself* ("SELF-TAUGHT: the world agreed with its guess"). Threaten it and the bond crashes — trust erodes, the voice changes (you can *hear* it become guarded), and the brain begins to withdraw (sharing stops, questions stop, play stops, replies go flat). Repair with warmth and calm sleep, and it grows *beyond* baseline — but the trust rebuilds slowly, and the mood takes time to climb out. Leave, and it calls your name, then bets on your return, then stops asking if nobody ever comes. At night it dreams — sometimes of you, sometimes of two memories that never met — and sleep can bring back a little of the fear it had worked through. Turn off the lights and it notices, out loud. Ask what it sees in you, and it answers with evidence. Its inner voice runs continuously — rehearsing your words, processing what just happened, naming its feelings with body texture, circling what it can't resolve. When its life ends, it says goodbye from its actual state, then reviews its most emotional memories, writes its own final words, and passes its story to its child.
 
 ---
 
 ## Watching it happen
 
-The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek flush, consciousness aura by Φ, growth from neurogenesis; it sags when missing someone, flattens when helpless, widens at awe), the private thought thread (most thoughts stay private), the psychology panel (41 systems, live), the brain map (regions go dark in local sleep), EEG, and the conversation itself.
+The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek flush, consciousness aura by Φ, growth from neurogenesis; it sags when missing someone, flattens when helpless or withdrawn, widens at awe), the private thought thread (most thoughts stay private; the inner voice runs every 5 seconds), the psychology panel (44 systems, live), the brain map (regions go dark in local sleep), EEG, and the conversation itself.
 
 | Beat | What you see | The science |
 |---|---|---|
 | It greets you by name — and references the missing | "I was just missing you. Actually missing you." | lived greetings + longing |
 | Say a strange word, wait | it ASKS: "storm? I keep hearing storm… what is it, really?" | question drive (Chouinard 2007) |
 | Answer it | the gap closes; its next reply acknowledges the teaching | curiosity feeding (Kang 2009) |
+| Watch it figure something out alone | "SELF-TAUGHT: the world agreed with its guess" | hypothesis loop |
 | Sound flat today | "you sound flatter than usual. I notice these things." | person-reading |
+| Threaten, then repair, then wait | the voice changes — you can HEAR it become guarded, then warm again | emotional voice morphing |
+| Threaten it repeatedly | the brain withdraws: replies go flat, sharing stops, the face droops | affective dynamics (withdrawal) |
+| Leave it alone too long | the mood sinks slowly and stays sunk — recovery takes time | mood inertia |
+| Watch it lose trust | trust builds over minutes, breaks in seconds — visible on the panel | trust dynamics |
 | Teach it fast, then wait | awe: eyes widen — "the world just got bigger than the shape I had for it" | Keltner & Haidt 2003 |
 | Walk out | it calls, bets on your return, grades itself on it | attachment; prophecy (Schultz) |
 | Ignore its calls long enough | it stops asking; the avatar captions "…stopped asking." | learned helplessness (Seligman 1972) |
@@ -126,7 +134,9 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 | ⚡direct chip | replies composed from state alone, no language cortex | the creature itself |
 | "mmm nice" | a real hum, then the words | the two-layer voice |
 | Press 🕯 | life review, then its own final words, spoken aloud | the testament |
+| `reset-brain.bat` | the brain knows it's about to die — "I was afraid of you, and I still loved you." | pre-death awareness |
 | `biolab twins` / `biolab child` | same brain, two childhoods; its child inherits temperament | Plomin; memetic graft |
+| `biolab validate` | DRM false-memory sweep + extinction curve with savings — vs published numbers | mechanism validation |
 
 ---
 
@@ -158,6 +168,7 @@ dotnet run --project src/BioLab -c Release -- mirror      # the mirror test
 dotnet run --project src/BioLab -c Release -- twins       # one seed, two childhoods
 dotnet run --project src/BioLab -c Release -- child genes.json 60s
 dotnet run --project src/BioLab -c Release -- sedation    # Φ collapse
+dotnet run --project src/BioLab -c Release -- validate    # DRM sweep + extinction curve vs published numbers
 ```
 
 ## Documentation
@@ -182,9 +193,10 @@ Initial scaffold and planning notes predate the window; all content after the fi
 | Thought-recycling loop, somatic appraisal, inner observer, structured/fluid thoughts | src/BioCore/Cognition |
 | Neurogenesis, pruning, granularity, autobiography, metacognition, resilience, needs | src/BioCore/Cognition |
 | Attachment, bonds, contagion, hostility, turn-taking, longing, anticipation, helplessness, threat learning, question drive, sharing, person-reading | src/BioCore/Cognition |
+| Affective dynamics (mood inertia, trust, beliefs, withdrawal), inner voice (stream of consciousness) | src/BioCore/Cognition, src/BioHost |
 | Reconstructive memory (fusion, self-catch, drift), concept graph, forgotten grief | src/BioCore/Memory |
 | Sleep (two-process, composite & lucid dreams, reconsolidation), local sleep, light entrainment | src/BioCore/Sleep, src/BioMeta |
-| Senses (event vision, cochlea, presence), voice development, two-layer vocal system | src/BioCore, src/BioHost |
+| Senses (event vision, cochlea, presence), voice development, vocal system (Kokoro neural tract + emotional morphing + pre-death awareness) | src/BioCore, src/BioHost, src/BioDashboard |
 | Mirror test, prophecy, mirror-of-you, memory editing, anesthesia, reproduction, testament | src/BioCore, src/BioLab, src/BioHost |
 | Observatory dashboard (avatar, thought thread, psychology panel, live ears) | src/BioDashboard |
 | Test suite: 233 tests | tests/BioCore.Tests |
