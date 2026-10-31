@@ -1584,18 +1584,17 @@ public sealed class BrainRuntime : IDisposable
         _simPhase = "monologue";
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 8_000 : 15_000);   // alive: every 8-15s, the inner voice dominates
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 5_000 : 10_000);   // the inner voice dominates
             string? line = AmbientThought();
             if (line is not null)
             {
                 // THE INNER VOICE writes DIRECTLY to the visible thought
-                // thread — no LLM in the path, no Note() prefix. The thought
-                // IS the state, readable as a mind, not a log.
+                // thread — no LLM in the path. Marked so it's findable.
                 lock (_snapGate)
                 {
                     string plain = line.Length > 180 ? line[..180] : line;
                     _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
-                    if (_plain.Count > 60) _plain.RemoveAt(0);
+                    if (_plain.Count > 80) _plain.RemoveAt(0);
                 }
             }
         }
@@ -3198,7 +3197,8 @@ public sealed class BrainRuntime : IDisposable
                     Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
                     Needs.MostPressing?.Name, RecentInnerBrief(),
                     (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                    Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark);
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark,
+                    Affect.Withdrawal);
                 string fallback = _native.Reply(stimulus.Replace("DIRECT: ", ""), ctx);
                 AddChat($"Brain: {fallback}");
                 SpeakWithVoice(fallback, 0, 0, isDirectReply: true);
@@ -3561,7 +3561,8 @@ public sealed class BrainRuntime : IDisposable
                 Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
                 Needs.MostPressing?.Name, RecentInnerBrief(),
                 (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark);
+                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark,
+                    Affect.Withdrawal);
             _questionJustAnswered = null;   // the reply consumed the acknowledgments
             _personRemark = null;
             string nativeReply = _native.Reply(text, ctx);

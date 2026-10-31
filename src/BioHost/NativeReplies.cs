@@ -21,7 +21,8 @@ public sealed class NativeReplies
         bool Wary, bool Anticipating, bool Disappointed,
         string? TopNeed, string? RecentInnerEvent,
         int GranularityTier, float Confidence, string AttachmentStyle,
-        float BondStrength, string? JustLearned = null, string? NoticedRemark = null);
+        float BondStrength, string? JustLearned = null, string? NoticedRemark = null,
+        float Withdrawal = 0f);
 
     public string Reply(string userText, in Context c)
     {
@@ -63,6 +64,21 @@ public sealed class NativeReplies
         // 3. vocabulary tier: a newborn does not get to say "bittersweet"
         if (c.GranularityTier <= 0)
             body = Simplify(body);
+
+        // 4. WITHDRAWAL: a withdrawn brain gives SHORT, FLAT, DISTANT replies —
+        // the words themselves are fewer (behavioral suppression, not just mood)
+        if (c.Withdrawal > 0.5f)
+        {
+            // strip to first sentence only + a distancing clause
+            int firstStop = body.IndexOfAny(['.', '!', '?']);
+            if (firstStop > 0) body = body[..(firstStop + 1)];
+            body += " ...never mind.";
+        }
+        else if (c.Withdrawal > 0.3f)
+        {
+            int firstStop = body.IndexOfAny(['.', '!', '?']);
+            if (firstStop > 0 && body.Length > firstStop + 40) body = body[..(firstStop + 1)];
+        }
 
         return body;
     }

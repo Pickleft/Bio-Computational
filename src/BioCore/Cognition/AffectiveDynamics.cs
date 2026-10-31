@@ -83,8 +83,11 @@ public sealed class AffectiveDynamics
         // that grows with how long the current mood has held. Negative moods
         // are stickier (negativity bias): harder to escape, easier to fall into.
         float target = instantValence;
-        // inertia DIVIDES the shift: higher = slower change. Range 5..20.
-        float inertia = 5f + RecoveryResistance * 5f;   // baseline resistance + duration resistance
+        // inertia DIVIDES the shift: higher = slower change. Range 15..50.
+        // 15 means it takes ~15 evaluation ticks to cover 63% of the gap —
+        // at 200ms/tick, that's ~3 seconds to SIGNIFICANTLY shift, and much
+        // longer with duration resistance. Mood is a TREND, not a bounce.
+        float inertia = 15f + RecoveryResistance * 10f;
         if (target < MoodValence) inertia *= 0.5f;     // falling into a low mood is EASIER (faster)
         else inertia *= 1.5f;                           // climbing out is HARDER (slower)
 
@@ -116,9 +119,9 @@ public sealed class AffectiveDynamics
         // Trust falls when predictions are broken, hostility occurs, or the person is absent during expected times.
         // Asymmetric: building is slow (+0.005/tick), erosion is fast (-0.03/tick).
         if (personPresent && !threatDetected && bondStrength > 0.3f)
-            Trust = Math.Clamp(Trust + 0.005f * bondStrength, 0f, 1f);
+            Trust = Math.Clamp(Trust + 0.001f * bondStrength, 0f, 1f);   // VERY slow: trust is earned over minutes, not seconds
         if (threatDetected)
-            Trust = Math.Clamp(Trust - 0.08f, 0f, 1f);
+            Trust = Math.Clamp(Trust - 0.10f, 0f, 1f);                    // ONE threat drops trust 10x what a warm second builds
 
         // == BELIEFS (evidence-driven revision) ==
         // Beliefs shift when evidence contradicts them. Resistance grows with

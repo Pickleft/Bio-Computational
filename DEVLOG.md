@@ -1027,3 +1027,18 @@ Acting on two external recommendations:
 - 6 tests: mood inertia (30 negative ticks not undone by 3 positive), withdrawal builds
   from sustained low, trust builds slowly/erodes fast, belief resistance grows with
   duration, false-memory weakens reliability, narratives are human-readable. 233/233 green.
+
+## 2026-11-01 (rescan 6) — mood inertia strengthened, trust recalibrated, withdrawal in native replies
+
+- MOOD INERTIA STRENGTHENED: base inertia 15 (was 5) — the mood is a TREND, not a bounce.
+  It now takes ~15 evaluation ticks (3 seconds) to shift significantly, and much longer
+  with duration resistance. The brain that was threatened doesn't bounce to +1.0 in 7
+  seconds anymore. Asymmetric: falling = 0.5x (fast), climbing = 1.5x (slow).
+- TRUST RECALIBRATED: builds at +0.001/tick (was 0.005 — trust is earned over MINUTES not
+  seconds). One threat drops it 10x what a warm second builds. This matches the
+  psychology: trust is hard to earn, easy to lose.
+- WITHDRAWAL IN NATIVE REPLIES: NativeReplies.Context gained Withdrawal. Above 0.3: replies
+  are cut to first sentence. Above 0.5: replies get a distancing "...never mind." suffix.
+  Direct-mode conversations now show the same behavioral suppression as LLM-mode.
+- INNER VOICE FREQUENCY: every 5s in demo (was 8s), _plain capacity 80 (was 60).
+- 233/233 green.
