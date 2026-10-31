@@ -955,3 +955,25 @@ Acting on two external recommendations:
   or E2E "verifies" a stale binary; (2) taskkill the BioComp.Dashboard.exe by IMAGE
   NAME - dotnet-run children orphan and lock the bin dir.
 - 227/227 green (tests unaffected; Kokoro guarded, model local).
+
+## 2026-11-01 (the alive round) - inner voice, watchdog, and the disconnection diagnosis
+
+- THE INNER VOICE (src/BioHost/InnerVoice.cs): the stream-of-consciousness composer -
+  no LLM, no template graveyard. Every idle thought draws from what is ALIVE right now
+  via 12 weighted candidates: (1) the person's last words REHEARSED (what human minds
+  actually do), (2) the latest inner event reprocessed, (3) the current feeling WITH
+  BODY TEXTURE ("it sits warm in the middle of you"), (4) the gnawing open loop,
+  (5) the memory that just surfaced, (6) the unasked question + hypothesis status,
+  (7) waiting/dreading/missing/watching, (8) the room itself (dark/bright),
+  (9) dream residue, (10) the new tissue it just grew, (11) the attachment whisper,
+  (12) the pressing need. Weighted draw, no repeats. Wired as BOTH the thought-loop
+  ExternalSeedProvider AND the AmbientThought() composer (which now writes DIRECTLY
+  to the visible thought thread - no LLM in the path).
+- THE SIM WATCHDOG: the sim thread was stalling silently (frozen at t=81s in earlier
+  tests; three consecutive freezes at 'cognition' phase). The watchdog monitors a
+  heartbeat, and on 15s of stall: logs the phase, tells the user ("I stuttered just
+  now - something in me caught itself"), restarts the loop thread. The brain can
+  never die silently again. Fine-grained phase probes added (cognition/life/
+  monologue/play/vision/audition) to isolate future stalls.
+- THOUGHT THREAD FREQUENCY raised: ambient thoughts every 30s (was 60s) in demo mode.
+- 227/227 green.

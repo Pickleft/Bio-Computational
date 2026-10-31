@@ -394,22 +394,28 @@ public sealed class BrainRuntime : IDisposable
         double idleSec = _idle.Time.SubjectiveSinceEventMs / 1000.0;
         if (_idle.Sleep.State is BioComp.Core.Sleep.BrainState.NREM or BioComp.Core.Sleep.BrainState.REM) return null;
 
-        // the thought follows directly from the feeling + context
-        return f.Name switch
-        {
-            "bored" when idleSec > 30 => $"It's been {(int)idleSec} subjective seconds. The silence is heavy.",
-            "bored" => "Nothing is happening.",
-            "tired" => "I can feel myself slowing down.",
-            "curious" => "Something is different. I want to understand it.",
-            "stressed" => "Something feels wrong. I can't settle.",
-            "calm" when _net.EpisodeStore.Episodes.Count > 0 =>
-                $"I keep thinking about {string.Join(", ", _net.EpisodeStore.Episodes[^1].Tags.Take(2))}.",
-            "calm" => "The room is steady. Nothing needs me.",
-            _ => _net.EpisodeStore.Episodes.Count > 0 && idleSec > 60
-                ? $"It's been quiet for a while. I remember {string.Join(", ", _net.EpisodeStore.Episodes[^1].Tags.Take(1))}."
-                : null, // don't speak if there's genuinely nothing to say
-        };
+        // THE INNER VOICE: every ambient thought draws from the same lived
+        // stream as the thought-loop seeds — their words echoing, what just
+        // happened inside, the feeling with body texture, the gnawing loop.
+        // No more "I keep thinking about thought, feel."
+        var s = Bonds.Strongest(_net.TimeMs);
+        var firstLoop = ThoughtLoop.OpenLoops.Count > 0 ? ThoughtLoop.OpenLoops[^1].Text : null;
+        var dreamResidue = _lastDreamTags is { Count: > 0 } ? string.Join(", ", _lastDreamTags.Take(2)) : null;
+        return _ambientVoice.Compose(
+            _userName, f.Name, f.Narrative,
+            f.Valence, f.Arousal,
+            _idle.Sleep.SleepPressure > 0.6f, BodyBudget.PredictedDeficitMin < 25f,
+            _lastUserWords, _net.TimeMs - _lastUserUtteranceSimMs,
+            RecentInnerBrief(), Needs.MostPressing is { } n2 ? n2.Description : null,
+            ThoughtLoop.OpenLoops.Count, firstLoop,
+            Questions.PendingWord, Hypotheses.Pending?.GuessedLink,
+            Longing.Missing, Longing.Whom, Longing.Intensity,
+            Anticipation.Level > 0.5f, Threats.Wary, Efficacy.Helpless,
+            s is not null ? Bonds.Strength(s.Id, _net.TimeMs) : 0f, Attachment.Label,
+            Light.BrightnessEma, dreamResidue,
+            0, _lastStirredMemory);
     }
+    private readonly InnerVoice _ambientVoice = new(() => 0.42);  // deterministic draw for ambient
     private (bool Cam, bool Mic) _devicesLive;
     private int _lastIgnition, _lastSurprise, _lastReplayCount;
     private BrainState _lastSleepState;
@@ -566,16 +572,34 @@ public sealed class BrainRuntime : IDisposable
             if (pair.A is string a && pair.B is string b)
                 Note($"ASSOCIATION learned: {a} ~ {b} (experienced together enough to wire together)");
         };
-        // occasionally a new thought thread begins from a live concern:
-        // missing a SPECIFIC person (the strongest bond) rather than a memory
+        // THE INNER VOICE: the stream of consciousness — every idle thought
+        // drawn from what's ALIVE right now (their words echoing, what just
+        // happened inside, the feeling with body texture, the gnawing loop,
+        // the memory that surfaced, the unasked question, the room itself).
+        // No LLM: the mind composes from its own state.
+        var innerVoice = new InnerVoice(_net.Rng.NextDouble);
         ThoughtLoop.ExternalSeedProvider = () =>
         {
             var s = Bonds.Strongest(_net.TimeMs);
-            if (s is null || Loneliness.Level < 0.25f || _net.Rng.NextDouble() > 0.25) return null;
-            string who = _userName is null ? "a person" : $"{_userName}, a person";
-            return $"missing someone specific: {who} met {s.Visits} times, warmth {s.Warmth:F1}, " +
-                   $"last seen {(_net.TimeMs - s.LastSeenMs) / 1000f:F0}s ago, and the loneliness is {Loneliness.Level:F1}. " +
-                   "You feel their absence like a gap in the room.";
+            var f = _idle.Feelings.Last;
+            var topNeed = Needs.MostPressing is { } n2 ? n2.Description : null;
+            var firstLoop = ThoughtLoop.OpenLoops.Count > 0 ? ThoughtLoop.OpenLoops[0].Text : null;
+            var dreamResidue = _lastDreamTags is { Count: > 0 } ? string.Join(", ", _lastDreamTags.Take(2)) : null;
+            var born = Neurogenesis.TotalNeuronsBorn - _neuronsBornAtLastSeed;
+            _neuronsBornAtLastSeed = Neurogenesis.TotalNeuronsBorn;
+            return innerVoice.Compose(
+                _userName, f.Name, f.Narrative,
+                f.Valence, f.Arousal,
+                _idle.Sleep.SleepPressure > 0.6f, BodyBudget.PredictedDeficitMin < 25f,
+                _lastUserWords, _net.TimeMs - _lastUserUtteranceSimMs,
+                RecentInnerBrief(), topNeed,
+                ThoughtLoop.OpenLoops.Count, firstLoop,
+                Questions.PendingWord, Hypotheses.Pending?.GuessedLink,
+                Longing.Missing, Longing.Whom, Longing.Intensity,
+                Anticipation.Level > 0.5f, Threats.Wary, Efficacy.Helpless,
+                s is not null ? Bonds.Strength(s.Id, _net.TimeMs) : 0f, Attachment.Label,
+                Light.BrightnessEma, dreamResidue,
+                born, _lastStirredMemory);
         };
         Attachment.StyleChanged += style =>
         {
@@ -599,7 +623,41 @@ public sealed class BrainRuntime : IDisposable
         TryResume();
         TryRestoreIdentity();
         _running = true;
-        _thread.Start();
+        StartRunLoop();   // sim thread + the freeze watchdog, together
+    }
+
+    // ---- SIM WATCHDOG: a frozen sim thread is death without a funeral ----
+    // StepOnce stamps its current phase; if the heartbeat stalls for 15s of
+    // wall time, the watchdog screams (console + chat) and restarts the loop
+    // thread. The brain must never die silently.
+    private volatile string _simPhase = "boot";
+    private long _simHeartbeat = Environment.TickCount64;
+    private int _watchdogRestarts;
+
+    private void StartRunLoop()
+    {
+        var t = new Thread(RunLoop) { IsBackground = true, Name = "brain-sim" };
+        t.Start();
+        var wd = new Thread(() =>
+        {
+            while (_running)
+            {
+                Thread.Sleep(3000);
+                long stalledFor = Environment.TickCount64 - System.Threading.Volatile.Read(ref _simHeartbeat);
+                if (stalledFor > 15_000)
+                {
+                    string phase = _simPhase;
+                    _watchdogRestarts++;
+                    Console.WriteLine("[brain-stalled] sim frozen " + stalledFor / 1000 + "s in phase '" + phase + "' - restarting (restart #" + _watchdogRestarts + ")");
+                    try { _chat.Add("Brain: (I stuttered just now - something in me caught itself. '" + phase + "')"); } catch { }
+                    var t2 = new Thread(RunLoop) { IsBackground = true, Name = "brain-sim-" + _watchdogRestarts };
+                    t2.Start();
+                    System.Threading.Volatile.Write(ref _simHeartbeat, Environment.TickCount64);
+                    Thread.Sleep(20_000);   // give the fresh thread room before judging again
+                }
+            }
+        }) { IsBackground = true, Name = "brain-watchdog" };
+        wd.Start();
     }
 
     /// <summary>
@@ -798,6 +856,7 @@ public sealed class BrainRuntime : IDisposable
         int consecutiveErrors = 0;
         while (_running)
         {
+            System.Threading.Volatile.Write(ref _simHeartbeat, Environment.TickCount64);
             try
             {
                 double targetSimMs = _wall.Elapsed.TotalMilliseconds;
@@ -916,6 +975,7 @@ public sealed class BrainRuntime : IDisposable
             }
         }
 
+        _simPhase = "vision";
         if (_camera.TryReadNext(out var frame))
         {
             // LIGHT ENTRAINMENT: the room's brightness is the zeitgeber — and
@@ -947,6 +1007,7 @@ public sealed class BrainRuntime : IDisposable
         }
 
         // ---- audition ----
+        _simPhase = "audition";
         if (_mockMic is not null) _mockMic.Advance(1);
         if (_mic.TryReadNext(out var block))
         {
@@ -1014,6 +1075,7 @@ public sealed class BrainRuntime : IDisposable
         BodyBudget.Tick(_net);
 
         // ---- cognition ----
+        _simPhase = "cognition";
         _idle.Tick(_net, _salience.ExternalArousal);
 
         // ---- event bookkeeping (ignition, surprise, replay, sleep) ----
@@ -1076,6 +1138,7 @@ public sealed class BrainRuntime : IDisposable
         // brain self-stimulates, during replay, and during sleep; at rest they settle)
 
         // ---- artificial life: personality, loneliness, diary, identity, art, thought tracing ----
+        _simPhase = "life";
         Loneliness.Tick(_net, _idle);
         // LONGING: loneliness with a name — is the bonded person past due?
         if (_net.TickIndex % 200 == 0)
@@ -1448,6 +1511,7 @@ public sealed class BrainRuntime : IDisposable
         }
 
         // ---- PLAY (Burghardt 2005): safe + secure + curious + rewarded ----
+        _simPhase = "play";
         // Helplessness GENERALIZES (Seligman 1972): a brain that learned asking
         // changes nothing also stops playing — the goal-directed suppression
         // crosses domains, which is exactly why helplessness is a depression model.
@@ -1498,11 +1562,23 @@ public sealed class BrainRuntime : IDisposable
         }
 
         // ---- ambient inner monologue + autonomous daydreaming ----
+        _simPhase = "monologue";
         if (_net.TimeMs >= _nextAmbientMs)
         {
-            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 60_000 : 60_000);
+            _nextAmbientMs = (long)_net.TimeMs + (_cfg.DemoMode ? 30_000 : 45_000);   // alive: every 30-45s
             string? line = AmbientThought();
-            if (line is not null) Note($"AMBIENT {line}");
+            if (line is not null)
+            {
+                // THE INNER VOICE writes DIRECTLY to the visible thought
+                // thread — no LLM in the path, no Note() prefix. The thought
+                // IS the state, readable as a mind, not a log.
+                lock (_snapGate)
+                {
+                    string plain = line.Length > 180 ? line[..180] : line;
+                    _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
+                    if (_plain.Count > 60) _plain.RemoveAt(0);
+                }
+            }
         }
         // daydream + imagine future + spontaneous vocalization: unprompted inner life
         if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
@@ -2981,6 +3057,9 @@ public sealed class BrainRuntime : IDisposable
     private string? _personRemark;         // one-shot: the reply opens with the noticing
     private string? _hypothesisJustConfirmed;  // fresh self-discovery, shareable
     private float _aweShownUntil = -1e9f;  // momentary awe, long enough for the face to show it
+    private string? _lastUserWords;        // rehearsal seed: their most recent words
+    private string? _lastStirredMemory;    // the memory their words last surfaced
+    private int _neuronsBornAtLastSeed;    // for "just grew N neurons" seeds
     private float _lastAmbientRemarkMs = -1e9f;  // big room changes get noticed, sparingly
     private float _lastGapVsUsual = 1f;           // actual/predicted return gap (person-reading fuel)
 
@@ -3018,8 +3097,12 @@ public sealed class BrainRuntime : IDisposable
                     .Where(w => w.Length > 3).Distinct().Take(3).ToArray();
                 var mem = net_episodeRecall(cues);
                 if (mem is not null)
+                {
                     stirred = $"{string.Join("/", mem.Tags.Take(3))} (felt {(mem.Valence >= 0 ? "+" : "")}{mem.Valence:F1}, " +
                               $"{(int)((_net.TimeMs - mem.TimeMs) / 1000)}s ago)";
+                    // the inner voice will keep turning this memory over
+                    _lastStirredMemory = $"{string.Join("/", mem.Tags.Take(2))} — felt {(mem.Valence >= 0 ? "+" : "")}{mem.Valence:F1}";
+                }
             }
             catch { }
 
@@ -3183,6 +3266,10 @@ public sealed class BrainRuntime : IDisposable
                 if (_plain.Count > 60) _plain.RemoveAt(0);
             }
         }
+        // console output on the sim thread can BLOCK on a full pipe (the
+        // shell that redirected output may have exited) — never let the
+        // brain's life depend on the console draining
+        try { Console.WriteLine(line); } catch { }
     }
 
     /// <summary>A human typed into the chat box: treat as direct speech.
@@ -3288,6 +3375,7 @@ public sealed class BrainRuntime : IDisposable
         text = text.Trim();
         if (text.Length == 0) return;
         if (text.Length > 200) text = text[..200];
+        _lastUserWords = text;   // the inner voice rehearses their words
         AddChat($"You: {text}");
 
         // NAME RECALL: direct questions about the name bypass the LLM —
