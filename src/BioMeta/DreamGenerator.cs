@@ -55,14 +55,16 @@ public sealed class DreamGenerator
     /// Returns (imagePath, narrative) where narrative describes what the dream is about.</summary>
     public async Task<(string? Path, string? Narrative)> MaybeDreamAsync(
         SpikingNetwork net, IdleController idle, ILanguageModel? narrator = null, bool lucid = false,
-        string[]? preferTags = null, string? extraPrompt = null)
+        string[]? preferTags = null, string? extraPrompt = null,
+        BioComp.Core.Memory.Episode? forceEpisode = null,
+        BioComp.Core.Memory.Episode? composeWith = null)
     {
         if (net.TimeMs - _lastDreamMs < MinInterval.TotalMilliseconds) return (null, null);
         var episodes = net.EpisodeStore.Episodes;
         if (episodes.Count == 0) return (null, null);
 
         // emotional salience first, then recency: the brain dreams what mattered
-        var episode = PickEpisode(episodes, preferTags);
+        var episode = forceEpisode ?? PickEpisode(episodes, preferTags);
 
         string prompt = BuildPrompt(episode, idle.Feelings.Last, lucid);
         byte[] png = await _imager.GenerateAsync(prompt, "1024x1024");
@@ -99,11 +101,17 @@ public sealed class DreamGenerator
                       "texture of the feeling (wistful, tender, aching, luminous). " +
                       "This is a real dream based on a real memory.";
                 string memoryDetail = string.Join(", ", episode.Tags);
-                string usr = $"You dreamed about: {memoryDetail}. " +
-                    $"This happened {((net.TimeMs - episode.TimeMs) / 1000.0):F0} seconds ago. " +
-                    $"The feeling was {idle.Feelings.Last.Name}. " +
-                    (episode.Valence > 0.3 ? "It was a good memory. " : episode.Valence < -0.3 ? "It was a difficult memory. " : "") +
-                    (extraPrompt ?? "");
+                string usr = composeWith is not null
+                    ? $"COMPOSITE DREAM: your dreaming mind has fused TWO memories into one scene - " +
+                      $"memory A ({string.Join(", ", episode.Tags)}, felt {episode.Valence:F1}) and " +
+                      $"memory B ({string.Join(", ", composeWith.Tags)}, felt {composeWith.Valence:F1}). " +
+                      $"Dream the scene where both are true at once; it never happened, and it is yours. " +
+                      (extraPrompt ?? "")
+                    : $"You dreamed about: {memoryDetail}. " +
+                      $"This happened {((net.TimeMs - episode.TimeMs) / 1000.0):F0} seconds ago. " +
+                      $"The feeling was {idle.Feelings.Last.Name}. " +
+                      (episode.Valence > 0.3 ? "It was a good memory. " : episode.Valence < -0.3 ? "It was a difficult memory. " : "") +
+                      (extraPrompt ?? "");
                 narrative = await narrator.CompleteAsync(sys, usr, 50);
             }
             catch { /* narrative is optional */ }

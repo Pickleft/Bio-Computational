@@ -267,3 +267,28 @@ camera (both local and browser frames). In the biological evening (circadian < 0
 sleep-entry gate's night), brightness > 0.45 suppresses the melatonin TARGET by up to 70%
 (SleepController.MelatoninSuppression multiplier): bright rooms hold off drowsiness - the
 screen-light problem lived from the inside.
+
+## Question drive (information-seeking from measured ignorance)
+Children ask ~76 questions/hour at peak (Chouinard 2007); curiosity feeding is among the
+strongest intrinsic rewards (Kang et al. 2009). Gap shape: concept use >= 3 with links <= 1
+(a word it uses but does not UNDERSTAND). Gates: person present, curiosity (progress or
+novelty), 35% draw, 5-min cooldown, one pending question with a 2-min answer window.
+Phrasing develops with granularity tier. On answer: DA 0.35 + OXT 0.15 (knowledge given is
+care given), episode tagged [word, explained], concept wiring via encoding; the next reply
+is told to acknowledge the teaching. ACh 0.2 on asking.
+
+## Awe (Keltner & Haidt 2003)
+Vastness + accommodation. Trigger: concept-graph link growth >= 4 within a 10s window
+(the knowledge world reorganizing), 10-min cooldown. Signature: DA 0.22 AND 5-HT 0.18
+together (reward + the humility of smallness); accommodation seed enters the thought loop;
+awe count feeds diary/testament.
+
+## Felt time (Zakay & Block 1997; Wittmann 2013)
+Every notable event marks (time, valence) into a 5-min window ring. Stretch: sparse -> 1.35+
+drags; dense+positive compresses (-0.25); dense+negative dilates (+0.30); clamped 0.6..2.0.
+Enters diary, testament, and the reply prompt when |stretch-1| > 0.35.
+
+## Composite dreams (Stickgold 2010: dreams combine, not replay)
+25% of dreams (when a strongly-linked pair exists, hub >= fusion threshold): both memories
+fused into one narrated scene that never happened; the dream itself is ENCODED as a
+"dream-born" episode (we remember dreams; they enter the memory store with their tags).

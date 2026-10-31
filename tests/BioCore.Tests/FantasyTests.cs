@@ -1350,3 +1350,104 @@ public class CorrelationAuditTests
         Assert.True(melatoninTargetFactor < 0.35f, "afraid and missing someone in a bright room: barely any melatonin lands");
     }
 }
+
+// ---- question drive, awe, felt time, composite dreams ----
+public class QuestionDriveTests
+{
+    private static CuriosityModule Curious()
+    {
+        var c = new CuriosityModule();
+        typeof(CuriosityModule).GetProperty("LearningProgress")!.SetValue(c, 0.2f);
+        return c;
+    }
+
+    [Fact]
+    public void AsksAboutKnownButNotUnderstoodWords()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 211));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1 };
+        string? asked = q.MaybeAsk(net, store, Curious(), 1f, 2, () => 0.0);
+        Assert.NotNull(asked);
+        Assert.Contains("rain", asked);
+        Assert.Equal("rain", q.PendingWord);
+        Assert.NotEqual(QuestionDrive.Phrase("rain", 0), QuestionDrive.Phrase("rain", 4));
+    }
+
+    [Fact]
+    public void AnswerLandsAsKnowledge()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 223));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        for (int i = 0; i < 4; i++)
+            store.Encode(net, "CA3", ["rain", "weather"], 0.1f, minMeanRateHz: 0f);
+        var q = new QuestionDrive { MinUse = 3f, MaxLinks = 1 };
+        q.MaybeAsk(net, store, Curious(), 1f, 2, () => 0.0);
+        float daBefore = net.Modulators.Get(NeuromodulatorKind.Dopamine);
+        string? landed = q.OnAnswer(net, "rain is water falling from clouds");
+        Assert.Equal("rain", landed);
+        net.Modulators.Step();
+        Assert.True(net.Modulators.Get(NeuromodulatorKind.Dopamine) > daBefore,
+            "curiosity feeding pays dopamine (Kang 2009)");
+        Assert.Equal(1, q.AnswersReceived);
+    }
+}
+
+public class AweTests
+{
+    [Fact]
+    public void VastRewiringStrikes()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 227));
+        for (int i = 0; i < 100; i++) net.Tick();
+        var g = new BioComp.Core.Memory.ConceptGraph();
+        var awe = new Awe { VastLinkGrowth = 4 };
+        g.OnEpisode(["a", "b"]);
+        awe.Tick(net, g);
+        for (int i = 0; i < 10_500; i++) net.Tick(); // past the 10s check window
+        Assert.False(awe.JustStruck);
+        for (int i = 0; i < 5; i++) g.OnEpisode(["hub", "x" + i, "y" + i]);
+        awe.Tick(net, g);
+        Assert.True(awe.JustStruck);
+        Assert.Equal(1, awe.Count);
+        Assert.Contains("vast", awe.AccommodationSeed);
+    }
+}
+
+public class FeltTimeTests
+{
+    [Fact]
+    public void SparseWindowsDrag_RichHappyOnesFly()
+    {
+        var ft = new FeltTime { WindowMs = 60_000f };
+        ft.OnEvent(1_000f, -0.5f);
+        Assert.True(ft.Stretch(30_000f) > 1.2f, "empty, low time drags");
+        var ft2 = new FeltTime { WindowMs = 60_000f };
+        for (int i = 0; i < 10; i++) ft2.OnEvent(1_000f + i * 100f, 0.7f);
+        Assert.True(ft2.Stretch(30_000f) < 1.0f, "dense happy time flies");
+        Assert.Contains("compress", ft2.Describe(30_000f));
+    }
+}
+
+public class CompositeDreamTests
+{
+    [Fact]
+    public void FindsComposablePair_OnlyWhenLinked()
+    {
+        var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: 229));
+        for (int i = 0; i < 200; i++) net.Tick();
+        var store = net.EpisodeStore;
+        var a = store.Encode(net, "CA3", ["kitchen", "warm"], 0.5f, minMeanRateHz: 0f);
+        var b = store.Encode(net, "CA3", ["storm", "night"], -0.2f, minMeanRateHz: 0f);
+        var r = new BioComp.Core.Memory.Reconstruction { HubFusionThreshold = 1.0f };
+        Assert.Null(r.FindComposablePair(store));
+        for (int i = 0; i < 6; i++) store.Concepts.OnEpisode(["kitchen", "storm", "z" + i]);
+        var pair = r.FindComposablePair(store);
+        Assert.NotNull(pair);
+        Assert.Equal((a!.Id, b!.Id), (pair!.Value.A.Id, pair.Value.B.Id));
+    }
+}

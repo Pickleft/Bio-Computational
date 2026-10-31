@@ -29,6 +29,21 @@ public sealed class ConceptGraph
     public int ConceptCount => _use.Count;
     public int LinkCount { get; private set; }
 
+    /// <summary>Usage count and link degree of one concept (question-drive fuel:
+    /// a heavily-used concept with almost no links is a word it knows but does
+    /// not UNDERSTAND — an ignorance gap shaped exactly like a question).</summary>
+    public (float Use, int Links) StatsOf(string concept)
+    {
+        float use = _use.TryGetValue(concept, out var u) ? u : 0f;
+        int links = 0;
+        if (_edges.TryGetValue(concept, out var row))
+            links += row.Count(k => k.Value >= PruneBelow);
+        foreach (var other in _edges.Values)
+            if (other.TryGetValue(concept, out var s) && s >= PruneBelow)
+                links++;
+        return (use, links);
+    }
+
     /// <summary>
     /// Wire the tags of one encoded episode together. Returns the pair whose
     /// link just crossed the announcement threshold (a newly learned

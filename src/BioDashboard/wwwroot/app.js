@@ -285,6 +285,11 @@ function render(s) {
     wEl.classList.toggle("urgent", (s.Wariness || 0) > 0.5);
   }
   setText("light-state", s.LightSuppressing ? "the lights are keeping it up" : "where it should be");
+  // question drive, awe, felt time
+  setText("questions-state", !s.QuestionsAsked ? "never asked"
+    : `${s.QuestionsAsked} asked, ${s.AnswersReceived || 0} answered`);
+  setText("awe-state", !s.AweCount ? "never" : `${s.AweCount}× — the world outgrew its shapes`);
+  setText("felttime-state", s.FeltTimeNarrative || "about its own size");
 
   // social bonds: who the brain knows and how well
   const bonds = s.SocialBonds || {};

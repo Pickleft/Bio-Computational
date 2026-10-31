@@ -108,6 +108,28 @@ public sealed class Reconstruction
         store.NudgeValence(e, delta);
     }
 
+    /// <summary>
+    /// Find two episodes whose tags are strongly concept-linked — the raw
+    /// material of a COMPOSITE DREAM (Stickgold: dreams don't replay, they
+    /// COMBINE — that is where their creative content comes from).
+    /// </summary>
+    public (Episode A, Episode B)? FindComposablePair(EpisodeMemory store)
+    {
+        Episode? a = null, b = null; float best = 0f;
+        var eps = store.Episodes;
+        for (int i = 0; i < eps.Count; i++)
+        {
+            if (eps[i].Tags.Contains("fused") || eps[i].Tags.Contains("dream-born")) continue;
+            for (int j = i + 1; j < eps.Count; j++)
+            {
+                if (eps[j].Tags.Contains("fused") || eps[j].Tags.Contains("dream-born")) continue;
+                float hub = HubStrength(store.Concepts, eps[i].Tags, eps[j].Tags);
+                if (hub > best) { best = hub; a = eps[i]; b = eps[j]; }
+            }
+        }
+        return best >= HubFusionThreshold ? (a!, b!) : null;
+    }
+
     private const float MaxHubReference = 2.5f;   // two strong links ≈ full convergence
 
     private static float HubStrength(ConceptGraph g, string[] ta, string[] tb)

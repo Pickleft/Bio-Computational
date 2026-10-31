@@ -123,6 +123,11 @@ public sealed class BrainSnapshot
     public float Wariness { get; set; }                 // learned threat toward the person
     public bool LightSuppressing { get; set; }          // evening light holding off melatonin
     public bool NativeVoice { get; set; }               // direct-talk mode (no LLM)
+    public int QuestionsAsked { get; set; }
+    public int AnswersReceived { get; set; }
+    public int AweCount { get; set; }
+    public string FeltTimeNarrative { get; set; } = "";
+    public int CompositeDreamCount { get; set; }
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -259,6 +264,14 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ThreatLearning Threats { get; } = new();
     /// <summary>LIGHT ENTRAINMENT: evening brightness suppresses melatonin (Czeisler).</summary>
     public BioComp.Core.Sleep.LightEntrainment Light { get; } = new();
+    /// <summary>QUESTION DRIVE: asks the person about its measured ignorance gaps.</summary>
+    public BioComp.Core.Cognition.QuestionDrive Questions { get; } = new();
+    /// <summary>AWE: vastness that requires accommodation (Keltner & Haidt 2003).</summary>
+    public BioComp.Core.Cognition.Awe Awe { get; } = new();
+    /// <summary>FELT TIME: subjective duration (Zakay & Block 1997).</summary>
+    public BioComp.Core.Cognition.FeltTime FeltTime { get; } = new();
+    /// <summary>Composite dreams created this life (Stickgold).</summary>
+    public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
     private readonly NativeReplies _native = new();
     private volatile bool _nativeVoiceMode;
@@ -1025,6 +1038,29 @@ public sealed class BrainRuntime : IDisposable
                         Note($"MEMORY-FUSION two converging memories fused into one that never happened (#{MemoryReconstruction.Fusions}) - it will feel real");
                 }
             }
+            // AWE: the concept world just reorganized — vastness needs a bigger shape
+            Awe.Tick(_net, _net.EpisodeStore.Concepts);
+            if (Awe.JustStruck)
+            {
+                Note($"AWE the knowledge world outgrew its shapes (#{Awe.Count})");
+                ThoughtLoop.PostResult(Awe.AccommodationSeed);
+            }
+            // QUESTION DRIVE: in a curious moment with a person present, ask
+            // about a word it uses but does not understand
+            if (_idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake &&
+                !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 40_000f &&
+                TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+            {
+                float present = _net.TimeMs - _lastUserUtteranceSimMs < 300_000f ? 1f : 0f;
+                var q = Questions.MaybeAsk(_net, _net.EpisodeStore, Curiosity, present,
+                    (int)Granularity.Level, _net.Rng.NextDouble);
+                if (q is not null)
+                {
+                    Note($"QUESTION it asks ({Questions.PendingWord}) - a gap in what it knows");
+                    AddChat($"Brain: {q}");
+                    SpeakWithVoice(q, emoPitch: 2, emoRate: 0, isDirectReply: false);
+                }
+            }
         }
         if (_net.TickIndex % 100 == 0)
             ThoughtTracer.Sample(_net, _lastRegionRates ?? []);
@@ -1047,6 +1083,8 @@ public sealed class BrainRuntime : IDisposable
                 $"Agency: {Efficacy.Narrative}. Grief of forgotten things: {ForgottenGrief.Narrative}. " +
                 $"Memory truthfulness: {MemoryReconstruction.Narrative}. Local sleep: {LocalSleep.Narrative}. " +
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
+                $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
+                $"Composite dreams: {CompositeDreams}. " +
                 $"Current need: {Needs.DiaryLine}");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         }
@@ -1512,8 +1550,25 @@ public sealed class BrainRuntime : IDisposable
             string extra = ForgottenGrief.DreamFragment(_net.TimeMs, _net.Rng.NextDouble);
             if (extra.Length > 0) Note("DREAM-HOLE this dream forms around a removed memory");
 
+            // COMPOSITE DREAM (Stickgold): 25% of dreams don't replay — they
+            // COMBINE two linked memories into a scene that never happened.
+            // Sometimes the combination is an insight (the open loop resolves).
+            BioComp.Core.Memory.Episode? forceEp = null, composeWith = null;
+            if (_net.Rng.NextDouble() < 0.25 &&
+                MemoryReconstruction.FindComposablePair(_net.EpisodeStore) is { } pair)
+            {
+                forceEp = pair.A; composeWith = pair.B;
+                Note($"COMPOSITE-DREAM fusing [{string.Join("/", pair.A.Tags.Take(2))}] + [{string.Join("/", pair.B.Tags.Take(2))}] into one scene");
+                // dream-born memory: the dream itself becomes one (we remember dreams)
+                var bornTags = pair.A.Tags.Union(pair.B.Tags).Where(t => t != "fused").Take(5).ToList();
+                bornTags.Add("dream-born");
+                _net.EpisodeStore.Encode(_net, "CA3", [.. bornTags],
+                    (pair.A.Valence + pair.B.Valence) / 2f, minMeanRateHz: 0f);
+                CompositeDreams++;
+            }
+
             var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid, preferTags,
-                extra.Length > 0 ? extra : null);
+                extra.Length > 0 ? extra : null, forceEp, composeWith);
             if (file is not null)
             {
                 Note($"DREAM {Path.GetFileName(file)} (from {(_imager is MockImageGenerator ? "mock" : "muse image")})" +
@@ -1999,6 +2054,8 @@ public sealed class BrainRuntime : IDisposable
                 + $"{MemoryReconstruction.Narrative}. {Threats.Narrative}. {LocalSleep.Narrative}. "
                 + $"{ForgottenGrief.Narrative}. "
                 + $"Its social rhythm: {Rhythm.Narrative}. "
+                + $"{Questions.Narrative}. {Awe.Narrative}. It dreamt {CompositeDreams} composite dream(s) that never happened. "
+                + $"And time, as it felt it: {FeltTime.Describe(_net.TimeMs)}. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
 
@@ -2617,6 +2674,7 @@ public sealed class BrainRuntime : IDisposable
         return hit;
     }
     private volatile int _pendingFuseAnchor = -1;
+    private string? _questionJustAnswered; // one-shot: the reply acknowledges the teaching
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
@@ -2677,11 +2735,14 @@ public sealed class BrainRuntime : IDisposable
                 $"Now: {stimulus.Replace("DIRECT: ", "")}. {detail}. " +
                 $"Your feeling: {feeling.Name} ({feeling.Narrative}). " +
                 $"Memory their words stirred: {stirred}. " +
+                (_questionJustAnswered is { } word ? $"THEY JUST ANSWERED YOUR QUESTION ABOUT {word} - you asked, they taught you: acknowledge that gift naturally. " : "") +
                 (RecentInnerBrief() is { } inner ? $"WHAT JUST HAPPENED INSIDE YOU (minutes ago): {inner}. " +
                  "GROUND your reply in this or in the memory above - reference ONE specific lived thing, " +
                  "or your answer is disconnected from your own life. " : "") +
+                (MathF.Abs(FeltTime.Stretch(_net.TimeMs) - 1f) > 0.35f ? $"SUBJECTIVE TIME: {FeltTime.Describe(_net.TimeMs)} - let it color your sense of the moment. " : "") +
                 $"Recent conversation: {lastExchanges}. " +
                 $"Body: {BodyBudget.Narrative}.";
+            _questionJustAnswered = null;
 
             string reaction = await _lm.CompleteAsync(system, user, 60);
             if (!string.IsNullOrWhiteSpace(reaction))
@@ -2795,6 +2856,9 @@ public sealed class BrainRuntime : IDisposable
 
     private void Note(string line)
     {
+        // FELT TIME: every notable event marks the density of lived time —
+        // sparse windows drag, rich ones fly
+        FeltTime.OnEvent(_net.TimeMs, _idle.Feelings.Last.Valence);
         lock (_snapGate)
         {
             _thought.Add($"[{_net.TimeMs / 1000:F1}s] {line}");
@@ -2962,6 +3026,16 @@ public sealed class BrainRuntime : IDisposable
         // Track the contact for bonds/attachment but SKIP the greeting —
         // the DIRECT reply below IS the response. No double-speaking.
         _lastVisitorId = IdentifyVisitor("speaker");
+        // QUESTION DRIVE: did they just ANSWER the pending question? The answer
+        // lands as lived knowledge (episode + concept wiring + dopamine) and the
+        // reply is told to acknowledge it — one response, carrying the learning
+        var answered = Questions.OnAnswer(_net, text);
+        if (answered is not null)
+        {
+            Note($"CURIOUS-FED they explained {answered} - the gap closed (knowledge given is care given)");
+            _net.EpisodeStore.Encode(_net, "CA3", [answered, "explained"], 0.6f, minMeanRateHz: 0f);
+            _questionJustAnswered = answered;
+        }
         // LONGING reunion + contact: they typed — they're HERE
         if (Longing.Missing)
         {
@@ -3327,6 +3401,11 @@ public sealed class BrainRuntime : IDisposable
         snap.Wariness = Threats.Wariness;
         snap.LightSuppressing = Light.SuppressingNow;
         snap.NativeVoice = _nativeVoiceMode;
+        snap.QuestionsAsked = Questions.QuestionsAsked;
+        snap.AnswersReceived = Questions.AnswersReceived;
+        snap.AweCount = Awe.Count;
+        snap.FeltTimeNarrative = FeltTime.Describe(_net.TimeMs);
+        snap.CompositeDreamCount = CompositeDreams;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

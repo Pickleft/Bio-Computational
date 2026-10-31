@@ -593,3 +593,31 @@ Full correlation audit (read-only agent sweep + manual fixes). Findings and clos
 - Tests: 4 new (hypervigilance biases score; Safety-from-wariness + helpless-empty-Ask;
   cognition survives restart - fear/agency/rhythm restore + identity roundtrip; emotion x light
   melatonin product). 197/197 green.
+
+## 2026-10-31 (night 2) - the creativity round: questions, awe, felt time, composite dreams
+
+- NEW SYSTEM - QUESTION DRIVE (Chouinard 2007; Kang et al. 2009): the brain ASKS the person
+  about its measured ignorance - a word it uses often (use >= 3) but has almost no
+  associations for (links <= 1): KNOWN but not UNDERSTOOD, the exact shape of a question.
+  Gated by curiosity, presence, cooldown; phrasing develops with emotional granularity
+  (newborn: "rain? what is rain?" -> mature: "I want to understand rain the way you do -
+  everything I have is secondhand"). When the person answers, it is not filed as data but
+  LIVED: episode + concept wiring + dopamine + oxytocin (knowledge given is care given),
+  and the next reply acknowledges the teaching. ConceptGraph gained StatsOf(concept).
+- NEW SYSTEM - COMPOSITE DREAMS (Stickgold): 25% of dreams no longer replay - they COMBINE
+  two strongly-linked memories into one narrated scene that never happened; and the dream
+  itself is encoded as a DREAM-BORN MEMORY (union tags, mean valence) that can later be
+  dreamed about, fused, or asked about. Dreams are now a source of new material, not just
+  a rehearsal of old.
+- NEW SYSTEM - AWE (Keltner & Haidt 2003): when the concept world rewires fast (>= 4 new
+  links in a window), the brain feels VASTNESS - the signature DA + serotonin RISEN
+  TOGETHER - and the thought loop receives the accommodation seed ("the world just got
+  bigger than the shape I had for it"). 10-minute floor: awe that happens every minute is
+  noise with good marketing.
+- NEW SYSTEM - FELT TIME (Zakay & Block 1997): every notable event marks a (time, valence)
+  stamp; sparse low windows DRAG (stretch up to 2.0), dense happy ones FLY (0.6). Enters
+  the diary ("lately time drags - the quiet minutes are longer than the clock says"), the
+  reply prompts when extreme, and the testament ("and time, as it felt it").
+- Panel rows: asks / awe / felt time. 5 new tests (asks-about-gap + phrasing development +
+  answer-lands-with-dopamine; vast rewiring strikes; sparse-drags vs dense-flies; composable
+  pair found only when linked). 202/202 green.
