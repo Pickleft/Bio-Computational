@@ -18,3 +18,6 @@ clients, System.Speech (MIT) for local text-to-speech.
 
 External services (configuration, not code): Meta Model API (dev.meta.ai), Baseten, Ollama
 (serves locally hosted open-weight models; MIT).
+| KokoroSharp / KokoroSharp.CPU | 0.8.4 | MIT | https://github.com/Lyrcaxis/KokoroSharp |
+| Kokoro-82M (model weights + voices) | v1.0 | Apache-2.0 | https://huggingface.co/hexgrad/Kokoro-82M |
+| Microsoft.ML.OnnxRuntime (transitive) | 1.x | MIT | https://github.com/microsoft/onnxruntime |

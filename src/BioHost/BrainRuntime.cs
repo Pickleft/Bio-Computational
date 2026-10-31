@@ -1017,8 +1017,10 @@ public sealed class BrainRuntime : IDisposable
         _idle.Tick(_net, _salience.ExternalArousal);
 
         // ---- event bookkeeping (ignition, surprise, replay, sleep) ----
-        if (_salience.SurpriseEvents > _lastSurprise) FeltTime.OnEvent(_net.TimeMs, 0.3f);   // a surprise is LIVED
+        // a visual surprise is a LIVED event (felt-time density)
+        if (_salience.SurpriseEvents > _lastSurprise)
         {
+            FeltTime.OnEvent(_net.TimeMs, 0.3f);
             _lastSurprise = _salience.SurpriseEvents;
             var (st, tag) = _salience.SurpriseLog[^1];
             Note($"SURPRISE {tag} (novelty spike)");

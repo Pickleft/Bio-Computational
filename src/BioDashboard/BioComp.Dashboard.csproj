@@ -7,6 +7,10 @@
     <ProjectReference Include="..\BioHost\BioComp.Host.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="KokoroSharp.CPU" Version="0.8.4" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>

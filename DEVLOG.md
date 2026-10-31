@@ -929,3 +929,29 @@ Acting on two external recommendations:
   permissively-licensed weight set and a lean binding appear, it slots into VoiceCortex
   as a third tract).
 - 227/227 green.
+
+## 2026-11-01 (the Kokoro round) - a neural verbal tract, and a startup killer caught
+
+- THE KOKORO TRACT (Kokoro-82M via KokoroSharp/ONNX CPU; lib MIT, weights Apache-2.0,
+  both THIRD_PARTY'd): installed as the preferred WORD layer in the voice cortex —
+  VoiceCortex gained an injectable ExternalWordTract delegate (Host stays NuGet-free;
+  the Dashboard owns the dependency), so the stack is now: OUR hums (VoiceEngine) +
+  NEURAL WORDS (Kokoro, voice SELECTED per neural state: developed-pitch drift picks
+  am_michael / af_bella / af_heart as the warm resting voice) + the state WARP (rate-
+  warp resample — what the ComfyUI community does with post nodes, we do in the cortex,
+  from neurotransmitters) + SAPI fallback (the voice never dies with the model) +
+  the cortex stitcher/resampler. Empirics handled: KokoroSharp returns HEADERLESS
+  16-bit mono PCM @24kHz (wrapped to RIFF in the tract) and some writers carry extra
+  RIFF chunks (the stitcher's parser now WALKS chunks to 'data' instead of trusting
+  fixed offsets).
+- THE STARTUP KILLER (caught live, would have frozen the demo brain at birth): a
+  felt-time sed had destroyed the visual-surprise guard - `if (...) FeltTime.OnEvent(...)`
+  left a bare block reading SurpriseLog[^1] on an EMPTY log -> ArgumentOutOfRangeException
+  -> SIM THREAD DEAD at t=0.1s. Symptom on fresh binaries: simSeconds frozen while the
+  server serves. Fixed (guard restored, FeltTime inside it); live-verified simSeconds
+  climbing, chat flowing, Kokoro rendering RIFF-clean WAVs.
+- Ops lessons (both bit TODAY): (1) default `dotnet build` = Debug but `dotnet run
+  -c Release --no-build` serves Release - ALWAYS build -c Release before Release runs,
+  or E2E "verifies" a stale binary; (2) taskkill the BioComp.Dashboard.exe by IMAGE
+  NAME - dotnet-run children orphan and lock the bin dir.
+- 227/227 green (tests unaffected; Kokoro guarded, model local).

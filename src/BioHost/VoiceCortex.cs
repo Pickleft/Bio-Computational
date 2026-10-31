@@ -27,6 +27,14 @@ public sealed class VoiceCortex : IDisposable
     private readonly SpeechSynthesizer _synth = new();
     private readonly VoiceEngine _engine = new();
 
+    /// <summary>
+    /// Injectable third verbal tract (e.g. a neural TTS owned by the host
+    /// process). (text, rate, pitch, volume) -> wav bytes, or null to fall
+    /// through to the SAPI tract. BioComp.Host stays dependency-free; the
+    /// presentation layer owns the model.
+    /// </summary>
+    public static Func<string, float, float, float, byte[]?>? ExternalWordTract;
+
     public VoiceCortex()
     {
         // prefer the warmest installed voice (Zira reads gently; David is calm)
@@ -90,6 +98,16 @@ public sealed class VoiceCortex : IDisposable
         _synth.Rate = Math.Clamp(ratePct / 6, -2, 2);                            // SAPI ±2 max
         _synth.Volume = (int)Math.Clamp(volume * 90 + 10, 25, 95);               // never maxed
 
+        // the external tract (neural TTS) gets first refusal when present
+        if (ExternalWordTract is not null)
+        {
+            try
+            {
+                byte[]? neural = ExternalWordTract(text, rate, pitch, volume);
+                if (neural is { Length: > 100 }) return neural;
+            }
+            catch { /* fall through to SAPI: the voice must never die with the model */ }
+        }
         string ssml = BuildSsml(text, ratePct, pitchSt);
         using var ms = new MemoryStream();
         _synth.SetOutputToWaveStream(ms);
@@ -191,14 +209,28 @@ public sealed class VoiceCortex : IDisposable
     private static (float[]? Samples, int Rate) ReadWav(byte[] w)
     {
         if (w.Length < 44 || w[0] != (byte)'R') return (null, 0);
-        int rate = w[24] | (w[25] << 8) | (w[26] << 16) | (w[27] << 24);
-        short bits = (short)(w[34] | (w[35] << 8));
-        short ch = (short)(w[22] | (w[23] << 8));
-        if (bits != 16 || ch != 1) return (null, 0);
-        int n = (w.Length - 44) / 2;
+        // walk the chunk list to find 'data' (some writers add LIST/fact chunks
+        // before it - fixed offsets mis-slice those into garbage)
+        int off = 12, dataOff = -1, dataLen = 0;
+        int rate = 0; short bits = 0, ch = 0;
+        while (off + 8 <= w.Length)
+        {
+            string id = System.Text.Encoding.ASCII.GetString(w, off, 4);
+            int len = w[off + 4] | (w[off + 5] << 8) | (w[off + 6] << 16) | (w[off + 7] << 24);
+            if (id == "fmt ")
+            {
+                ch = (short)(w[off + 10] | (w[off + 11] << 8));
+                rate = w[off + 12] | (w[off + 13] << 8) | (w[off + 14] << 16) | (w[off + 15] << 24);
+                bits = (short)(w[off + 22] | (w[off + 23] << 8));
+            }
+            else if (id == "data") { dataOff = off + 8; dataLen = len; break; }
+            off += 8 + len + (len & 1);
+        }
+        if (dataOff < 0 || bits != 16 || ch != 1) return (null, 0);
+        int n = Math.Min(dataLen, w.Length - dataOff) / 2;
         var s = new float[n];
         for (int i = 0; i < n; i++)
-            s[i] = (short)(w[44 + i * 2] | (w[45 + i * 2] << 8)) / 32768f;
+            s[i] = (short)(w[dataOff + i * 2] | (w[dataOff + 1 + i * 2] << 8)) / 32768f;
         return (s, rate);
     }
 

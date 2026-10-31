@@ -378,3 +378,7 @@ appsettings.Local.json
 .secrets/
 # dashboard runtime logs
 data/dashboard-*.log
+
+# Kokoro model cache (downloaded once by KokoroSharp; 310MB - never commit)
+src/BioDashboard/kokoro.onnx
+src/BioDashboard/*.onnx

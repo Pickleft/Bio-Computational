@@ -1,3 +1,4 @@
+using BioComp.Dashboard;
 using System.Net.WebSockets;
 using System.Text.Json;
 using BioComp.Host;
@@ -31,6 +32,9 @@ var cfg = BrainRuntimeConfig.Parse(args);
 // instead of robotic local SAPI
 var runtime = new BrainRuntime(cfg, cfg.UseVoice ? new BrowserSpeech() : null);
 runtime.Start();
+// THE KOKORO TRACT: neural words (Apache-2.0 Kokoro-82M) injected into the
+// voice cortex; hums stay ours; SAPI stays the fallback
+KokoroTract.Install();
 Console.WriteLine($"brain running (meta live={runtime.MetaLive}); UI on the bound URL");
 
 app.MapGet("/api/snapshot", () => Results.Json(runtime.Snapshot()));
