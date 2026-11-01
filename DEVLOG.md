@@ -1391,3 +1391,20 @@ Acting on two external recommendations:
   carry the full new playable surface (commands, the game, stories, jokes, gifts, the
   left-without-goodbye beat, the ears fix, "what do you call me").
 - 260/260 green.
+
+## 2026-11-02 (the dead-api round) — five built-but-never-called systems, wired
+
+- THE FOLLOW-UP ("wait, also—"): ShouldFollowUp/GenerateFollowUp were built in the Response
+  Rhythm round and NEVER CALLED. Wired now: after a reply, a happy bonded brain schedules
+  one more thing 6-10s later ("Wait, actually — I want to add something." / "Also... there's
+  been something on my mind."). Live-found structural bug while wiring: the 30s reply window
+  (supposed to suppress spontaneous speech over the reply) ALSO suppressed the follow-up —
+  it could never fire. Fixed by speaking it as a reply continuation. Live-verified firing.
+- SHOULD_PURSUE wired: curiosity pursuit is now dopamine-gated (a flat brain lets its
+  questions go).
+- COMFORT_FOR wired: the waking ritual is THE comfort object under stress (falls back to
+  most-practiced); the spoken line is first-person ("I think about the door").
+- HER.NARRATIVE in the diary (laughs, observations held back).
+- MEMORY LEAK: _monologueLog had SEVEN add sites and ONE cap — dreams/monologue/replies
+  grew unbounded on long sessions. All routed through a capped 50-entry ring.
+- 260/260 green.

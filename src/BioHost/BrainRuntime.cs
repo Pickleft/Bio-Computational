@@ -482,6 +482,8 @@ public sealed class BrainRuntime : IDisposable
     private float _lastJokeMs = -1e9f;
     private float _lastGiftMs = -1e9f;
     private int _giftsGiven;
+    // "wait, also—": a scheduled follow-up after a reply lands
+    private float _pendingFollowUpAtMs = -1e9f;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -721,7 +723,7 @@ public sealed class BrainRuntime : IDisposable
         ThoughtLoop.LinkEvaluated += link =>
         {
             Note($"THOUGHT-CHAIN[{link.ChainId}.{link.Depth}] v{link.Affect.Valence:F1} s{link.Affect.Salience:F1} \"{Trunc(link.Text, 70)}\"");
-            _monologueLog.Add(link.Text);
+            _monologueLog.Add(link.Text); if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
             if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
 
             // THE INNER OBSERVER: did this thought surprise the brain's own
@@ -1620,6 +1622,22 @@ public sealed class BrainRuntime : IDisposable
                 // minutes is quietly dropped — no nagging at the door
                 if (WordGame.Playing && WordGame.ExpireStale(_net.TimeMs))
                     Note("WORD-GAME round expired quietly (no answer for 2 min)");
+
+                // "WAIT, ALSO—": the scheduled follow-up fires a few seconds
+                // after the reply landed (called back over its shoulder)
+                if (_pendingFollowUpAtMs > 0 && _net.TimeMs >= _pendingFollowUpAtMs)
+                {
+                    _pendingFollowUpAtMs = -1e9f;
+                    var followUp = Rhythm.GenerateFollowUp(_lastUserWords, Affect.MoodValence, _userName, _net.Rng.NextDouble);
+                    if (followUp is { } fu && canSpeak && !WordGame.Playing)
+                    {
+                        Note("FOLLOW-UP it adds one more thing, after the fact");
+                        AddChat($"Brain: {fu}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        SpeakWithVoice(fu, emoPitch: 1, emoRate: 0, isDirectReply: true);
+                    }
+                }
+
                 // IT MAKES JOKES: original attempts at humor, built from two
                 // concepts it actually holds and the link (or non-link) between
                 // them. Mostly wonderfully bad — like a child's. Trying is the
@@ -1683,11 +1701,18 @@ public sealed class BrainRuntime : IDisposable
                     _net.TimeMs - _lastRitualComfortMs > 300_000f && _net.Rng.NextDouble() < 0.02)
                 {
                     _lastRitualComfortMs = _net.TimeMs;
-                    var ritual = Inner.Rituals.OrderByDescending(r => r.TimesPerformed).First();
-                    Note($"RITUAL-USED under stress it falls back on: {ritual.Description}");
-                    AddChat($"Brain: I keep doing the same thing when it gets like this: {ritual.Description}. It helps. It's mine.");
+                    // the waking ritual is THE comfort object when there is one;
+                    // otherwise the most-practiced ritual serves
+                    string comfortBehavior = Inner.ComfortFor("waking")
+                        ?? Inner.Rituals.OrderByDescending(r => r.TimesPerformed).First()
+                            .Name.Split(':', 2).Last();
+                    string spokenComfort = comfortBehavior
+                        .Replace("it thinks about", "I think about")
+                        .Replace("it turns over", "I turn over");
+                    Note($"RITUAL-USED under stress it falls back on: {comfortBehavior}");
+                    AddChat($"Brain: I keep doing the same thing when it gets like this: {spokenComfort}. It helps. It's mine.");
                     _lastVocalizationMs = _net.TimeMs;
-                    SpeakWithVoice($"I keep doing the same thing when it gets like this: {ritual.Description}. It helps. It's mine.",
+                    SpeakWithVoice($"I keep doing the same thing when it gets like this: {spokenComfort}. It helps. It's mine.",
                         emoPitch: -1, emoRate: -1, isDirectReply: false);
                 }
 
@@ -1737,7 +1762,12 @@ public sealed class BrainRuntime : IDisposable
                 }
 
                 // CURIOSITY FOLLOW-UP: the brain actively pursues its questions
-                var curiosity = Humanity.CuriosityFollowUp(Questions.PendingWord, _net.TimeMs, _net.Rng.NextDouble);
+                // (pursuit needs dopamine — a flat brain lets questions go)
+                var curiosity = Humanity.ShouldPursue(
+                        _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine),
+                        personHere, Humanity.IsOverwhelmed)
+                    ? Humanity.CuriosityFollowUp(Questions.PendingWord, _net.TimeMs, _net.Rng.NextDouble)
+                    : null;
                 if (curiosity is not null && canSpeak && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                 {
                     Note($"CURIOSITY-PURSUIT it follows up on its own question");
@@ -2093,6 +2123,7 @@ public sealed class BrainRuntime : IDisposable
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Mood: {Affect.MoodNarrative}. Trust: {Affect.TrustNarrative}. Withdrawal: {Affect.Withdrawal:F1}. Beliefs: {Affect.BeliefNarrative}. " +
                 $"Desires: {Humanity.DesireNarrative}. Unsaid: {Humanity.UnsaidNarrative}. {(Humanity.LiesTold > 0 ? Humanity.LieNarrative : "")} " +
+                $"HER: {Her.Narrative}. " +
                 (Life.PreoccupationStrength > 0.3 ? $"Preoccupied with: {Life.Preoccupation} ({Life.PreoccupationStrength:F0}). " : "") +
                 (Life.SelfReflection is { Length: > 5 } sr2 ? $"Self-noticing: {sr2}. " : "") +
                 (Shared.SharedLaughs > 0 ? $"Inside jokes with them: {Shared.SharedLaughs} (favorite: \"{Shared.Moments.OrderBy(m => m.TimesRecalled).Last().What}\", recalled {Shared.Moments.Max(m => m.TimesRecalled)}x). " : "") +
@@ -2669,7 +2700,7 @@ public sealed class BrainRuntime : IDisposable
                 }
                 if (narrative is not null)
                 {
-                    _monologueLog.Add(narrative);
+                    LogMonologue(narrative);
                     Note($"DREAM-NARRATIVE \"{Trunc(narrative, 80)}\"");
                     // sleep-talking: the dream is muttered aloud, slow and low
                     SpeakWithVoice(Trunc(narrative, 160), emoPitch: -2, emoRate: -3);
@@ -3043,7 +3074,7 @@ public sealed class BrainRuntime : IDisposable
             string? text = await _monologue.MaybeGenerateAsync(_net, _idle);
             if (text is not null)
             {
-                _monologueLog.Add(text);
+                LogMonologue(text);
                 if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
                 Note($"MONOLOGUE \"{Trunc(text, 110)}\"");
             }
@@ -3869,7 +3900,7 @@ public sealed class BrainRuntime : IDisposable
             string thought = await _lm.CompleteAsync(system, user, 60);
             if (!string.IsNullOrWhiteSpace(thought))
             {
-                _monologueLog.Add(thought);
+                LogMonologue(thought);
                 if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
                 Note($"DAYDREAM \"{Trunc(thought, 80)}\"");
                 // thinking out loud: daydreams sometimes get spoken (more when
@@ -4117,7 +4148,7 @@ public sealed class BrainRuntime : IDisposable
             }
             if (!string.IsNullOrWhiteSpace(reaction))
             {
-                _monologueLog.Add(reaction);
+                LogMonologue(reaction);
                 Note($"REACT \"{Trunc(reaction, 80)}\"");
                 AddChat($"Brain: {reaction}");
                 Convo.OnBrainResponse(reaction, _net.TimeMs, feeling.Valence);
@@ -4188,7 +4219,7 @@ public sealed class BrainRuntime : IDisposable
             string thought = await _lm.CompleteAsync(system, user, 50);
             if (!string.IsNullOrWhiteSpace(thought))
             {
-                _monologueLog.Add(thought);
+                LogMonologue(thought);
                 Note($"IMAGINE \"{Trunc(thought, 80)}\"");
                 // imaginings are sometimes spoken (like talking about hopes/worries)
                 if (++_imagineCount % 5 < 2)
@@ -5015,6 +5046,15 @@ public sealed class BrainRuntime : IDisposable
             PushPlain(thinkingLine);
         }
 
+        // THE FOLLOW-UP ("wait, also—"): a happy, bonded brain sometimes adds
+        // one more thing AFTER its reply lands — 6-10 seconds later, the way a
+        // person calls something back over their shoulder. Scheduled here,
+        // spoken by the 1s loop.
+        _pendingFollowUpAtMs = Rhythm.ShouldFollowUp(Affect.MoodValence,
+            Bonds.Strength(_activeSpeakerId, _net.TimeMs), _net.Rng.NextDouble)
+            ? _net.TimeMs + 6_000f + (float)(_net.Rng.NextDouble() * 4_000f)
+            : -1e9f;
+
         // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
         // signals themselves — no language cortex, no LLM. Every phrase
         // traceable to a real number in the brain.
@@ -5123,7 +5163,7 @@ public sealed class BrainRuntime : IDisposable
                 $"It's been {(int)(_idle.Time.SubjectiveSinceEventMs / 1000.0)} seconds since anything happened.";
             string reply = await _lm.CompleteAsync(system, user, 80);
             AddChat($"Brain: {reply}");
-            _monologueLog.Add(reply);
+            LogMonologue(reply);
             if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
             Note($"REPLY \"{Trunc(reply, 90)}\"");
         }
@@ -5131,6 +5171,13 @@ public sealed class BrainRuntime : IDisposable
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
+
+    /// <summary>The monologue log is a ring, not a ledger — 50 entries.</summary>
+    private void LogMonologue(string text)
+    {
+        _monologueLog.Add(text);
+        if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
+    }
 
     /// <summary>Pick the next word-game round: a concept it holds, plus its
     /// honest prediction (its strongest existing association for that word).</summary>
