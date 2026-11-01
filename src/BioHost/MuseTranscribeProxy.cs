@@ -36,16 +36,16 @@ public sealed class MuseTranscribeProxy : IDisposable
             await _meta.ConnectAsync(new Uri("wss://api.meta.ai/v1/asr/realtime"), _cts.Token);
 
             // HANDSHAKE: authentication is in the first frame, not headers.
-            // Must arrive within 10 seconds of connection.
+            // Meta expects audioEncoding / sampleRateHertz / audioChannelCount
             var handshake = JsonSerializer.Serialize(new
             {
                 type = "handshake",
                 api_key = apiKey,
                 model = model,
-                mode = "ENDPOINTING",           // auto-detect end of speech
-                audio_format = "PCM_S16LE",     // 16-bit little-endian
-                sample_rate = 16000,
-                channels = 1,
+                mode = "ENDPOINTING",
+                audioEncoding = "PCM_S16LE",
+                sampleRateHertz = 16000,
+                audioChannelCount = 1,
             });
             var hsBytes = Encoding.UTF8.GetBytes(handshake);
             await _meta.SendAsync(new ArraySegment<byte>(hsBytes), WebSocketMessageType.Text, true, _cts.Token);

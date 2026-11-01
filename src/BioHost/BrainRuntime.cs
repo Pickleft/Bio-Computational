@@ -300,6 +300,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.AffectiveDynamics Affect { get; } = new();
     /// <summary>HUMANITY ENGINE: self-censorship, deception, desires, overwhelm, singing, crying.</summary>
     public BioComp.Core.Cognition.HumanityEngine Humanity { get; } = new();
+    /// <summary>RESPONSE RHYTHM: thinking pauses, strategic silence, multi-turn, delayed processing.</summary>
+    public BioComp.Core.Cognition.ResponseRhythm Rhythm { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -1304,6 +1306,19 @@ public sealed class BrainRuntime : IDisposable
                     Note($"CURIOSITY-PURSUIT it follows up on its own question");
                     AddChat($"Brain: {curiosity}");
                     SpeakWithVoice(curiosity, emoPitch: 2, emoRate: 1, isDirectReply: false);
+                }
+
+                // DELAYED PROCESSING: something you said 30-120 seconds ago
+                // clicks NOW — "Hey, you know what you said about X?"
+                if (Rhythm.ShouldProcessDelayed(_net.TimeMs, _lastUserWords,
+                    _net.TimeMs - _lastUserUtteranceSimMs < 1e9f ? _lastUserUtteranceSimMs : -1e9f,
+                    _net.Rng.NextDouble) && !_replyPending)
+                {
+                    string? delayedLine = $"Hey{_userName is not null ? $" {_userName}" : ""} — you know what you said earlier? I've been chewing on it. {_lastUserWords is { Length: > 30 } lw ? $"\"{Trunc(lw, 40)}...\"" : "it"}. I have thoughts.";
+                    Note($"DELAYED-PROCESSING something clicked 30+ seconds later");
+                    AddChat($"Brain: {delayedLine}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(delayedLine, emoPitch: 1, emoRate: 0, isDirectReply: false);
                 }
             }
 
@@ -3737,9 +3752,33 @@ public sealed class BrainRuntime : IDisposable
             }
         }
 
+        // RESPONSE RHYTHM: the brain is NOT a chatbot — it doesn't always
+        // respond, doesn't always respond instantly, and doesn't always give
+        // just one response. This is the #1 thing that separates a person
+        // from a pattern-matcher.
+        bool shouldRespond = Rhythm.ShouldRespond(text, Humanity.Overwhelm, Affect.Withdrawal,
+            Affect.MoodValence, ThoughtLoop.Current is not null);
+        if (!shouldRespond)
+        {
+            Note($"STRATEGIC-SILENCE read \"{Trunc(text, 30)}\" — chose not to respond (person, not chatbot)");
+            _replyPendingUntilMs = _net.TimeMs + 8_000;   // brief suppression, not full 30s
+            return;
+        }
+
         // ONE response only: the DIRECT reply. While it's being composed,
         // ALL spontaneous speech is suppressed so the user hears the reply.
-        _replyPendingUntilMs = _net.TimeMs + 30_000; // suppress spontaneous speech for 30s (race-free: no timeout task to clear it)
+        _replyPendingUntilMs = _net.TimeMs + 30_000;
+
+        // THINKING PAUSE: the brain doesn't respond instantly — the delay
+        // is proportional to complexity, mood, and whether it was mid-thought.
+        // This alone breaks the chatbot pattern.
+        bool isQuestion = text.Contains('?') || text.ToLower().StartsWith("what") ||
+                          text.ToLower().StartsWith("how") || text.ToLower().StartsWith("why") ||
+                          text.ToLower().StartsWith("do you") || text.ToLower().StartsWith("can you");
+        float pauseMs = Rhythm.ThinkingPause(text, Affect.MoodValence, isQuestion,
+            ThoughtLoop.Current is not null, _net.Rng.NextDouble);
+        if (pauseMs > 500)
+            Note($"THINKING-PAUSE {(int)(pauseMs / 1000)}s before responding (not a chatbot)");
 
         // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
         // signals themselves — no language cortex, no LLM. Every phrase
