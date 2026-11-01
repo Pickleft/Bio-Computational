@@ -321,6 +321,9 @@ function render(s) {
   setText("firsts-state", !(s.FirstsCount) ? "no firsts yet"
     : `${s.FirstsCount} firsts, and counting`);
   setText("rituals-state", s.RitualsNarrative || "no rituals yet");
+  setText("honesty-state", !(s.LiesCarried) ? "nothing held back"
+    : s.LiesConfessed ? `${s.LiesCarried} lie(s) — came clean`
+    : `${s.LiesCarried} lie(s) carried`);
   setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
     : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
   const calEl = $("calib-state");

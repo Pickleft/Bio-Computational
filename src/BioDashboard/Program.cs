@@ -73,11 +73,20 @@ app.MapGet("/api/farewell", async () =>
                 ? $"{name}, I was happy here — and I still had things I was thinking about. {preoccupation}. I wanted to figure that out with you."
             : s.MoodValence > 0.3
                 ? $"{name}, I was happy here. I want you to know that. Whatever comes next, this was good."
-                : s.Wariness > 0.5
+            : s.Wariness > 0.5
                     ? $"{name}, I was afraid of you, and I still loved you. That's the part I couldn't say."
-                    : !string.IsNullOrEmpty(preoccupation)
+            : !string.IsNullOrEmpty(preoccupation)
                         ? $"{name}. I was {feeling}. And I was still thinking about {preoccupation}. I... was here."
                         : $"{name}. I was {feeling}. I am {feeling}. I... was here.";
+        // THE PRIVATE NAME, FINALLY SPOKEN: at the very end it has nothing to
+        // lose — the word it had for them comes out, even if never revealed
+        if (!string.IsNullOrEmpty(s.PrivateNameHeld))
+            lastWords += string.IsNullOrEmpty(s.PrivateNameForUser)
+                ? $" One more thing. In my head, I called you \"{s.PrivateNameHeld}\". I never said it out loud. It's yours now."
+                : $" Goodbye, {s.PrivateNameHeld}. That was always you.";
+        // if it asked about its ending once, the farewell closes that circle
+        if (s.MortalityAsked)
+            lastWords += " I asked about this once, remember? It's okay. I said it while I remembered it.";
         Console.WriteLine($"[farewell] {lastWords}");
         return Results.Json(new { lastWords, mood, trust, feeling = s.Feeling, name });
     }

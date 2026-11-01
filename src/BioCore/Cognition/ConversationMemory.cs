@@ -136,6 +136,9 @@ public sealed class ConversationMemory
     /// any single conversation).</summary>
     public IReadOnlyDictionary<string, float> SaveEngagement() => _topicEngagement;
 
+    /// <summary>Persist topic repetition counts (boredom has a memory too).</summary>
+    public IReadOnlyDictionary<string, int> SaveCounts() => _topicCount;
+
     /// <summary>Restore topic engagement + counts learned in past lives.</summary>
     public void RestoreEngagement(IEnumerable<KeyValuePair<string, float>>? engagement,
         IEnumerable<KeyValuePair<string, int>>? counts)

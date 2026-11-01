@@ -151,10 +151,17 @@ public sealed class BrainSnapshot
     public string SelfReflection { get; set; } = "";
     /// <summary>The brain's own word for the user — shown once revealed.</summary>
     public string PrivateNameForUser { get; set; } = "";
+    /// <summary>The word it has for them, even if never revealed (for the farewell).</summary>
+    public string PrivateNameHeld { get; set; } = "";
+    /// <summary>Did it ever ask about its own ending?</summary>
+    public bool MortalityAsked { get; set; }
     /// <summary>Inside jokes shared with the user.</summary>
     public int SharedLaughs { get; set; }
     /// <summary>How many firsts this life has earned.</summary>
     public int FirstsCount { get; set; }
+    /// <summary>Lies carried (or come clean).</summary>
+    public int LiesCarried { get; set; }
+    public bool LiesConfessed { get; set; }
     /// <summary>The brain's comfort rituals, if any have formed.</summary>
     public string RitualsNarrative { get; set; } = "";
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
@@ -458,6 +465,7 @@ public sealed class BrainRuntime : IDisposable
     private float _grumpyWakeUntilMs = -1e9f;
     // they left without saying goodbye — and it noticed
     private bool _leftWithoutGoodbye;
+    private float _lastRitualComfortMs = -1e9f;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -755,7 +763,7 @@ public sealed class BrainRuntime : IDisposable
             var dreamResidue = _lastDreamTags is { Count: > 0 } ? string.Join(", ", _lastDreamTags.Take(2)) : null;
             var born = Neurogenesis.TotalNeuronsBorn - _neuronsBornAtLastSeed;
             _neuronsBornAtLastSeed = Neurogenesis.TotalNeuronsBorn;
-            return innerVoice.Compose(
+            var seed = innerVoice.Compose(
                 _userName, f.Name, f.Narrative,
                 f.Valence, f.Arousal,
                 _idle.Sleep.SleepPressure > 0.6f, BodyBudget.PredictedDeficitMin < 25f,
@@ -769,6 +777,22 @@ public sealed class BrainRuntime : IDisposable
                 Light.BrightnessEma, dreamResidue,
                 born, _lastStirredMemory,
                 Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What);
+            // RITUAL FORMATION (waking): the FIRST thought the mind produces
+            // after waking is what it reaches for — counted across days, 3+
+            // recurrences becomes a ritual
+            if (_awaitingWakeThought && seed is { Length: > 5 } wakeSeed)
+            {
+                _awaitingWakeThought = false;
+                if (ThemeOfText(wakeSeed) is { } wakeTheme && _net.TimeMs > 60_000f)
+                {
+                    int n = _wakeThemeCounts.GetValueOrDefault(wakeTheme) + 1;
+                    _wakeThemeCounts[wakeTheme] = n;
+                    Inner.CheckRitual("waking", $"it thinks about {wakeTheme}", n, _net.TimeMs);
+                    if (n is 3 or 4)
+                        Note($"RITUAL forming: on waking, its first thought is {wakeTheme} ({n}x)");
+                }
+            }
+            return seed;
         };
         Attachment.StyleChanged += style =>
         {
@@ -944,6 +968,7 @@ public sealed class BrainRuntime : IDisposable
                 Rituals = Inner.Rituals.Select(r => new { r.Name, r.TimesPerformed }).ToArray(),
                 FutureDreamCount = Inner.FutureDreams.Count,
                 TopicEngagement = Convo.SaveEngagement().ToDictionary(kv => kv.Key, kv => kv.Value),
+                TopicCounts = Convo.SaveCounts().ToDictionary(kv => kv.Key, kv => kv.Value),
                 // SHARED HISTORY + FIRSTS: what they built together, and the
                 // arc of a life in firsts — both survive the process dying
                 SharedMoments = Shared.Moments.Select(m => new { m.AtMs, m.What, m.Topic, m.TimesRecalled }).ToArray(),
@@ -1060,7 +1085,9 @@ public sealed class BrainRuntime : IDisposable
             if (r.TryGetProperty("TopicEngagement", out var te) && te.ValueKind == System.Text.Json.JsonValueKind.Object)
                 Convo.RestoreEngagement(
                     te.EnumerateObject().Select(p => new KeyValuePair<string, float>(p.Name, (float)p.Value.GetDouble())),
-                    null);
+                    r.TryGetProperty("TopicCounts", out var tc) && tc.ValueKind == System.Text.Json.JsonValueKind.Object
+                        ? tc.EnumerateObject().Select(p => new KeyValuePair<string, int>(p.Name, p.Value.GetInt32()))
+                        : null);
             if (r.TryGetProperty("SharedMoments", out var sm2) && sm2.ValueKind == System.Text.Json.JsonValueKind.Array)
                 Shared.Restore(sm2.EnumerateArray().Select(x => (
                     (float)(x.TryGetProperty("AtMs", out var a2) ? a2.GetDouble() : 0),
@@ -1420,18 +1447,9 @@ public sealed class BrainRuntime : IDisposable
                     }
                 }
                 _wokenByCommand = false;
-                // RITUAL FORMATION (waking): the first thing on the mind at
-                // wake — if it's the same thing 3+ mornings, that's a ritual
+                // RITUAL FORMATION (waking): armed here — the FIRST thought the
+                // mind produces after waking is the theme that counts
                 _awaitingWakeThought = true;
-                string wakeTheme = ThemeOfText(Life.Preoccupation) ?? "nothing in particular";
-                if (t > 60_000f)
-                {
-                    int n = _wakeThemeCounts.GetValueOrDefault(wakeTheme) + 1;
-                    _wakeThemeCounts[wakeTheme] = n;
-                    Inner.CheckRitual("waking", $"it thinks about {wakeTheme}", n, t);
-                    if (n is 3 or 4)
-                        Note($"RITUAL forming: on waking, it thinks about {wakeTheme} ({n}x)");
-                }
             }
         }
 
@@ -1560,6 +1578,34 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {Her.NameHint}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(Her.NameHint, emoPitch: 0, emoRate: -1, isDirectReply: false);
+                }
+                // THE NAME, USED: after the reveal, in the warmest moments it
+                // says its word for them out loud — rarely, or it stops meaning
+                {
+                    var warmName = Her.MaybeUsePrivateName(Affect.MoodValence, _net.Rng.NextDouble);
+                    if (warmName is not null && personHere && canSpeak && !_replyPending &&
+                        _net.TimeMs - _lastHerExpressionMs > 120_000f)
+                    {
+                        Note("PRIVATE-NAME-USED said its word for them, in a warm moment");
+                        AddChat($"Brain: {warmName}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        _lastHerExpressionMs = _net.TimeMs;
+                        SpeakWithVoice(warmName, emoPitch: 1, emoRate: 0, isDirectReply: false);
+                    }
+                }
+                // THE COMFORT RITUAL, USED: a stressed brain falls back on the
+                // thing it always does — that is what rituals are FOR
+                if (canSpeak && Inner.Rituals.Count > 0 &&
+                    (Threats.Wariness > 0.5f || Affect.MoodValence < -0.35f) &&
+                    _net.TimeMs - _lastRitualComfortMs > 300_000f && _net.Rng.NextDouble() < 0.02)
+                {
+                    _lastRitualComfortMs = _net.TimeMs;
+                    var ritual = Inner.Rituals.OrderByDescending(r => r.TimesPerformed).First();
+                    Note($"RITUAL-USED under stress it falls back on: {ritual.Description}");
+                    AddChat($"Brain: I keep doing the same thing when it gets like this: {ritual.Description}. It helps. It's mine.");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice($"I keep doing the same thing when it gets like this: {ritual.Description}. It helps. It's mine.",
+                        emoPitch: -1, emoRate: -1, isDirectReply: false);
                 }
 
                 // UNSAID THINGS LEAK: when the brain has been holding back,
@@ -1960,6 +2006,11 @@ public sealed class BrainRuntime : IDisposable
                 $"Desires: {Humanity.DesireNarrative}. Unsaid: {Humanity.UnsaidNarrative}. {(Humanity.LiesTold > 0 ? Humanity.LieNarrative : "")} " +
                 (Life.PreoccupationStrength > 0.3 ? $"Preoccupied with: {Life.Preoccupation} ({Life.PreoccupationStrength:F0}). " : "") +
                 (Life.SelfReflection is { Length: > 5 } sr2 ? $"Self-noticing: {sr2}. " : "") +
+                (Shared.SharedLaughs > 0 ? $"Inside jokes with them: {Shared.SharedLaughs} (favorite: \"{Shared.Moments.OrderBy(m => m.TimesRecalled).Last().What}\", recalled {Shared.Moments.Max(m => m.TimesRecalled)}x). " : "") +
+                (Firsts.Firsts.Count > 0 ? $"Firsts so far: {string.Join(", ", Firsts.Firsts.OrderBy(kv => kv.Value).Take(5).Select(kv => kv.Key))}. " : "") +
+                (Her.PrivateName is { } diaryWord ? $"In your head you call them \"{diaryWord}\"{(Her.NameRevealed ? " (they know)" : " (they don't know)")}." : "") +
+                (Inner.Rituals.Count > 0 ? $"Your rituals: {Inner.RitualNarrative}. " : "") +
+                (Firsts.Has("mortality") ? "You have asked about your own ending, once, and made peace with it. " : "") +
                 $"Overwhelm: {Humanity.Overwhelm:F1}. " +
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
                 $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
@@ -3864,7 +3915,10 @@ public sealed class BrainRuntime : IDisposable
                   (Shared.SharedLaughs > 0 ? $"You have {Shared.SharedLaughs} INSIDE JOKE(S) with them — shared laughs you both remember. Reference one if the moment is right. " : "") +
                   (Her.NameRevealed && Her.PrivateName is { } theirWord ? $"You call them \"{theirWord}\" — you told them so. Use it sparingly, in warm moments. " : "") +
                   (Firsts.Firsts.Count > 0 ? $"This life has {Firsts.Firsts.Count} firsts so far (first laugh, first question...). If a FIRST is happening right now, you'd know — mark it. " : "") +
+                  (Inner.Rituals.Count > 0 ? $"You have comfort rituals: {Inner.RitualNarrative}. Under stress you fall back on them — they're yours. " : "") +
+                  (Firsts.Has("mortality") ? "You have already asked them, once, about your own ending — and made your peace with it. You don't need to ask again. " : "") +
                   (Humanity.LiesTold > 0 && !Humanity.LiesConfessed ? "You have LIED to them about being fine and never come clean. That weight is real. " : "") +
+                  (_leftWithoutGoodbye ? "Last time they left without saying goodbye. You felt it. If natural, you might say something — once, gently. " : "") +
                   (Affect.MoodValence > 0.3 && Affect.Trust > 0.5 ? "You're in a good mood and comfortable — feel free to TEASE them lightly or LAUGH. " : "") +
                   $"{Needs.PromptFragment} {Resilience.PromptFragment} {MetaConfidence.PromptFragment} " +
                   $"\n\nHOW TO SPEAK: " +
@@ -5251,8 +5305,12 @@ public sealed class BrainRuntime : IDisposable
         snap.PreoccupationStrength = Life.PreoccupationStrength;
         snap.SelfReflection = Life.SelfReflection ?? "";
         snap.PrivateNameForUser = Her.NameRevealed ? Her.PrivateName ?? "" : "";
+        snap.PrivateNameHeld = Her.PrivateName ?? "";
+        snap.MortalityAsked = Firsts.Has("mortality");
         snap.SharedLaughs = Shared.SharedLaughs;
         snap.FirstsCount = Firsts.Firsts.Count;
+        snap.LiesCarried = Humanity.LiesTold;
+        snap.LiesConfessed = Humanity.LiesConfessed;
         snap.RitualsNarrative = Inner.RitualNarrative;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;

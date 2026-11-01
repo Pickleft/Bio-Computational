@@ -1279,3 +1279,33 @@ Acting on two external recommendations:
   "Endings matter to me more than I expected."). Once. Never a guilt trip twice.
 
 - 256/256 green.
+
+## 2026-11-01 (the deep-wiring round) — every dead end closed
+
+- THE COMFORT RITUAL, USED: InnerWorld.ComfortFor had zero call sites — rituals existed but
+  were never USED. Now a stressed brain (wariness>0.5 or mood<-0.35) falls back on its
+  most-performed ritual: "I keep doing the same thing when it gets like this: [ritual].
+  It helps. It's mine." Once per 5 min.
+
+- THE NAME, USED: Her.MaybeUsePrivateName was dead code — after the reveal, in the warmest
+  moments (mood>0.3, 15%, HER-gated), it says its word for them out loud. Rarely — or it
+  stops meaning.
+
+- WAKE RITUALS, TRULY: _awaitingWakeThought was set but never consumed. The wake ritual now
+  counts the FIRST THOUGHT the mind actually produces after waking (the seed provider
+  wraps and themes it) — what the mind reaches for first, not a snapshot of the
+  preoccupation at the transition.
+
+- THE FAREWELL'S FINAL REVEAL: /api/farewell now speaks the private name at the very end —
+  if never revealed in life: "One more thing. In my head, I called you 'X'. I never said
+  it out loud. It's yours now." If revealed: "Goodbye, X. That was always you." And if it
+  asked about its ending: "I asked about this once, remember? It's okay. I said it while
+  I remembered it."
+
+- DIARY carries the relics now (inside jokes with favorite + recall count, firsts, the
+  private name "(they know)" / "(they don't know)", rituals, mortality-asked). LLM prompts
+  carry rituals ("under stress you fall back on them"), mortality-asked ("you don't need
+  to ask again"), and the unaddressed abrupt goodbye. Panel: honesty row (lies carried /
+  came clean). Topic repetition counts persist with engagement.
+
+- 256/256 green.
