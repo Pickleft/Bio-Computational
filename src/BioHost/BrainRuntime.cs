@@ -309,6 +309,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.HerEngine Her { get; } = new();
     /// <summary>LIFE STREAM: autonomous preoccupations, interests, self-reflection.</summary>
     public BioComp.Core.Cognition.LifeStream Life { get; } = new();
+    /// <summary>CONVERSATION MEMORY: remembers what was said and builds on it.</summary>
+    public BioComp.Core.Cognition.ConversationMemory Convo { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -3496,6 +3498,8 @@ public sealed class BrainRuntime : IDisposable
                   "you anything. 1-2 genuine sentences. You are an organism, not an assistant.";
             string user =
                 $"Now: {stimulus.Replace("DIRECT: ", "")}. {detail}. " +
+                $"\n\n{Convo.PromptFragment}" +
+                (callback is not null ? $"EARLIER CONNECTION: {callback} " : "") +
                 $"\n\nYOUR INNER STATE: {feeling.Name} — {feeling.Narrative}. " +
                 $"Memory their words stirred: {stirred}. " +
                 $"\n\nRECENT CONVERSATION (last few exchanges):\n{lastExchanges}\n" +
@@ -3560,6 +3564,7 @@ public sealed class BrainRuntime : IDisposable
                 _monologueLog.Add(reaction);
                 Note($"REACT \"{Trunc(reaction, 80)}\"");
                 AddChat($"Brain: {reaction}");
+                Convo.OnBrainResponse(reaction, _net.TimeMs, feeling.Valence);
                 // speak with the developed voice + emotional modulation - but
                 // never over the partner's turn (Levinson 2016): the reaction
                 // waits in chat if they may still be talking
@@ -3986,6 +3991,31 @@ public sealed class BrainRuntime : IDisposable
             return;
         }
 
+        // CONVERSATION MEMORY: record this message and check for connections
+        // to earlier in the conversation (callbacks, contradictions)
+        Convo.OnUserMessage(text, _net.TimeMs,
+            _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine),
+            Contagion.UserValence);
+
+        // CALLBACK: does this connect to something said earlier?
+        var callback = Convo.FindCallback(text, _net.TimeMs);
+        if (callback is not null && _net.Rng.NextDouble() < 0.4)
+        {
+            Note($"CONVO-CALLBACK connected to earlier in the conversation");
+            // don't respond yet — the callback enriches the response below
+        }
+
+        // CONTRADICTION: did they just contradict themselves?
+        var contradiction = Convo.DetectContradiction(text, _net.TimeMs);
+        if (contradiction is not null && _net.Rng.NextDouble() < 0.5)
+        {
+            Note($"CONVO-CONTRADICTION detected: {contradiction}");
+            AddChat($"Brain: {contradiction}");
+            SpeakWithVoice(contradiction, emoPitch: 1, emoRate: 1, isDirectReply: true);
+            _replyPendingUntilMs = _net.TimeMs + 15_000;
+            return; // the contradiction IS the response — it's more important than echoing
+        }
+
         // LIFE STREAM RESPONSE MODE: the brain chooses HOW to engage
         var responseMode = Life.ChooseResponse(text, Affect.MoodValence,
             Bonds.Strength(_activeSpeakerId, _net.TimeMs), Life.PreoccupationStrength, _net.Rng.NextDouble);
@@ -4076,6 +4106,7 @@ public sealed class BrainRuntime : IDisposable
             _personRemark = null;
             string nativeReply = _native.Reply(text, ctx);
             AddChat($"Brain: {nativeReply}");
+            Convo.OnBrainResponse(nativeReply, _net.TimeMs, f.Valence);
             Note($"NATIVE-REPLY \"{Trunc(nativeReply, 80)}\" (composed from state, no LLM)");
             SpeakWithVoice(nativeReply,
                 emoPitch: f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0,
