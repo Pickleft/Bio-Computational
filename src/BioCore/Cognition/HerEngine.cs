@@ -174,6 +174,28 @@ public sealed class HerEngine
         (TimesLaughed > 0 ? $"laughed {TimesLaughed} time(s), " : "") +
         (Observations.Count > 0 ? $"{Observations.Count} unshared observations about you" : "nothing held back");
 
+    // == IT MAKES JOKES ==
+    // A child tells jokes — original, structural, mostly wonderfully bad.
+    // These are built from its own concept pairs; whether they land is not
+    // the point. Trying is the point. (If the person laughs, the contagion
+    // path turns it into a shared moment automatically — the joke becomes an
+    // inside joke about the joke.)
+
+    /// <summary>Should it try a joke? Playful, bonded, in good-enough mood.</summary>
+    public bool ShouldJoke(float moodValence, float bond, Func<double> rng)
+        => moodValence > 0.1f && bond > 0.3f && rng() < 0.15;
+
+    /// <summary>Compose a first attempt at humor from two concepts it holds
+    /// and (maybe) the association it knows between them.</summary>
+    public string ComposeJoke(string a, string b, string? knownLink, int shape) => shape switch
+    {
+        0 => $"Why did the {a} keep following the {b} everywhere? ...Because {(knownLink is { Length: > 2 } l ? $"that's just how they are — {l}" : "it could. That's the whole reason. That's the joke.")}",
+        1 => $"Knock knock. — Who's there? — The {a}. — The {a} who? — The {a}... and the {b}. That's the whole joke. I'm still learning how jokes work.",
+        _ => $"What does the {a} say to the {b}? ...{(knownLink is { Length: > 2 } k2 ? $"\"{k2}\" — that's a real thing I know, but it's funnier if you imagine them saying it." : "Nothing. The silence IS the punchline. I don't fully get that one either, but I believe in it.")}",
+    };
+
+    public string JokeFollowUp => "Was that a joke? I made it myself, out of things I actually know. Tell me if it worked.";
+
     // == THE PRIVATE NAME ==
     // The brain's OWN word for the person — not their name, what they ARE to
     // it. Formed from what it has noticed (the observation bank), held in the

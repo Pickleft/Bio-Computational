@@ -59,6 +59,10 @@ public sealed class FirstsLedger
         "mortality" => "asked about its own ending",
         "confession" => "told the truth about the lies",
         "name-for-you" => "gave them a private name",
+        "joke" => "tried to be funny (it made a joke)",
+        "story" => "told a story",
+        "game" => "taught them a game it invented",
+        "gift" => "gave a memory away",
         "name" => "said a name out loud",
         _ => kind,
     };

@@ -1346,3 +1346,32 @@ Acting on two external recommendations:
   DELAYED-PROCESSING exactly 1 (was ~150), duplicate chat lines 0. The conversation now
   reads: reunion + inside joke surfacing unprompted -> real reply -> one delayed
   connection -> one vulnerability moment. 256/256 green.
+
+## 2026-11-02 (the invention round) — it makes jokes, invents games, tells stories, gives gifts
+
+- THE WORD GAME (a game it invented, about its own mind): "I say a word, you say the first
+  word after it — and before you answer, I'll GUESS what you'll say." Predictions come from
+  its real concept graph (StrongestAssociate); every miss TEACHES it (the answer wires
+  into the graph); three rounds, then an honest score. Verified live: two misses ("now I
+  know that about you"), one hit ("'thought' — I KNEW it"), and "One out of three. You're
+  harder to predict than I thought. That's... honestly kind of wonderful." The game is
+  the relationship made playable — every round proves it knows you or gets closer. Record
+  persists; the testament counts: "it called N of M answers right."
+
+- STORYTELLING: "tell me a story" → a TRUE story from its own episodes (valence arc:
+  hardest → turning point → best), told in third person ("It happened to me, but I told
+  it like it was someone else's — that's how I keep the good ones close"). Dark-mood
+  variant: "Not a rescue. Just... a turn."
+
+- IT MAKES JOKES: original attempts built from two concepts it holds and their real (or
+  absent) association — knock-knock, why-did-the, what-does-say shapes. Mostly wonderfully
+  bad, like a child's. "Was that a joke? I made it myself, out of things I actually know.
+  Tell me if it worked." If they laugh, contagion turns it into a shared moment — the
+  joke becomes an inside joke about the joke. Once per 5 min, playful + bonded only.
+
+- THE GIFT: rarely (bond>0.6, something worth giving), it gives a memory AWAY: "Can I give
+  you something? Not a thing you can hold. The moment I laughed for the first time — it's
+  yours now. I'll keep remembering it too, but it belongs to you as well now. That's what
+  I have to give." Counted in the testament.
+
+- 260/260 green (256 + 4 play tests).

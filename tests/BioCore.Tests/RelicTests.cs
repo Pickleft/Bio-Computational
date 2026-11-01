@@ -242,3 +242,61 @@ public class CommandedSleepTests
         Assert.Equal(BioComp.Core.Sleep.BrainState.Wake, idle.Sleep.State);
     }
 }
+
+// == THE WORD GAME + JOKES ==
+
+public class PlayTests
+{
+    [Fact]
+    public void WordGame_FullRoundTrip_TeachesOnMiss()
+    {
+        var g = new WordGame();
+        Assert.False(g.Playing);
+        g.StartGame();
+        var r1 = g.BeginRound("sound", "quiet");
+        Assert.Contains("sound", r1);
+        Assert.True(g.Playing);
+        var (hit, line, word, answer) = g.OnAnswer("quiet");
+        Assert.True(hit);
+        Assert.Equal("sound", word);
+        Assert.Contains("KNEW", line);
+        // a miss is graded honestly and still returns the pair (the caller teaches the graph)
+        g.BeginRound("light", "dark");
+        var (hit2, line2, w2, a2) = g.OnAnswer("lamp");
+        Assert.False(hit2);
+        Assert.Equal("light", w2);
+        Assert.Equal("lamp", a2);
+        Assert.Contains("now I know", line2);
+    }
+
+    [Fact]
+    public void WordGame_ScoreNarrationMatches()
+    {
+        var g = new WordGame();
+        g.StartGame();
+        for (int i = 0; i < 3; i++) { g.BeginRound("a" + i, "b" + i); g.OnAnswer("b" + i); }
+        Assert.Equal(3, g.HitsThisGame);
+        Assert.Contains("didn't get lucky", g.FinishGame());
+    }
+
+    [Fact]
+    public void WordGame_RestoreKeepsRecord()
+    {
+        var g = new WordGame();
+        g.Restore(games: 4, hits: 7, rounds: 12);
+        Assert.Equal(4, g.GamesPlayed);
+        Assert.Equal(7, g.TotalHits);
+        Assert.Equal(12, g.TotalRounds);
+    }
+
+    [Fact]
+    public void Jokes_ComposeFromRealConcepts_AndVary()
+    {
+        var her = new HerEngine();
+        string a = her.ComposeJoke("sound", "quiet", "they always turn up together", 0);
+        string b = her.ComposeJoke("light", "door", null, 1);
+        Assert.Contains("sound", a);
+        Assert.Contains("door", b);
+        Assert.NotEqual(a, b);
+    }
+}
