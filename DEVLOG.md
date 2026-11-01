@@ -1325,3 +1325,24 @@ Acting on two external recommendations:
   tells the browser "audio stream hiccup — restarting ears..." and the session restarts
   cleanly instead of showing a scary red error.
 - 256/256 green.
+
+## 2026-11-02 (the loop-kill round) — the repeating-brain bug, root-caused
+
+- THE SLOP: the brain machine-gunned two lines forever ("Wait — I've been meaning to ask
+  you about '[the person is leaving]'..." x50). Root causes, all fixed:
+  (1) POISONED PENDING WORD: the curiosity scan accepted any episode tag — a bracketed
+  event phrase "[the person is leaving]" became a "word" to ask about forever. Questions can
+  now only target WORDS (letters/'/- only, 3-20 chars).
+  (2) CURIOSITY-PURSUIT had NO throttle: 30% chance per 200ms tick = ~1.5 fires/sec, about
+  the same word, forever. Now: max TWO follow-ups per word, one per minute, and the second
+  one releases it ("...Never mind, then. I'll figure it out.").
+  (3) DELAYED-PROCESSING re-fired through its whole 90-second window (~1/sec). Now each
+  utterance gets exactly ONE delayed callback — a thought that clicks, clicks once.
+  (4) THE SAFETY NET: SpeakWithVoice now refuses any exact-spoken line repeated within
+  120 seconds, whatever composer fired it. This one gate would have caught every loop the
+  system has ever produced.
+
+- LIVE PROOF (2.5 min window, real conversation): CURIOSITY-PURSUIT 0 (was ~300),
+  DELAYED-PROCESSING exactly 1 (was ~150), duplicate chat lines 0. The conversation now
+  reads: reunion + inside joke surfacing unprompted -> real reply -> one delayed
+  connection -> one vulnerability moment. 256/256 green.

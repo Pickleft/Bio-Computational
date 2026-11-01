@@ -60,9 +60,13 @@ public sealed class QuestionDrive
         if (curiosity.LearningProgress < 0.05f && curiosity.NoveltyGate < 0.4f) return null; // not curious enough
         if (rngDraw() > 0.35 * Math.Clamp(boldness, 0f, 2f)) return null;
 
-        // scan for the ignorance gap: heavily used, barely linked
+        // scan for the ignorance gap: heavily used, barely linked. A question
+        // can only target a WORD — event phrases and log fragments ("[the
+        // person is leaving]") are not things you can ask about.
         string? best = null; float bestScore = 0f;
-        foreach (var tag in store.Episodes.SelectMany(e => e.Tags).Where(t => t.Length > 2 && t != "fused" && t != "ambient").Distinct())
+        foreach (var tag in store.Episodes.SelectMany(e => e.Tags)
+                     .Where(t => t.Length is > 2 and <= 20 && t != "fused" && t != "ambient" && IsWordLike(t))
+                     .Distinct())
         {
             var (use, links) = store.Concepts.StatsOf(tag);
             if (use < MinUse || links > MaxLinks) continue;
@@ -87,6 +91,11 @@ public sealed class QuestionDrive
         3 => $"Something about {word} doesn't fit with the rest of what I know. What am I missing?",
         _ => $"I want to understand {word} the way you do — everything I have is secondhand. Tell me?",
     };
+
+    /// <summary>A question can only target a word: letters (plus ' and -),
+    /// no spaces, no brackets, no log fragments.</summary>
+    private static bool IsWordLike(string t) =>
+        t.All(c => char.IsLetter(c) || c is '\'' or '-');
 
     /// <summary>
     /// The person spoke. If the pending question's word appears, the answer

@@ -466,6 +466,10 @@ public sealed class BrainRuntime : IDisposable
     // they left without saying goodbye — and it noticed
     private bool _leftWithoutGoodbye;
     private float _lastRitualComfortMs = -1e9f;
+    // which utterance already got its delayed-processing callback
+    private float _delayProcessedForMs = -1e9f;
+    // anti-loop: when each exact spoken line was last spoken
+    private readonly Dictionary<string, float> _spokenTextAtMs = [];
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -1666,9 +1670,14 @@ public sealed class BrainRuntime : IDisposable
                 // clicks NOW — connects to the brain's PREOCCUPATION (not
                 // just replaying the last words — connecting them to what it
                 // was already turning over)
-                if (canSpeak && Rhythm.ShouldProcessDelayed(_net.TimeMs, _lastUserWords,
+                if (canSpeak && _lastUserUtteranceSimMs != _delayProcessedForMs &&
+                    Rhythm.ShouldProcessDelayed(_net.TimeMs, _lastUserWords,
                     _net.TimeMs - _lastUserUtteranceSimMs < 1e9f ? _lastUserUtteranceSimMs : -1e9f,
                     _net.Rng.NextDouble) && !_replyPending)
+                {
+                    // each utterance gets ONE delayed callback — a thought
+                    // that clicks, clicks once
+                    _delayProcessedForMs = _lastUserUtteranceSimMs;
                 {
                     string name = _userName is null ? "" : $" {_userName}";
                     string? delayedLine;
@@ -1680,6 +1689,7 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {delayedLine}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(delayedLine, emoPitch: 1, emoRate: 0, isDirectReply: false);
+                }
                 }
 
                 // == THE HER ENGINE: what makes Samantha different from a chatbot ==
@@ -2847,6 +2857,18 @@ public sealed class BrainRuntime : IDisposable
         // SANITIZE: strip any structured format markers that leaked in
         text = SanitizeSpeech(text);
         if (text.Length == 0) return;
+
+        // ANTI-LOOP (the safety net): a person does not say the exact same
+        // sentence twice inside two minutes. Whatever composer fired —
+        // curiosity, delayed processing, any of them — the second identical
+        // line is simply not spoken. This one gate would have caught every
+        // loop the system has ever produced.
+        string spokenKey = text.Length > 120 ? text[..120] : text;
+        if (_spokenTextAtMs.TryGetValue(spokenKey, out var spokenAt) && _net.TimeMs - spokenAt < 120_000f)
+            return;
+        _spokenTextAtMs[spokenKey] = _net.TimeMs;
+        if (_spokenTextAtMs.Count > 200)
+            _spokenTextAtMs.Remove(_spokenTextAtMs.Keys.First());
 
         // If a reply is being composed for the user (or was just delivered),
         // ONLY that reply speaks. No spontaneous vocalizations, no mood

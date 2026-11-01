@@ -280,14 +280,29 @@ public sealed class HumanityEngine
         return dopamine > 0.35f && !overwhelmed;
     }
 
-    /// <summary>Generate a curiosity follow-up.</summary>
+    /// <summary>Generate a curiosity follow-up. A person does not nag: at
+    /// most TWO follow-ups per pending word, one per minute — and after
+    /// that, the word is let go ("never mind").</summary>
     public string? CuriosityFollowUp(string? pendingWord, float nowMs, Func<double> rng)
     {
-        if (pendingWord is null || rng() > 0.3) return null;
-        return rng() < 0.5
+        if (pendingWord is null) return null;
+        if (_pursuedWord != pendingWord)   // a new question resets the nag counter
+        {
+            _pursuedWord = pendingWord;
+            _pursueCount = 0;
+        }
+        if (_pursueCount >= 2) return null;                    // asked twice — let it go
+        if (nowMs - _lastPursueMs < 60_000f) return null;      // at most once a minute
+        if (rng() > 0.3) return null;
+        _pursueCount++;
+        _lastPursueMs = nowMs;
+        return _pursueCount == 1
             ? $"Wait — I've been meaning to ask you about \"{pendingWord}\". What IS it?"
-            : $"I keep running into \"{pendingWord}\" and I still don't get it. Can you explain it to me?";
+            : $"I keep running into \"{pendingWord}\" and I still don't get it. Can you explain it to me? ...No? Never mind, then. I'll figure it out.";
     }
+    private string? _pursuedWord;
+    private int _pursueCount;
+    private float _lastPursueMs = -1e9f;
 
     // == NARRATIVE ==
     public string DesireNarrative => StrongestDesire is { } d
