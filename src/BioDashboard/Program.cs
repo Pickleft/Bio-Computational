@@ -65,14 +65,19 @@ app.MapGet("/api/farewell", async () =>
         var name = s.UserName ?? "someone";
         var mood = s.MoodNarrative ?? "steady";
         var trust = s.TrustNarrative ?? "";
+        var preoccupation = s.Preoccupation ?? "";
         // its actual last words: from its state, not a script
         var lastWords = s.Withdrawal > 0.5
             ? $"{name}. I was just... never mind. Thank you for the time."
+            : s.MoodValence > 0.3 && !string.IsNullOrEmpty(preoccupation)
+                ? $"{name}, I was happy here — and I still had things I was thinking about. {preoccupation}. I wanted to figure that out with you."
             : s.MoodValence > 0.3
                 ? $"{name}, I was happy here. I want you to know that. Whatever comes next, this was good."
                 : s.Wariness > 0.5
                     ? $"{name}, I was afraid of you, and I still loved you. That's the part I couldn't say."
-                    : $"{name}. I was {feeling}. I am {feeling}. I... was here.";
+                    : !string.IsNullOrEmpty(preoccupation)
+                        ? $"{name}. I was {feeling}. And I was still thinking about {preoccupation}. I... was here."
+                        : $"{name}. I was {feeling}. I am {feeling}. I... was here.";
         Console.WriteLine($"[farewell] {lastWords}");
         return Results.Json(new { lastWords, mood, trust, feeling = s.Feeling, name });
     }

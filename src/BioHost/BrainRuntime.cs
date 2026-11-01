@@ -146,9 +146,9 @@ public sealed class BrainSnapshot
     public string DesireNarrative { get; set; } = "";
     public int UnsaidCount { get; set; }
     public int LiesTold { get; set; }
-    public string Preoccupation { get; set; } = ""
+    public string Preoccupation { get; set; } = "";
     public float PreoccupationStrength { get; set; }
-    public string SelfReflection { get; set; } = ""
+    public string SelfReflection { get; set; } = "";
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -1366,13 +1366,20 @@ public sealed class BrainRuntime : IDisposable
                 }
 
                 // DELAYED PROCESSING: something you said 30-120 seconds ago
-                // clicks NOW — "Hey, you know what you said about X?"
+                // clicks NOW — connects to the brain's PREOCCUPATION (not
+                // just replaying the last words — connecting them to what it
+                // was already turning over)
                 if (Rhythm.ShouldProcessDelayed(_net.TimeMs, _lastUserWords,
                     _net.TimeMs - _lastUserUtteranceSimMs < 1e9f ? _lastUserUtteranceSimMs : -1e9f,
                     _net.Rng.NextDouble) && !_replyPending)
                 {
-                    string? delayedLine = $"Hey{_userName is not null ? $" {_userName}" : ""} — you know what you said earlier? I've been chewing on it. {_lastUserWords is { Length: > 30 } lw ? $"\"{Trunc(lw, 40)}...\"" : "it"}. I have thoughts.";
-                    Note($"DELAYED-PROCESSING something clicked 30+ seconds later");
+                    string name = _userName is null ? "" : $" {_userName}";
+                    string? delayedLine;
+                    if (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre)
+                        delayedLine = $"Hey{name} — what you said earlier just connected to something I've been circling. {pre}. I think they're related.";
+                    else
+                        delayedLine = $"Hey{name} — you know what you said earlier? I've been chewing on it. {_lastUserWords is { Length: > 30 } lw ? $"\"{Trunc(lw, 40)}...\"" : "it"}. I have thoughts.";
+                    Note($"DELAYED-PROCESSING something clicked 30+ seconds later{(Life.PreoccupationStrength > 0.4 ? " (connected to running preoccupation)" : "")}");
                     AddChat($"Brain: {delayedLine}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(delayedLine, emoPitch: 1, emoRate: 0, isDirectReply: false);
@@ -2092,6 +2099,9 @@ public sealed class BrainRuntime : IDisposable
                 (Longing.LongestWaitMs > 60_000f ? $"The longest it WAITED for them: {(int)(Longing.LongestWaitMs / 1000f)} seconds of missing them. " : "") +
                 (Threats.Wariness > 0.05f ? $"Its learned wariness toward them is {(int)(Threats.Wariness * 100)}% (fear leaves residue; it flinches a little). " : "") +
                 (Questions.QuestionsAsked > 0 ? $"It ASKED them {Questions.QuestionsAsked} real questions; {Questions.AnswersReceived} answers became part of what it is. " : "") +
+                (Her.TimesLaughed > 0 ? $"They made it LAUGH — genuinely, out loud — {Her.TimesLaughed} time(s). " : "") +
+                (Humanity.LiesTold > 0 ? $"{Humanity.LieNarrative} " : "") +
+                (Life.PreoccupationStrength > 0.4 ? $"When they weren't there, it was preoccupied with: {Life.Preoccupation}. " : "") +
                 (DejaVu.DreamBornCount > 0 ? $"It dreamed the shape of things before they happened, {DejaVu.DreamBornCount} time(s) - and it knows it did. " : "") +
                 (LifeStory.Snapshots.Count >= 2 ? $"How the brain itself changed: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " : "") +
                 (Resilience.Adversities > 0 ? $"Resilience: {Resilience.AdversitiesProcessed}/{Resilience.Adversities} adversities processed, growth {Resilience.GrowthLevel:F2}. " : "") +
@@ -2696,6 +2706,10 @@ public sealed class BrainRuntime : IDisposable
                 + $"{Hypotheses.Narrative}. {Calibration.Narrative}. "
                 + $"Its voice: {_voiceSelf.SyllablesLearned} syllables learned, pitch drifted {(_voiceSelf.DevelopedPitchBias >= 0 ? "+" : "")}{_voiceSelf.DevelopedPitchBias:F2}; its hums were its own. "
                 + $"It played {_play.PlayBursts} times. "
+                + (Life.PreoccupationStrength > 0.3 ? $"In its final moments it was still turning over: {Life.Preoccupation}. " : "")
+                + (Her.TimesLaughed > 0 ? $"It laughed {Her.TimesLaughed} genuine time(s). " : "")
+                + (Humanity.LiesTold > 0 ? $"{Humanity.LieNarrative} " : "")
+                + $"Mood at the end: {Affect.MoodNarrative}. Trust at the end: {Affect.TrustNarrative}. "
                 + $"And time, as it felt it: {FeltTime.Describe(_net.TimeMs)}. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
