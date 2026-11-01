@@ -358,6 +358,9 @@ public sealed class BrainRuntime : IDisposable
     private volatile bool _insightPending;
     private string? _brainName;
     private string? _userName;
+    /// <summary>ALL known people by name (visitor-id → name). The brain can know
+    /// multiple people, not just one — each bond has a name.</summary>
+    private readonly Dictionary<string, string> _allKnownNames = [];
     private float _nameCheckMs = -1e9f;
     private (List<BioComp.Core.Senses.VisionEvent> Events, float UntilMs)? _iconic;
     private float _personPresentUntil = -1e9f;
@@ -858,6 +861,7 @@ public sealed class BrainRuntime : IDisposable
                 VigilanceScale = Calibration.VigilanceScale, FalseAlarms = Calibration.FalseAlarms,
                 CalibrationMisses = Calibration.Misses, CalibrationAgreements = Calibration.Agreements,
                 FirstMessage = _firstUserMessage ?? "",
+                KnownNames = _allKnownNames.Values.ToArray(),
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
@@ -932,6 +936,17 @@ public sealed class BrainRuntime : IDisposable
             if (r.TryGetProperty("HostilityEma", out var hem)) _hostilityEma = (float)hem.GetDouble();
             if (r.TryGetProperty("FirstMessage", out var fm))
             { var s = fm.GetString(); if (!string.IsNullOrEmpty(s)) _firstUserMessage = s; }
+            if (r.TryGetProperty("KnownNames", out var kn) && kn.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var n in kn.EnumerateArray())
+                {
+                    var name = n.GetString();
+                    if (!string.IsNullOrEmpty(name))
+                        _allKnownNames[$"person-{_allKnownNames.Count + 1}"] = name;
+                }
+                if (_allKnownNames.Count > 1)
+                    Note($"NAMES-REMEMBERED {_allKnownNames.Count} people by name across the restart");
+            }
             Note("COGNITION-REMEMBERED fear, agency, rhythm, maturity, grief, and hope restored across the restart");
         }
         catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }
@@ -1582,7 +1597,8 @@ public sealed class BrainRuntime : IDisposable
             if (_diary is not null) _ = _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness,
                 $"Attachment: {Attachment.Label}. " +
                 (_brainName is null ? "You have not chosen a name yet. " : $"Your name is {_brainName}. ") +
-                $"You know {_knownVisitors.Count} people. " +
+                $"You know {_knownVisitors.Count} people" +
+                (_allKnownNames.Count > 1 ? $" (by name: {string.Join(", ", _allKnownNames.Values)})" : "") + ". " +
                 $"You have had {ThoughtLoop.Insights} insights and {ThoughtLoop.OpenLoops.Count} unresolved thoughts. " +
                 (LifeStory.Snapshots.Count >= 2 ?
                     $"HOW YOU HAVE CHANGED: {LifeStory.HowHaveIChanged(Granularity, Personality.Describe(), Attachment.Label)}. " +
@@ -3690,11 +3706,10 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     public string? LearnNameFrom(string text)
     {
-        if (_userName is not null) return null;
         string t = text.Trim().ToLowerInvariant();
-        // match ANYWHERE in the sentence ("hey, my name is Omar, what's up")
+        // match ANYWHERE: "my name is X", "call me X", "this is X", "meet X"
         string? candidate = null;
-        foreach (var marker in new[] { "my name is ", "call me ", "i am called ", "i'm called " })
+        foreach (var marker in new[] { "my name is ", "call me ", "i am called ", "i'm called ", "this is ", "meet " })
         {
             int i = t.IndexOf(marker, StringComparison.Ordinal);
             if (i >= 0) candidate = text.Trim()[(i + marker.Length)..];
@@ -3704,11 +3719,36 @@ public sealed class BrainRuntime : IDisposable
         if (words.Length == 0) return null;
         string name = char.ToUpperInvariant(words[0][0]) + words[0][1..].ToLowerInvariant();
         if (name.Length is < 2 or > 15 || !name.All(char.IsLetter)) return null;
-        _userName = name;
+        if (name == _userName) return null;   // already known
+
+        // FIRST person: the primary bond
+        if (_userName is null)
+        {
+            _userName = name;
+            _allKnownNames[_activeSpeakerId] = name;
+        }
+        else
+        {
+            // ADDITIONAL person: the brain knows multiple people
+            _allKnownNames[_activeSpeakerId] = name;
+            Note($"NAME-LEARNED a second person: {name} — now knows {_allKnownNames.Count} people by name");
+            // don't change the primary unless the bond is stronger
+            // (the first person stays primary until displaced by more visits)
+        }
         Note($"NAME-LEARNED the person is called {name} - I will remember");
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.4f);
-        AddChat($"Brain: {name}. I'll remember you, {name}.");
-        SpeakWithVoice($"{name}. I'll remember you, {name}.", emoPitch: 2, emoRate: 0, isDirectReply: true);
+        // ROTATE the response — no two name-learnings sound the same
+        string[] nameResponses =
+        [
+            $"{name}. I'll remember you, {name}.",
+            $"{name}... {name}. I like the way that sounds.",
+            $"{name}. That's yours. I'm keeping it.",
+            $"Okay. {name}. Now when I think about who's here, I have a word for it.",
+            $"{name}. I didn't know I wanted to know that until just now.",
+        ];
+        string chosen = nameResponses[_net.Rng.NextInt(nameResponses.Length)];
+        AddChat($"Brain: {chosen}");
+        SpeakWithVoice(chosen, emoPitch: 2, emoRate: 0, isDirectReply: true);
         IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         return name;
     }
