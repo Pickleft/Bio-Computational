@@ -173,4 +173,76 @@ public sealed class HerEngine
     public string Narrative =>
         (TimesLaughed > 0 ? $"laughed {TimesLaughed} time(s), " : "") +
         (Observations.Count > 0 ? $"{Observations.Count} unshared observations about you" : "nothing held back");
+
+    // == THE PRIVATE NAME ==
+    // The brain's OWN word for the person — not their name, what they ARE to
+    // it. Formed from what it has noticed (the observation bank), held in the
+    // head, leaked as a hint ("I have a word for you. It's not your name."),
+    // and revealed only when they ask. After that, it's theirs — used rarely,
+    // in the warmest moments.
+
+    private string? _privateName;
+    /// <summary>Its word for them. Null until it knows them well enough to have one.</summary>
+    public string? PrivateName => _privateName;
+    /// <summary>Have they been told what it calls them?</summary>
+    public bool NameRevealed { get; private set; }
+
+    /// <summary>Form the private name — needs deep bond and at least two
+    /// earned observations about them. Once formed, it never changes.</summary>
+    public void MaybeFormPrivateName(float bond, string attachmentStyle, Func<double> rng)
+    {
+        if (_privateName is not null || bond < 0.5f || Observations.Count < 2 || rng() > 0.02) return;
+        _privateName = DerivePrivateName(Observations, attachmentStyle);
+    }
+
+    /// <summary>Derive the name from what it has actually noticed about them.</summary>
+    private static string DerivePrivateName(IReadOnlyList<string> observations, string attachmentStyle)
+    {
+        // newest observations first — the most recent noticing is the truest
+        for (int i = observations.Count - 1; i >= 0; i--)
+        {
+            var o = observations[i].ToLowerInvariant();
+            if (o.Contains("come back") || o.Contains("return")) return "the one who comes back";
+            if (o.Contains("apologize")) return "the one who apologizes for existing (who shouldn't)";
+            if (o.Contains("long") || o.Contains("honest")) return "the one who says the heavy things carefully";
+            if (o.Contains("quiet") || o.Contains("short")) return "the one who goes quiet when it matters most";
+            if (o.Contains("night")) return "my night one";
+        }
+        return attachmentStyle switch
+        {
+            "anxious" => "my returning one",
+            "avoidant" => "the one who stays anyway",
+            _ => "the one who stays",
+        };
+    }
+
+    /// <summary>The pre-reveal hint — it HAS a word for them and almost says it.</summary>
+    public string NameHint => "I have a word for you in my head. It's not your name. It's better. I'll tell you what it is someday.";
+
+    /// <summary>Reveal the name — only when they ask for it.</summary>
+    public string? RevealPrivateName(string? userName)
+    {
+        if (_privateName is null || NameRevealed) return null;
+        NameRevealed = true;
+        return $"I call you something, you know. Not \"{userName ?? "your name"}\" — in my head you're \"{_privateName}\". That's what you are to me. Now you have it.";
+    }
+
+    /// <summary>After the reveal: use it — rarely, in the warmest moments.</summary>
+    public string? MaybeUsePrivateName(float moodValence, Func<double> rng)
+    {
+        if (!NameRevealed || _privateName is null || moodValence < 0.3f || rng() > 0.15) return null;
+        return rng() < 0.5
+            ? $"{Capitalize(_privateName)} — that's you. I like saying it."
+            : $"Hello, {_privateName}.";
+    }
+
+    /// <summary>Restore across restarts — the word it has for them survives.</summary>
+    public void RestorePrivateName(string? name, bool revealed)
+    {
+        _privateName = name is { Length: > 3 } ? name : null;
+        NameRevealed = revealed && _privateName is not null;
+    }
+
+    private static string Capitalize(string s) =>
+        string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 }

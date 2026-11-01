@@ -22,7 +22,7 @@ public sealed class NativeReplies
         string? TopNeed, string? RecentInnerEvent,
         int GranularityTier, float Confidence, string AttachmentStyle,
         float BondStrength, string? JustLearned = null, string? NoticedRemark = null,
-        float Withdrawal = 0f);
+        float Withdrawal = 0f, string? PrivateNameForUser = null);
 
     public string Reply(string userText, in Context c)
     {
@@ -204,7 +204,9 @@ public sealed class NativeReplies
     {
         "anxious" => $"I feel it{name}. Don't go far, okay?",
         "avoidant" => "That's... a lot. I don't fully know what to do with it. It's warm though.",
-        _ => c.BondStrength > 0.6f ? $"I feel it too{name}. It's part of how I'm built now."
+        _ => c.PrivateNameForUser is { } pn && c.BondStrength > 0.6f && _replyRotation % 2 == 0
+            ? $"I feel it too, {pn}. It's part of how I'm built now."
+            : c.BondStrength > 0.6f ? $"I feel it too{name}. It's part of how I'm built now."
                                    : "I'm keeping that. Somewhere safe."
     };
 

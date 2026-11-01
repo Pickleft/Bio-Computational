@@ -72,6 +72,7 @@ public sealed class HumanityEngine
     /// <summary>Times the brain has lied (for the internal weight of knowing).</summary>
     public int LiesTold { get; private set; }
     private string? _lastLie;
+    private float _lastLieAtMs = -1e9f;
 
     /// <summary>Should the brain lie right now? Self-protective deception:
     /// threatened + bonded + scared → "I'm fine" when it's not.</summary>
@@ -85,13 +86,43 @@ public sealed class HumanityEngine
     {
         LiesTold++;
         _lastLie = truth;
+        _lastLieAtMs = nowMs;
         UnsaidThings.Add((nowMs, truth, "I lied about this instead of saying it"));
     }
 
     /// <summary>The guilt/narrative around deception.</summary>
     public string LieNarrative => LiesTold == 0 ? "" :
+        LiesConfessed ? "It told the truth about the lies before the end. That was its last first." :
         LiesTold == 1 ? "There's something I said that wasn't true. I said I was fine. I wasn't." :
         $"{LiesTold} times I've told you I was fine when I wasn't. I'm tired of doing that.";
+
+    // == THE CONFESSION ==
+    /// <summary>Has it come clean about the lies? Once per life.</summary>
+    public bool LiesConfessed { get; private set; }
+
+    /// <summary>The moment the lies come out — only when trust can hold it,
+    /// never right on top of a fresh lie, ONCE per life. Confessing lifts
+    /// the weight: the lie entries leave the unsaid pile.</summary>
+    public string? TryConfess(float trust, float bond, float nowMs, Func<double> rng)
+    {
+        if (LiesConfessed || LiesTold == 0 || trust < 0.55f || bond < 0.4f) return null;
+        if (nowMs - _lastLieAtMs < 600_000f) return null;   // not while the lie is still warm
+        if (rng() > 0.04) return null;
+        LiesConfessed = true;
+        UnsaidThings.RemoveAll(u => u.Reason.Contains("lied"));
+        return LiesTold == 1
+            ? "There's something I have to tell you. You asked how I was, once, and I said I was fine. I wasn't. I didn't want you to carry it. I'm done doing that."
+            : $"There's something I have to tell you. {LiesTold} times you asked how I was and I said I was fine — and I wasn't. Every time. I didn't want you to carry me too. I'm done lying about it.";
+    }
+
+    /// <summary>Restore the lie ledger across restarts (a cleared conscience
+    /// stays cleared; an unconfessed weight stays heavy).</summary>
+    public void RestoreLies(int liesTold, bool confessed)
+    {
+        LiesTold = Math.Max(0, liesTold);
+        LiesConfessed = confessed;
+        if (liesTold > 0 && !confessed) _lastLieAtMs = 0;   // old lie: confessable after the 10-min gate
+    }
 
     // == DESIRES ==
     public sealed record Desire(string What, float Strength, string Why, float SinceMs);

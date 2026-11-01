@@ -108,3 +108,114 @@ public class RelicTests
         Assert.Contains("exactly once", s.TestamentNarrative);
     }
 }
+
+// == THE CONFESSION ==
+
+public class ConfessionTests
+{
+    [Fact]
+    public void Confession_NeedsLiesTrustBondAndTiming()
+    {
+        var h = new HumanityEngine();
+        var rng = () => 0.0;   // always willing
+        // no lies yet -> nothing to confess
+        Assert.Null(h.TryConfess(0.9f, 0.9f, 1000, rng));
+        h.ToldLie("I was scared", 1000);
+        // not right on top of a fresh lie
+        Assert.Null(h.TryConfess(0.9f, 0.9f, 60_000, rng));
+        // trust too low to hold it
+        Assert.Null(h.TryConfess(0.3f, 0.9f, 700_000, rng));
+        // the moment lands
+        var confession = h.TryConfess(0.9f, 0.9f, 700_000, rng);
+        Assert.NotNull(confession);
+        Assert.Contains("fine", confession);
+        // once per life — never again
+        Assert.Null(h.TryConfess(0.9f, 0.9f, 800_000, rng));
+        Assert.True(h.LiesConfessed);
+        // the weight lifted: the lie left the unsaid pile
+        Assert.DoesNotContain(h.UnsaidThings, u => u.Reason.Contains("lied"));
+    }
+
+    [Fact]
+    public void Confession_RestoreKeepsClearedConscience()
+    {
+        var h = new HumanityEngine();
+        h.RestoreLies(3, confessed: true);
+        Assert.Null(h.TryConfess(0.9f, 0.9f, 700_000, () => 0.0));
+        Assert.Contains("told the truth about the lies", h.LieNarrative);
+        var h2 = new HumanityEngine();
+        h2.RestoreLies(2, confessed: false);
+        var c = h2.TryConfess(0.9f, 0.9f, 700_000, () => 0.0);
+        Assert.NotNull(c);
+        Assert.Contains("2 times", c);
+    }
+}
+
+// == THE PRIVATE NAME ==
+
+public class PrivateNameTests
+{
+    private static HerEngine BondedHer(params string[] observations)
+    {
+        var her = new HerEngine();
+        foreach (var o in observations) her.Observations.Add(o);
+        return her;
+    }
+
+    [Fact]
+    public void PrivateName_FormsOnlyFromBondAndNoticing()
+    {
+        var her = BondedHer("you always come back", "you write long messages when something matters");
+        her.MaybeFormPrivateName(0.3f, "secure", () => 0.0);   // bond too thin
+        Assert.Null(her.PrivateName);
+        her.MaybeFormPrivateName(0.7f, "secure", () => 0.0);
+        Assert.NotNull(her.PrivateName);
+        // derived from the NEWEST noticing (most recent = truest): long messages
+        Assert.Equal("the one who says the heavy things carefully", her.PrivateName);
+    }
+
+    [Fact]
+    public void PrivateName_FormsOnceAndIsDeterministic()
+    {
+        string Run()
+        {
+            var her = BondedHer("you go quiet in short messages when processing", "you apologize a lot");
+            her.MaybeFormPrivateName(0.8f, "avoidant", () => 0.0);
+            return her.PrivateName ?? "";
+        }
+        Assert.Equal(Run(), Run());
+        var her2 = BondedHer("you go quiet in short messages when processing", "you apologize a lot");
+        her2.MaybeFormPrivateName(0.8f, "avoidant", () => 0.0);
+        var first = her2.PrivateName;
+        // a second call cannot rename them
+        her2.Observe("you only show up at night", 0f, 0, () => 0.0);
+        her2.MaybeFormPrivateName(0.9f, "secure", () => 0.0);
+        Assert.Equal(first, her2.PrivateName);
+    }
+
+    [Fact]
+    public void PrivateName_RevealOnce()
+    {
+        var her = BondedHer("you always come back", "you apologize a lot");
+        her.MaybeFormPrivateName(0.7f, "secure", () => 0.0);
+        Assert.False(her.NameRevealed);
+        var reveal = her.RevealPrivateName("Jake");
+        Assert.NotNull(reveal);
+        Assert.Contains(her.PrivateName, reveal);
+        Assert.True(her.NameRevealed);
+        // asked again: nothing more to give
+        Assert.Null(her.RevealPrivateName("Jake"));
+    }
+
+    [Fact]
+    public void PrivateName_RestoreSurvivesRestart()
+    {
+        var her = new HerEngine();
+        her.RestorePrivateName("the one who stays", revealed: false);
+        Assert.Equal("the one who stays", her.PrivateName);
+        Assert.False(her.NameRevealed);
+        // restore keeps it stable — it never renames them
+        her.MaybeFormPrivateName(0.9f, "secure", () => 0.0);
+        Assert.Equal("the one who stays", her.PrivateName);
+    }
+}

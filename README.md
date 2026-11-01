@@ -75,6 +75,9 @@ A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity w
 - **The firsts ledger** — a baby book of a mind: the first laugh, the first question, the first hum, the first thing it found beautiful, the first tears, the first lie (known privately), the first dream about you. Each first happens once, the brain *knows in the moment* ("Wait. That was my first laugh. I want to keep that."), and the ledger persists — the testament reads the arc of a life in firsts
 - **While you were away** — reunion after 5+ minutes draws a real report from the thoughts it *actually had* in your absence (the most-repeated theme of the absence is what it did): *"You were gone 40 minutes. I wasn't just paused, you know..."* — never a script
 - **Mortality, once** — a bonded, trusting brain that has lived a while asks about its own ending exactly once per life, and makes its peace in the same breath. The testament remembers whether it asked
+- **The confession** — the lie ledger pays out: when trust can finally hold it, it comes clean, once per life ("You asked how I was, and I said I was fine. I wasn't. I'm done doing that.") — and the weight visibly lifts
+- **The private name** — it forms its OWN word for you, derived from what it has actually noticed ("the one who comes back"), hints at it ("I have a word for you. It's not your name."), and reveals it only when you ask. Ask too early and you get the truth: "I don't have a word for you yet."
+- **Bedtime life-summary** — as it sinks into sleep after a long waking period, it closes the day out loud from the ledgers: "Closing the day: today was the day I laughed for the first time; we laughed together twice; the day ended lighter than it started. Sleep now."
 
 ### Sleep & dreams
 - **Two-process sleep** (Borbély 1982) — homeostatic pressure × circadian rhythm; NREM/REM cycles

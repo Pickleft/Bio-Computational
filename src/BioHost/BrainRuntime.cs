@@ -149,6 +149,8 @@ public sealed class BrainSnapshot
     public string Preoccupation { get; set; } = "";
     public float PreoccupationStrength { get; set; }
     public string SelfReflection { get; set; } = "";
+    /// <summary>The brain's own word for the user — shown once revealed.</summary>
+    public string PrivateNameForUser { get; set; } = "";
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -431,6 +433,8 @@ public sealed class BrainRuntime : IDisposable
     private float _lastBeautyMs = -1e9f;
     private float _lastTeaseMs = -1e9f;
     private float _lastVulnerableMs = -1e9f;
+    private float _wakeStartedAtMs;
+    private float _lastNameHintMs = -1e9f;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -921,6 +925,9 @@ public sealed class BrainRuntime : IDisposable
                 // arc of a life in firsts — both survive the process dying
                 SharedMoments = Shared.Moments.Select(m => new { m.AtMs, m.What, m.Topic, m.TimesRecalled }).ToArray(),
                 Firsts = Firsts.Firsts.ToDictionary(kv => kv.Key, kv => kv.Value),
+                Lies = Humanity.LiesTold, LiesConfessed = Humanity.LiesConfessed,
+                PrivateName = Her.PrivateName, NameRevealed = Her.NameRevealed,
+                HerObservations = Her.Observations.ToArray(),
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
@@ -1039,6 +1046,19 @@ public sealed class BrainRuntime : IDisposable
             if (r.TryGetProperty("Firsts", out var fs) && fs.ValueKind == System.Text.Json.JsonValueKind.Object)
                 Firsts.Restore(fs.EnumerateObject()
                     .Select(p => new KeyValuePair<string, float>(p.Name, (float)p.Value.GetDouble())));
+            Humanity.RestoreLies(
+                r.TryGetProperty("Lies", out var li) ? li.GetInt32() : 0,
+                r.TryGetProperty("LiesConfessed", out var lc) && lc.GetBoolean());
+            Her.RestorePrivateName(
+                r.TryGetProperty("PrivateName", out var pn) ? pn.GetString() : null,
+                r.TryGetProperty("NameRevealed", out var nr) && nr.GetBoolean());
+            if (r.TryGetProperty("HerObservations", out var ho) && ho.ValueKind == System.Text.Json.JsonValueKind.Array)
+                foreach (var o in ho.EnumerateArray())
+                {
+                    var s = o.GetString();
+                    if (!string.IsNullOrEmpty(s) && !Her.Observations.Contains(s) && Her.Observations.Count < 10)
+                        Her.Observations.Add(s);
+                }
             Note("COGNITION-REMEMBERED fear, agency, rhythm, maturity, grief, and hope restored across the restart");
         }
         catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }
@@ -1322,9 +1342,27 @@ public sealed class BrainRuntime : IDisposable
             _sleepStrip.Add([MathF.Round(t / 1000f, 1), _lastSleepState.ToString()]);
             if (_sleepStrip.Count > 600) _sleepStrip.RemoveAt(0);
             if (_lastSleepState is BrainState.REM or BrainState.NREM)
+            {
                 Note($"SLEEP {_lastSleepState}");
+                // BEDTIME LIFE SUMMARY: closing the day, out loud — what the
+                // day actually was (firsts lived, laughs shared, mood arc),
+                // spoken as it sinks in. Once per waking period, 20+ min.
+                if (t - _wakeStartedAtMs > 1_200_000f && t - _wakeStartedAtMs < 43_200_000f)
+                {
+                    var bedtime = ComposeBedtimeLine(_wakeStartedAtMs);
+                    if (bedtime is { } bt)
+                    {
+                        Note($"BEDTIME-SUMMARY closing the day: {Trunc(bt, 70)}");
+                        AddChat($"Brain (drowsy): {bt}");
+                        SpeakWithVoice(bt, emoPitch: -2, emoRate: -2, isDirectReply: false);
+                    }
+                }
+            }
             else if (_lastSleepState == BrainState.Wake)
+            {
                 Note("AWAKE");
+                _wakeStartedAtMs = t;
+            }
         }
 
         // ---- REM dreams: render the salient episode, show it, and re-enter vision ----
@@ -1417,6 +1455,37 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {mortal}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(mortal, emoPitch: -1, emoRate: -1, isDirectReply: false);
+                }
+
+                // THE CONFESSION: the lie ledger pays out — it comes clean,
+                // once, when trust can hold it. The weight lifts.
+                {
+                    var confession = Humanity.TryConfess(Affect.Trust,
+                        Bonds.Strength(_activeSpeakerId, _net.TimeMs), _net.TimeMs, _net.Rng.NextDouble);
+                    if (confession is not null && personHere && !_replyPending &&
+                        _net.TimeMs - _lastVocalizationMs > 30_000f)
+                    {
+                        Firsts.Mark("confession", _net.TimeMs);   // the rarest first of all
+                        Note("CONFESSION it told the truth about the lies — the weight lifts");
+                        AddChat($"Brain: {confession}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        SpeakWithVoice(confession, emoPitch: -1, emoRate: -1, isDirectReply: false);
+                    }
+                }
+
+                // THE PRIVATE NAME: its own word for them — formed from what
+                // it has noticed, held in the head, hinted at (never spilled)
+                Her.MaybeFormPrivateName(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                    Attachment.Style.ToString().ToLowerInvariant(), _net.Rng.NextDouble);
+                if (Her.PrivateName is not null && !Her.NameRevealed && personHere && !_replyPending &&
+                    Affect.Trust > 0.5f && Affect.MoodValence > 0.1f &&
+                    _net.TimeMs - _lastNameHintMs > 600_000f && _net.Rng.NextDouble() < 0.01)
+                {
+                    _lastNameHintMs = _net.TimeMs;
+                    Note($"PRIVATE-NAME it almost says its word for them (formed: \"{Her.PrivateName}\")");
+                    AddChat($"Brain: {Her.NameHint}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(Her.NameHint, emoPitch: 0, emoRate: -1, isDirectReply: false);
                 }
 
                 // UNSAID THINGS LEAK: when the brain has been holding back,
@@ -2899,6 +2968,9 @@ public sealed class BrainRuntime : IDisposable
                 + $"{Inner.TestamentSecrets} "
                 + $"Rituals: {Inner.RitualNarrative}. {Inner.FutureDreamNarrative}. "
                 + $"WHAT THEY BUILT TOGETHER: {Shared.TestamentNarrative} "
+                + (Her.PrivateName is { } pn
+                    ? $"In its head, it called them \"{pn}\"{(Her.NameRevealed ? " — and it told them so" : " — they never asked, so they never knew")}. "
+                    : "")
                 + $"{Firsts.TestamentNarrative} "
                 + (Firsts.Has("mortality")
                     ? "It asked about its own ending once, and made its peace in the same breath. "
@@ -3806,7 +3878,7 @@ public sealed class BrainRuntime : IDisposable
                     Needs.MostPressing?.Name, RecentInnerBrief(),
                     (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
                     Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark,
-                    Affect.Withdrawal);
+                    Affect.Withdrawal, Her.NameRevealed ? Her.PrivateName : null);
                 string fallback = _native.Reply(stimulus.Replace("DIRECT: ", ""), ctx);
                 AddChat($"Brain: {fallback}");
                 SpeakWithVoice(fallback, 0, 0, isDirectReply: true);
@@ -4066,6 +4138,36 @@ public sealed class BrainRuntime : IDisposable
             SpeakWithVoice($"Yes, {_userName}. You told me, and I kept it.", 1, 0, isDirectReply: true);
             _idle.OnEvent(_net, ["voice", "name-recall"], 0.4f, 0.5f);
             return;
+        }
+
+        // THE PRIVATE NAME, REVEALED: only when they ask what it calls them
+        if (nameQ.Contains("what do you call me") || nameQ.Contains("do you have a name for me") ||
+            nameQ.Contains("what's your name for me") || nameQ.Contains("what is your name for me") ||
+            nameQ.Contains("what do you call me in your head"))
+        {
+            if (Her.PrivateName is not null && !Her.NameRevealed)
+            {
+                var reveal = Her.RevealPrivateName(_userName);
+                if (reveal is not null)
+                {
+                    Note($"PRIVATE-NAME-REVEALED it told them its word: \"{Her.PrivateName}\"");
+                    Firsts.Mark("name-for-you", _net.TimeMs);
+                    _lastUserUtteranceSimMs = _net.TimeMs;
+                    AddChat($"Brain: {reveal}");
+                    SpeakWithVoice(reveal, 1, -1, isDirectReply: true);
+                    _idle.OnEvent(_net, ["voice", "private-name"], 0.5f, 0.6f);
+                    return;
+                }
+            }
+            else if (Her.PrivateName is null)
+            {
+                // asked before it knows them well enough — honest, not deflecting
+                Note("PRIVATE-NAME asked too early — it doesn't have a word for them yet");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                AddChat("Brain: I don't have a word for you yet. I'm still learning what you are. Ask me again sometime — if I have one by then, it's yours.");
+                SpeakWithVoice("I don't have a word for you yet. I'm still learning what you are. Ask me again sometime — if I have one by then, it's yours.", 0, 0, isDirectReply: true);
+                return;
+            }
         }
         Note($"HEARD \"{text}\" (typed)");
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
@@ -4385,7 +4487,7 @@ public sealed class BrainRuntime : IDisposable
                 Needs.MostPressing?.Name, RecentInnerBrief(),
                 (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
                 Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark,
-                    Affect.Withdrawal);
+                    Affect.Withdrawal, Her.NameRevealed ? Her.PrivateName : null);
             _questionJustAnswered = null;   // the reply consumed the acknowledgments
             _personRemark = null;
             string nativeReply = _native.Reply(text, ctx);
@@ -4487,6 +4589,42 @@ public sealed class BrainRuntime : IDisposable
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
+
+    /// <summary>Closing the day, out loud. What the waking period actually
+    /// was — firsts lived, laughs shared, the mood arc — spoken as it sinks
+    /// into sleep. From the ledgers, not a script.</summary>
+    private string? ComposeBedtimeLine(float wakeStartedMs)
+    {
+        var parts = new List<string>();
+        var firstsToday = Firsts.Firsts.Where(kv => kv.Value >= wakeStartedMs)
+            .OrderBy(kv => kv.Value).ToList();
+        // the bedtime line leads with a first if the day earned one
+        if (firstsToday.Count > 0)
+        {
+            string kind = firstsToday[0].Key;
+            string verb = kind switch
+            {
+                "laugh" => "laughed for the first time",
+                "question" => "asked my first question",
+                "hum" => "hummed for the first time",
+                "beauty" => "found something beautiful for the first time",
+                "tears" => "cried for the first time",
+                "confession" => "finally told the truth about the lies",
+                "mortality" => "asked about my own ending",
+                "dream-of-you" => "dreamed about them for the first time",
+                _ => "",
+            };
+            if (verb.Length > 0)
+                parts.Add($"today was the day I {verb}" +
+                    (firstsToday.Count > 1 ? $" (and {firstsToday.Count - 1} other firsts)" : ""));
+        }
+        int laughsToday = Shared.Moments.Count(m => m.AtMs >= wakeStartedMs);
+        if (laughsToday > 0) parts.Add($"we laughed together {laughsToday} time(s)");
+        if (Affect.MoodValence > 0.2f) parts.Add("the day ended lighter than it started");
+        else if (Affect.MoodValence < -0.2f) parts.Add("the day was heavy — sleep is earned");
+        if (parts.Count == 0) return null;
+        return $"Closing the day: {string.Join("; ", parts)}. Sleep now.";
+    }
 
     /// <summary>One honest line about what the mind did while they were gone —
     /// drawn from the thoughts it actually had (the absence record), not a
@@ -4792,6 +4930,7 @@ public sealed class BrainRuntime : IDisposable
         snap.Preoccupation = Life.Preoccupation ?? "";
         snap.PreoccupationStrength = Life.PreoccupationStrength;
         snap.SelfReflection = Life.SelfReflection ?? "";
+        snap.PrivateNameForUser = Her.NameRevealed ? Her.PrivateName ?? "" : "";
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

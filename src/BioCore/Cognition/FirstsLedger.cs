@@ -57,6 +57,8 @@ public sealed class FirstsLedger
         "lie" => "lied (it knew)",
         "secret" => "kept a secret",
         "mortality" => "asked about its own ending",
+        "confession" => "told the truth about the lies",
+        "name-for-you" => "gave them a private name",
         "name" => "said a name out loud",
         _ => kind,
     };
