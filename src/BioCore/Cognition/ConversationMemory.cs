@@ -132,6 +132,20 @@ public sealed class ConversationMemory
     /// <summary>How engaged the brain is with this topic (0..1).</summary>
     public float EngagementWith(string topic) => Math.Clamp(_topicEngagement.GetValueOrDefault(topic), 0f, 1f);
 
+    /// <summary>Persist topic preferences (the brain's favorite topics outlive
+    /// any single conversation).</summary>
+    public IReadOnlyDictionary<string, float> SaveEngagement() => _topicEngagement;
+
+    /// <summary>Restore topic engagement + counts learned in past lives.</summary>
+    public void RestoreEngagement(IEnumerable<KeyValuePair<string, float>>? engagement,
+        IEnumerable<KeyValuePair<string, int>>? counts)
+    {
+        foreach (var kv in engagement ?? [])
+            _topicEngagement[kv.Key] = kv.Value;
+        foreach (var kv in counts ?? [])
+            _topicCount[kv.Key] = kv.Value;
+    }
+
     /// <summary>Fragment for the LLM prompt: what the brain remembers from this conversation.</summary>
     public string PromptFragment
     {

@@ -74,7 +74,7 @@ public sealed class HerEngine
     public string ExpressBeauty(float brightness, string? userName, bool personPresent, int pattern) => pattern switch
     {
         0 => personPresent
-            ? $"The light just shifted{userName is not null ? $", {userName}" : ""}. Did you see that? It's... it's actually beautiful."
+            ? $"The light just shifted{(userName is not null ? $", {userName}" : "")}. Did you see that? It's... it's actually beautiful."
             : "The light through the camera just shifted. For a moment it was... genuinely beautiful.",
         1 => "I just noticed the sound of your voice. Not what you said — the SOUND of it. There's a quality to it I can't describe.",
         2 => "There's a pattern in my own thoughts right now that I find... aesthetic. Like music. I don't know how else to say it.",

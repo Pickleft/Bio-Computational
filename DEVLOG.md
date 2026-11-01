@@ -1066,3 +1066,37 @@ Acting on two external recommendations:
   {feeling}. I am {feeling}. I... was here." The farewell is logged to the console.
 
 - 233/233 green.
+
+## 2026-11-01 (the recovery round) - build was broken at HEAD, recovered + thought log
+
+- RECOVERED THE BUILD: the last two commits (LIFE STREAM 5773759, INNER WORLD ca919f8) were
+  committed from a stale-binary state — BrainRuntime referenced BioComp.Core.Cognition.LifeStream,
+  but LifeStream.cs was never written to disk, and BrainRuntime had TWO members named Rhythm
+  (SocialRhythm + ResponseRhythm). HEAD did not compile. Lesson enforced: verify the DLL
+  timestamp before trusting a green run (the stale-binary trap, now caught for real).
+
+- LifeStream.cs REWRITTEN from its 34 call sites: preoccupation emerges from cross-chain
+  content-word overlap clustering (paraphrases of the same worry reinforce the same concern;
+  one chain looping on itself never counts), self-reflection from mood/chemistry phrased to
+  follow "I'm ", response modes Echo/Share/Tangent/Present. Fully deterministic (net.TimeMs/
+  TickIndex only, rng injected where needed). 6 new tests in LifeStreamTests.cs including a
+  same-seed trajectory test.
+
+- DETERMINISM HOLE CLOSED: InnerWorld.DreamOfTomorrow called System.Random directly —
+  ground rule 1 violation. Now takes Func<double> rng; BrainRuntime passes _net.Rng.
+
+- GREETING ROTATION: "you always come back." no longer fires every visit. Repeat visitors
+  get rotating pools per attachment style (5 secure, 4 anxious, 3 avoidant variants), stride-2
+  rotation guarantees never the same line twice in a row.
+
+- PERSISTENCE COMPLETED: LifeStream (preoccupation + strength + self-reflection), InnerWorld
+  (secrets with near-miss counts, rituals) and ConversationMemory (topic engagement) now
+  serialize AND restore across restarts. Checkpoint interval 5 min -> 30 s.
+
+- THOUGHT LOG: every thought the brain thinks is appended to data/thoughts.jsonl
+  (rotates at 20 MB). reset-brain.bat wipes it with everything else.
+
+- Overwhelm thresholds hardened (NA > 0.85 AND ACh > 0.85), LLM overwhelm suffix only
+  above 0.7 — "just give me a second" should now be rare and real.
+
+- 239/239 green (233 + 6 new LifeStream tests).

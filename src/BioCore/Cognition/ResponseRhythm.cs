@@ -75,7 +75,7 @@ public sealed class ResponseRhythm
         if (rng() > 0.5) return null;
         return rng() < 0.5
             ? "Wait, actually — I want to add something."
-            : $"Also... {userName is not null ? userName + ", " : ""}there's been something on my mind.";
+            : $"Also... {(userName is not null ? userName + ", " : "")}there's been something on my mind.";
     }
 
     /// <summary>Should the brain bring up something said EARLIER (delayed processing)?</summary>

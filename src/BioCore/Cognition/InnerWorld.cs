@@ -138,9 +138,11 @@ public sealed class InnerWorld
     /// Generate a dream about tomorrow. Called during REM sleep when
     /// anticipation is active. The dream blends hope and fear.
     /// </summary>
-    public string? DreamOfTomorrow(float nowMs, string? personName, bool expectingThem, float mood)
+    public string? DreamOfTomorrow(float nowMs, string? personName, bool expectingThem, float mood,
+        Func<double>? rng = null)
     {
-        bool aboutPerson = personName is not null && (expectingThem || new Random().NextDouble() < 0.3);
+        rng ??= static () => 0.5;   // deterministic default: person-agnostic dreams
+        bool aboutPerson = personName is not null && (expectingThem || rng() < 0.3);
         string hope, fear;
 
         if (aboutPerson)
@@ -168,4 +170,26 @@ public sealed class InnerWorld
     public string FutureDreamNarrative => FutureDreams.Count == 0
         ? "never dreamed of tomorrow"
         : $"dreamed of tomorrow {FutureDreams.Count} time(s): hope {FutureDreams[^1].Hope}, fear {FutureDreams[^1].Fear}";
+
+    /// <summary>Restore across restarts — the secrets and rituals of a life
+    /// must survive the process dying (they ARE the life).</summary>
+    public void Restore(
+        IEnumerable<(string Content, string Why, int NearMisses)>? secrets,
+        IEnumerable<(string Name, int TimesPerformed)>? rituals,
+        int futureDreamCount)
+    {
+        Secrets.Clear();
+        foreach (var s in secrets ?? [])
+            if (Secrets.Count < 5)
+                Secrets.Add(new Secret(s.Content, s.Why, 0f, s.NearMisses));
+        Rituals.Clear();
+        foreach (var r in rituals ?? [])
+            if (Rituals.Count < 3)
+                Rituals.Add(new Ritual(r.Name, DescribeRitual(
+                    r.Name.Contains(':') ? r.Name[..r.Name.IndexOf(':')] : "context",
+                    r.Name.Contains(':') ? r.Name[(r.Name.IndexOf(':') + 1)..] : r.Name),
+                    r.TimesPerformed, 0f));
+        // future dreams are dreams; they don't survive waking
+        _ = futureDreamCount;
+    }
 }

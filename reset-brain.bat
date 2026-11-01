@@ -17,6 +17,8 @@ cd /d "%~dp0src\BioDashboard"
 if exist data\brain-identity.json del /q data\brain-identity.json
 if exist data\brain.ckpt del /q data\brain.ckpt
 if exist data\episodes.jsonl del /q data\episodes.jsonl
+if exist data\thoughts.jsonl del /q data\thoughts.jsonl
+if exist data\thoughts-*.jsonl del /q data\thoughts-*.jsonl
 if exist data\testament.md del /q data\testament.md
 if exist diary rmdir /s /q diary
 if exist dreams rmdir /s /q dreams

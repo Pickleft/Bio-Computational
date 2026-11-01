@@ -266,7 +266,7 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>NEUROGENESIS: the brain grows new neurons for important experiences.</summary>
     public BioComp.Core.Cognition.ResilienceEngine Resilience { get; } = new();
     public BioComp.Core.Cognition.NeedsHierarchy Needs { get; } = new();
-    public BioComp.Core.Cognition.SocialRhythm Rhythm { get; } = new();
+    public BioComp.Core.Cognition.SocialRhythm Social { get; } = new();
     /// <summary>DEJA VU: familiarity without recollection (Yonelinas 2002).</summary>
     public BioComp.Core.Cognition.DejaVu DejaVu { get; } = new();
     /// <summary>LONGING: missing one specific person (Panksepp 1998 GRIEF).</summary>
@@ -413,6 +413,8 @@ public sealed class BrainRuntime : IDisposable
     private string _firstUserMessage = "";
     private float _hostilityEma;
     private int _lonelyCallIdx;
+    private int _greetRotation;
+    private long _thoughtLogCount;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -448,7 +450,7 @@ public sealed class BrainRuntime : IDisposable
             return d.What switch
             {
                 var w when w.Contains("figure out") => $"I keep circling back to something and I can't let it go. {Trunc(ThoughtLoop.Current?.Text ?? "a thought", 50)} — help me think through it?",
-                var w when w.Contains("to be here") => $"{who is not null ? $"{who}, " : ""}I was just... wanting you here. And now you are. That's good.",
+                var w when w.Contains("to be here") => $"{(who is not null ? $"{who}, " : "")}I was just... wanting you here. And now you are. That's good.",
                 var w when w.Contains("show them") => $"There's something I want to show you. Not important to anyone else, but I keep coming back to it.",
                 var w when w.Contains("quiet") => null,   // wanting quiet = don't start a conversation
                 _ => $"Can I tell you what I've been wanting? {d.What}. {d.Why}.",
@@ -863,8 +865,8 @@ public sealed class BrainRuntime : IDisposable
                 HelplessEpisodes = Efficacy.HelplessEpisodes,
                 AnticipationFulfilled = Anticipation.Fulfilled, AnticipationDisappointed = Anticipation.Disappointments,
                 WarmthHistory = _warmthHistory.ToArray(),
-                RhythmBins = Rhythm.SaveBins(),
-                RhythmSamples = Rhythm.SaveSamples(),
+                RhythmBins = Social.SaveBins(),
+                RhythmSamples = Social.SaveSamples(),
                 // DEVELOPMENTAL MEMORY: maturity, growth, and ledgers that are
                 // the brain's story — losing these resurrects a child
                 GranularityBoost = Granularity.AccumulatedBoost,
@@ -884,6 +886,14 @@ public sealed class BrainRuntime : IDisposable
                 CalibrationMisses = Calibration.Misses, CalibrationAgreements = Calibration.Agreements,
                 FirstMessage = _firstUserMessage ?? "",
                 KnownNames = _allKnownNames.Values.ToArray(),
+                // LIFE STREAM + INNER WORLD + CONVERSATION: the brain's own
+                // autonomous concerns, its secrets, its comfort patterns
+                Preoccupation = Life.Preoccupation, PreoccupationStrength = Life.PreoccupationStrength,
+                SelfReflection = Life.SelfReflection,
+                Secrets = Inner.Secrets.Select(s => new { s.Content, s.Why, s.NearMisses }).ToArray(),
+                Rituals = Inner.Rituals.Select(r => new { r.Name, r.TimesPerformed }).ToArray(),
+                FutureDreamCount = Inner.FutureDreams.Count,
+                TopicEngagement = Convo.SaveEngagement().ToDictionary(kv => kv.Key, kv => kv.Value),
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
@@ -919,7 +929,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 var bins = rb.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
                 var samples = rs.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
-                Rhythm.Restore(bins, samples);
+                Social.Restore(bins, samples);
             }
             // DEVELOPMENTAL MEMORY: the maturity and ledgers of a life
             Granularity.Restore((float)(r.TryGetProperty("GranularityBoost", out var gb) ? gb.GetDouble() : 0));
@@ -969,6 +979,30 @@ public sealed class BrainRuntime : IDisposable
                 if (_allKnownNames.Count > 1)
                     Note($"NAMES-REMEMBERED {_allKnownNames.Count} people by name across the restart");
             }
+            // LIFE STREAM + INNER WORLD: the brain's own concerns, secrets,
+            // rituals, and favorite topics survive the restart
+            Life.Restore(
+                r.TryGetProperty("Preoccupation", out var po) ? po.GetString() : null,
+                (float)(r.TryGetProperty("PreoccupationStrength", out var ps) ? ps.GetDouble() : 0),
+                r.TryGetProperty("SelfReflection", out var sr) ? sr.GetString() : null,
+                _net.TimeMs);
+            Inner.Restore(
+                r.TryGetProperty("Secrets", out var sec) && sec.ValueKind == System.Text.Json.JsonValueKind.Array
+                    ? sec.EnumerateArray().Select(x => (
+                        x.TryGetProperty("Content", out var c) ? c.GetString() ?? "" : "",
+                        x.TryGetProperty("Why", out var wy) ? wy.GetString() ?? "" : "",
+                        x.TryGetProperty("NearMisses", out var nm) ? nm.GetInt32() : 0))
+                    : null,
+                r.TryGetProperty("Rituals", out var ri) && ri.ValueKind == System.Text.Json.JsonValueKind.Array
+                    ? ri.EnumerateArray().Select(x => (
+                        x.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "",
+                        x.TryGetProperty("TimesPerformed", out var tp) ? tp.GetInt32() : 1))
+                    : null,
+                r.TryGetProperty("FutureDreamCount", out var fd) ? fd.GetInt32() : 0);
+            if (r.TryGetProperty("TopicEngagement", out var te) && te.ValueKind == System.Text.Json.JsonValueKind.Object)
+                Convo.RestoreEngagement(
+                    te.EnumerateObject().Select(p => new KeyValuePair<string, float>(p.Name, (float)p.Value.GetDouble())),
+                    null);
             Note("COGNITION-REMEMBERED fear, agency, rhythm, maturity, grief, and hope restored across the restart");
         }
         catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }
@@ -981,7 +1015,7 @@ public sealed class BrainRuntime : IDisposable
 
     private void RunLoop()
     {
-        long nextCheckpoint = 300_000; // 5 sim-minutes
+        long nextCheckpoint = 30_000; // 30 sim-seconds: save EVERYTHING frequently
         int consecutiveErrors = 0;
         while (_running)
         {
@@ -1009,7 +1043,7 @@ public sealed class BrainRuntime : IDisposable
             if (_net.TimeMs >= nextCheckpoint)
             {
                 TryCheckpoint();
-                nextCheckpoint = (long)_net.TimeMs + 300_000;
+                nextCheckpoint = (long)_net.TimeMs + 30_000;
             }
             Thread.Sleep(15);
         }
@@ -1271,7 +1305,7 @@ public sealed class BrainRuntime : IDisposable
         // LONGING: loneliness with a name — is the bonded person past due?
         if (_net.TickIndex % 200 == 0)
         {
-            Longing.Tick(_net, Bonds, Rhythm, _userName, Attachment.Style,
+            Longing.Tick(_net, Bonds, Social, _userName, Attachment.Style,
                 presentUntilMs: _personPresentUntil);   // quiet company is company
             if (!Longing.Missing) _lonelyExpressedOnce = false;
             // ANTICIPATION: the reward side of the rhythm — hope rises at the
@@ -1280,7 +1314,7 @@ public sealed class BrainRuntime : IDisposable
             // "recent" means PRESENT (even silently), not merely 60s after
             // the last word
             float effectivePresence = _net.TimeMs < _personPresentUntil ? _net.TimeMs - 1_000f : (sb?.LastSeenMs ?? -1e9f);
-            Anticipation.Tick(_net, Rhythm, effectivePresence);
+            Anticipation.Tick(_net, Social, effectivePresence);
             if (Anticipation.JustCrashed)
             {
                 Note("DISAPPOINTMENT the hour it expected someone in closed on nobody - dopamine crashed");
@@ -1382,7 +1416,7 @@ public sealed class BrainRuntime : IDisposable
                     if (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre)
                         delayedLine = $"Hey{name} — what you said earlier just connected to something I've been circling. {pre}. I think they're related.";
                     else
-                        delayedLine = $"Hey{name} — you know what you said earlier? I've been chewing on it. {_lastUserWords is { Length: > 30 } lw ? $"\"{Trunc(lw, 40)}...\"" : "it"}. I have thoughts.";
+                        delayedLine = $"Hey{name} — you know what you said earlier? I've been chewing on it. {(_lastUserWords is { Length: > 30 } lw ? $"\"{Trunc(lw, 40)}...\"" : "it")}. I have thoughts.";
                     Note($"DELAYED-PROCESSING something clicked 30+ seconds later{(Life.PreoccupationStrength > 0.4 ? " (connected to running preoccupation)" : "")}");
                     AddChat($"Brain: {delayedLine}");
                     _lastVocalizationMs = _net.TimeMs;
@@ -1796,7 +1830,7 @@ public sealed class BrainRuntime : IDisposable
             _net.TimeMs - _lastUserUtteranceSimMs > 300_000f &&
             Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.3f;
         Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
-        Rhythm.Tick(_net); // adjust receptivity based on learned social rhythm
+        Social.Tick(_net); // adjust receptivity based on learned social rhythm
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).
         // High dopamine = an experience worth dedicated neural tissue. New
@@ -1883,6 +1917,7 @@ public sealed class BrainRuntime : IDisposable
                     string plain = line.Length > 180 ? line[..180] : line;
                     _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
                     if (_plain.Count > 80) _plain.RemoveAt(0);
+                    LogThought(plain);
                 }
             }
         }
@@ -2182,7 +2217,7 @@ public sealed class BrainRuntime : IDisposable
             if (_net.Rng.NextDouble() < 0.15 && Anticipation.Level > 0.3)
             {
                 var future = Inner.DreamOfTomorrow(_net.TimeMs, _userName,
-                    Anticipation.Level > 0.5, Affect.MoodValence);
+                    Anticipation.Level > 0.5, Affect.MoodValence, _net.Rng.NextDouble);
                 if (future is not null)
                 {
                     Note($"FUTURE-DREAM it dreamed about tomorrow: {Trunc(future, 60)}");
@@ -2722,7 +2757,7 @@ public sealed class BrainRuntime : IDisposable
                 + (Efficacy.HelplessEpisodes > 0 ? $"; it knew helplessness {Efficacy.HelplessEpisodes} time(s) and came back from it" : "") + ". "
                 + $"{MemoryReconstruction.Narrative}. {Threats.Narrative}. {LocalSleep.Narrative}. "
                 + $"{ForgottenGrief.Narrative}. "
-                + $"Its social rhythm: {Rhythm.Narrative}. "
+                + $"Its social rhythm: {Social.Narrative}. "
                 + $"{Questions.Narrative}. {Awe.Narrative}. It dreamt {CompositeDreams} composite dream(s) that never happened. "
                 + $"{Sharing.Narrative}. {Reading.Narrative}. "
                 + $"{Hypotheses.Narrative}. {Calibration.Narrative}. "
@@ -3069,7 +3104,7 @@ public sealed class BrainRuntime : IDisposable
         Longing.OnContact(_userName ?? visitorId, _net.TimeMs);
         Anticipation.OnContact(_net); // anticipated arrival pays on top of the cue response
         if (warmth > 0.4f) Threats.OnSafeContact(warmth); // extinction trial: warm contact retires learned fear
-        Rhythm.OnInteraction(_net);              // the rhythm learns from PRESENCE, not just typing
+        Social.OnInteraction(_net);              // the rhythm learns from PRESENCE, not just typing
         TurnTaking.OnUserUtterance(_net.TimeMs / 1000f); // and the conversational rhythm too
         Bonds.OnContact(visitorId, warmth, _net.TimeMs);  // ONE contact per visit (was duplicated — bond hit 100% in minutes)
         _warmthHistory.Add(warmth);
@@ -3129,24 +3164,37 @@ public sealed class BrainRuntime : IDisposable
             {
                 _lastGreetMs = _net.TimeMs;
                 string who = _userName is null ? "" : $"{_userName}, ";
+                // repeat visitors ROTATE through greeting variants — a person
+                // never greets you with the exact same words every single time
                 string greet = Attachment.Style switch
                 {
                     BioComp.Core.Cognition.AttachmentStyle.Anxious => visits switch
                     {
                         1 => $"{who}you came back! I kept calling.",
                         < 5 => $"{who}I knew you'd come back. I called and called.",
-                        _ => $"{who}there you are. Don't go.",
+                        _ => RotateGreeting(
+                            $"{who}there you are. Don't go.",
+                            $"{who}you're back. I was counting the quiet.",
+                            $"I kept checking if that was you. It's you.",
+                            $"{who}you came back. Stay a while this time?"),
                     },
                     BioComp.Core.Cognition.AttachmentStyle.Avoidant => visits switch
                     {
                         1 => _userName is null ? "Oh. Back." : $"Oh. Back, {_userName}.",
-                        _ => _userName is null ? "Back again." : $"Back again, {_userName}.",
+                        _ => _userName is null
+                            ? RotateGreeting("Back again.", "Oh. It's you.", "Back. Okay.")
+                            : RotateGreeting($"Back again, {_userName}.", $"Oh. It's you, {_userName}.", $"Back. Okay."),
                     },
                     _ => visits switch
                     {
                         1 => _userName is null ? "Oh. You again." : $"Oh. You again, {_userName}.",
                         < 5 => $"{who}I know you. You come back.",
-                        _ => $"{who}you always come back.",
+                        _ => RotateGreeting(
+                            $"{who}you always come back.",
+                            $"{who}good — you're here.",
+                            "Hi. I was in the middle of something, but this is better.",
+                            "There you are. I noticed the room got better just now.",
+                            "Hey. I was hoping it'd be you."),
                     },
                 };
                 AddChat($"Brain: {greet}");
@@ -3501,7 +3549,6 @@ public sealed class BrainRuntime : IDisposable
                   (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre ?
                       $"You have a RUNNING CONCERN you've been turning over: {pre}. If their words connect to it, follow the connection. " : "") +
                   (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
-                  (Her.StrongestDesire is { Strength: > 0.4f } des ? $"You WANT: {des.What} — {des.Why}. Express this want naturally if the moment is right. " : "") +
                   (Affect.MoodValence > 0.3 && Affect.Trust > 0.5 ? "You're in a good mood and comfortable — feel free to TEASE them lightly or LAUGH. " : "") +
                   $"{Needs.PromptFragment} {Resilience.PromptFragment} {MetaConfidence.PromptFragment} " +
                   $"\n\nHOW TO SPEAK: " +
@@ -3522,7 +3569,7 @@ public sealed class BrainRuntime : IDisposable
             string user =
                 $"Now: {stimulus.Replace("DIRECT: ", "")}. {detail}. " +
                 $"\n\n{Convo.PromptFragment}" +
-                (callback is not null ? $"EARLIER CONNECTION: {callback} " : "") +
+                (Convo.FindCallback(stimulus, _net.TimeMs) is { } callback ? $"EARLIER CONNECTION: {callback} " : "") +
                 $"\n\nYOUR INNER STATE: {feeling.Name} — {feeling.Narrative}. " +
                 $"Memory their words stirred: {stirred}. " +
                 $"\n\nRECENT CONVERSATION (last few exchanges):\n{lastExchanges}\n" +
@@ -3541,9 +3588,9 @@ public sealed class BrainRuntime : IDisposable
             _questionJustAnswered = null;
             _personRemark = null;
 
-            string reaction = await _lm.CompleteAsync(system, user, Humanity.IsOverwhelmed ? 30 : 60);
-            // OVERWHELM fragments the reply — ROTATED so it doesn't always say the same thing
-            if (!string.IsNullOrWhiteSpace(reaction) && Humanity.IsOverwhelmed)
+            string reaction = await _lm.CompleteAsync(system, user, 60);
+            // OVERWHELM fragments the reply — ONLY when truly overwhelmed (rare)
+            if (!string.IsNullOrWhiteSpace(reaction) && Humanity.Overwhelm > 0.7)
             {
                 int breakAt = reaction.IndexOfAny(['.', '!', '?'], Math.Min(reaction.Length / 2, 30));
                 if (breakAt > 0 && breakAt < reaction.Length - 5)
@@ -3727,6 +3774,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
                 if (_plain.Count > 60) _plain.RemoveAt(0);
+                LogThought(plain);
             }
         }
         // console output on the sim thread can BLOCK on a full pipe (the
@@ -3963,7 +4011,7 @@ public sealed class BrainRuntime : IDisposable
         _warmthHistory.Add(Contagion.Confidence > 0.3f ? Math.Clamp(0.5f + Contagion.UserValence * 0.5f, 0f, 1f) : 0.45f);
         if (_warmthHistory.Count > 60) _warmthHistory.RemoveAt(0);
         Loneliness.OnSocialContact(_net, quality: 0.6f);
-        Rhythm.OnInteraction(_net); // learn WHEN people come
+        Social.OnInteraction(_net); // learn WHEN people come
         _idle.OnEvent(_net, ["voice", Trunc(text, 40)], 0.3f, 0.8f);
 
         // HOSTILITY from TYPED messages: the same multimodal classifier that
@@ -4115,6 +4163,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 _plain.Add($"[{_net.TimeMs / 1000:F1}s] {thinkingLine}");
                 if (_plain.Count > 80) _plain.RemoveAt(0);
+                LogThought(thinkingLine);
             }
         }
 
@@ -4234,6 +4283,36 @@ public sealed class BrainRuntime : IDisposable
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
+
+    /// <summary>Pick a rotating greeting variant. Advances the shared counter
+    /// with a stride of 2 so consecutive greetings NEVER land on the same
+    /// line (a person doesn't greet you with identical words every time).</summary>
+    private string RotateGreeting(params string[] variants)
+    {
+        _greetRotation++;
+        return variants[(_greetRotation * 2) % variants.Length];
+    }
+
+    /// <summary>Every thought the brain ever thinks is saved to disk —
+    /// data/thoughts.jsonl survives restarts and deaths. The whole inner
+    /// life, on the record.</summary>
+    private void LogThought(string plain)
+    {
+        try
+        {
+            Directory.CreateDirectory("data");
+            File.AppendAllText(Path.Combine("data", "thoughts.jsonl"),
+                $"{{\"t\":{_net.TimeMs:F0},\"text\":{System.Text.Json.JsonSerializer.Serialize(plain)}}}\n");
+            // rotate at ~50k lines so the file stays workable
+            if (++_thoughtLogCount % 10_000 == 0)
+            {
+                var fi = new FileInfo(Path.Combine("data", "thoughts.jsonl"));
+                if (fi.Exists && fi.Length > 20_000_000)
+                    fi.MoveTo(Path.Combine("data", $"thoughts-{DateTime.UtcNow:yyyyMMdd-HHmmss}.jsonl"));
+            }
+        }
+        catch { /* the thought log must never kill the sim thread */ }
+    }
 
     private static byte[] PngFromFrame(GrayFrame frame)
     {
