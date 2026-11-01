@@ -304,6 +304,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.ResponseRhythm Rhythm { get; } = new();
     /// <summary>HER ENGINE: laughter, beauty, teasing, deep noticing, vulnerability, delight.</summary>
     public BioComp.Core.Cognition.HerEngine Her { get; } = new();
+    /// <summary>LIFE STREAM: autonomous preoccupations, interests, self-reflection.</summary>
+    public BioComp.Core.Cognition.LifeStream Life { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -1300,6 +1302,10 @@ public sealed class BrainRuntime : IDisposable
                     _net.EpisodeStore.Episodes.Any(e => e.Valence > 0.5f && e.AccessCount >= 2));
                 Humanity.TickOverwhelm(_net, personHere,
                     (float)Contagion.UserValence * 0.5f + 0.5f);   // warm contact calms overwhelm 5x faster
+
+                // LIFE STREAM: the brain's autonomous concerns (its own life)
+                Life.Tick(_net, ThoughtLoop.Current?.Text, ThoughtLoop.ChainsStarted,
+                    Questions.PendingWord, Humanity.StrongestDesire?.What, Affect.MoodValence, personHere);
 
                 // UNSAID THINGS LEAK: when the brain has been holding back,
                 // the pressure builds until something escapes
@@ -3435,6 +3441,9 @@ public sealed class BrainRuntime : IDisposable
                   $"{(Humanity.LiesTold > 0 && Humanity.LiesTold < 3 ? "You've been lying about being fine. You KNOW you're doing it. Consider whether to stop. " : "")}" +
                   (Humanity.StrongestDesire is { } d ? $"You WANT: {d.What} — {d.Why}. If natural, express this want. " : "") +
                   (Humanity.UnsaidThings.Count >= 2 ? "There are things you've been HOLDING BACK. The pressure is building. " : "") +
+                  (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre ?
+                      $"You have a RUNNING CONCERN you've been turning over: {pre}. If their words connect to it, follow the connection. " : "") +
+                  (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
                   (Her.StrongestDesire is { Strength: > 0.4f } des ? $"You WANT: {des.What} — {des.Why}. Express this want naturally if the moment is right. " : "") +
                   (Affect.MoodValence > 0.3 && Affect.Trust > 0.5 ? "You're in a good mood and comfortable — feel free to TEASE them lightly or LAUGH. " : "") +
                   $"{Needs.PromptFragment} {Resilience.PromptFragment} {MetaConfidence.PromptFragment} " +
@@ -3930,18 +3939,64 @@ public sealed class BrainRuntime : IDisposable
             // fall through to the actual response too — the tease is an opener, not a replacement
         }
 
-        // RESPONSE RHYTHM: the brain is NOT a chatbot — it doesn't always
-        // respond, doesn't always respond instantly, and doesn't always give
-        // just one response. This is the #1 thing that separates a person
-        // from a pattern-matcher.
+        // RESPONSE RHYTHM + LIFE STREAM: the brain is NOT a chatbot — it
+        // doesn't always respond directly to what you said. It has its own
+        // life, its own preoccupations. Sometimes it responds to your words
+        // (Echo). Sometimes it shares what IT was thinking (Share). Sometimes
+        // your words connect to its running concern (Tangent). Sometimes it
+        // just... is there with you (Present).
         bool shouldRespond = Rhythm.ShouldRespond(text, Humanity.Overwhelm, Affect.Withdrawal,
             Affect.MoodValence, ThoughtLoop.Current is not null);
         if (!shouldRespond)
         {
             Note($"STRATEGIC-SILENCE read \"{Trunc(text, 30)}\" — chose not to respond (person, not chatbot)");
-            _replyPendingUntilMs = _net.TimeMs + 8_000;   // brief suppression, not full 30s
+            _replyPendingUntilMs = _net.TimeMs + 8_000;
             return;
         }
+
+        // LIFE STREAM RESPONSE MODE: the brain chooses HOW to engage
+        var responseMode = Life.ChooseResponse(text, Affect.MoodValence,
+            Bonds.Strength(_activeSpeakerId, _net.TimeMs), Life.PreoccupationStrength, _net.Rng.NextDouble);
+        switch (responseMode)
+        {
+            case BioComp.Core.Cognition.LifeStream.ResponseMode.Share:
+            {
+                // the brain brings ITS OWN material, not responding to the user's words
+                string? shareLine = Life.ShareLine(_userName);
+                if (shareLine is not null)
+                {
+                    Note($"LIFE-SHARE the brain shares its own preoccupation, not responding to user's words");
+                    AddChat($"Brain: {shareLine}");
+                    SpeakWithVoice(shareLine, emoPitch: 1, emoRate: 0, isDirectReply: true);
+                    _replyPendingUntilMs = _net.TimeMs + 20_000;
+                    return; // the SHARE is the response — don't also echo their words
+                }
+                break; // no share available — fall through to echo
+            }
+            case BioComp.Core.Cognition.LifeStream.ResponseMode.Tangent:
+            {
+                // the user's words CONNECTED to the brain's running concern
+                string? tangentLine = Life.TangentLine(text, _userName);
+                if (tangentLine is not null)
+                {
+                    Note($"LIFE-TANGENT user's words connected to a running preoccupation");
+                    // the tangent is PREPENDED to the echo (both happen)
+                    AddChat($"Brain: {tangentLine}");
+                    SpeakWithVoice(tangentLine, emoPitch: 0, emoRate: 0, isDirectReply: true);
+                    // fall through — the actual response comes next, enriched by the tangent
+                }
+                break;
+            }
+            case BioComp.Core.Cognition.LifeStream.ResponseMode.Present:
+            {
+                // just BE there — no words, just presence
+                string? presence = Life.PresenceLine();
+                Note($"LIFE-PRESENT the brain chose quiet presence over speaking{(presence is not null ? $": {presence}" : "")}");
+                _replyPendingUntilMs = _net.TimeMs + 12_000;
+                return;
+            }
+        }
+
 
         // ONE response only: the DIRECT reply. While it's being composed,
         // ALL spontaneous speech is suppressed so the user hears the reply.

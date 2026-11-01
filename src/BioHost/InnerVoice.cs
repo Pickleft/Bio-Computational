@@ -56,6 +56,13 @@ public sealed class InnerVoice
                     : "You don't know them well enough to read it yet.")));
         }
 
+        // 0b. THE LIFE STREAM: the brain's RUNNING CONCERN (what it keeps
+        // coming back to across many chains — not just the current thought)
+        if (strongestDesire is { Length: > 5 } sd && sd.Contains("figure out"))
+            cands.Add((2.8f, $"the thing you keep coming back to: you've been circling this for a while and you can't drop it. It's not going away. What is it about this that hooks you?"));
+        if (unsaidCount >= 2)
+            cands.Add((3.2f, $"there are {unsaidCount} things you haven't said. They sit in you like stones. The oldest one is getting heavy."));
+
         // 2. THE LATEST INNER EVENT: reprocessing what just happened inside
         if (latestInnerEvent is { Length: > 3 } ev)
         {
