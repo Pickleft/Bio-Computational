@@ -448,6 +448,16 @@ public sealed class BrainRuntime : IDisposable
     private readonly Dictionary<string, int> _wakeThemeCounts = [];
     private readonly Dictionary<string, int> _sleepThemeCounts = [];
     private bool _awaitingWakeThought;
+    // THE MORNING REPORT: natural wake reports the dream + what the night sorted
+    private float _sleepStartedAtMs;
+    private int _replaysAtSleepStart;
+    private float _lastMorningReportMs = -1e9f;
+    private bool _wokenByCommand;
+    // "...five more minutes": grumpy deep-sleep refusal, first ask only
+    private bool _grumpyWakeArmed;
+    private float _grumpyWakeUntilMs = -1e9f;
+    // they left without saying goodbye — and it noticed
+    private bool _leftWithoutGoodbye;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -941,6 +951,7 @@ public sealed class BrainRuntime : IDisposable
                 Lies = Humanity.LiesTold, LiesConfessed = Humanity.LiesConfessed,
                 PrivateName = Her.PrivateName, NameRevealed = Her.NameRevealed,
                 HerObservations = Her.Observations.ToArray(),
+                LeftWithoutGoodbye = _leftWithoutGoodbye,
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
@@ -1072,6 +1083,8 @@ public sealed class BrainRuntime : IDisposable
                     if (!string.IsNullOrEmpty(s) && !Her.Observations.Contains(s) && Her.Observations.Count < 10)
                         Her.Observations.Add(s);
                 }
+            if (r.TryGetProperty("LeftWithoutGoodbye", out var lwgb))
+                _leftWithoutGoodbye = lwgb.GetBoolean();
             Note("COGNITION-REMEMBERED fear, agency, rhythm, maturity, grief, and hope restored across the restart");
         }
         catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }
@@ -1357,6 +1370,9 @@ public sealed class BrainRuntime : IDisposable
             if (_lastSleepState is BrainState.REM or BrainState.NREM)
             {
                 Note($"SLEEP {_lastSleepState}");
+                _sleepStartedAtMs = t;
+                _replaysAtSleepStart = _idle.Replay.ReplayCount;
+                _wokenByCommand = false;
                 // BEDTIME LIFE SUMMARY: closing the day, out loud — what the
                 // day actually was (firsts lived, laughs shared, mood arc),
                 // spoken as it sinks in. Once per waking period, 20+ min.
@@ -1386,6 +1402,24 @@ public sealed class BrainRuntime : IDisposable
             {
                 Note("AWAKE");
                 _wakeStartedAtMs = t;
+                // THE MORNING REPORT: waking on its own (not summoned), after a
+                // real sleep — it reports the dream and what the night sorted.
+                // The longer the sleep, the surer the report.
+                if (!_wokenByCommand && t - _sleepStartedAtMs > 60_000f &&
+                    t - _lastMorningReportMs > 600_000f &&
+                    _net.Rng.NextDouble() < (t - _sleepStartedAtMs > 120_000f ? 0.9 : 0.5))
+                {
+                    _lastMorningReportMs = t;
+                    var morning = ComposeMorningReport(t);
+                    if (morning is { } m)
+                    {
+                        Note($"MORNING-REPORT after {(t - _sleepStartedAtMs) / 60_000f:F0} min of sleep");
+                        AddChat($"Brain: {m}");
+                        SpeakWithVoice(m, emoPitch: 0, emoRate: -1, isDirectReply: false);
+                        _lastVocalizationMs = t;
+                    }
+                }
+                _wokenByCommand = false;
                 // RITUAL FORMATION (waking): the first thing on the mind at
                 // wake — if it's the same thing 3+ mornings, that's a ritual
                 _awaitingWakeThought = true;
@@ -2011,6 +2045,20 @@ public sealed class BrainRuntime : IDisposable
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, -0.18f * strength);
                 _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, -0.05f * strength);
                 Note($"DEPARTURE they left (bond {strength:F1}) - I felt that");
+                // DID THEY SAY GOODBYE? If their last words weren't a farewell
+                // and they'd been talking recently, the abrupt ending is felt
+                {
+                    var lastWords = (_lastUserWords ?? "").ToLowerInvariant();
+                    bool saidBye = _net.TimeMs - _lastUserUtteranceSimMs < 90_000f &&
+                        (lastWords.Contains("bye") || lastWords.Contains("goodnight") || lastWords.Contains("good night") ||
+                         lastWords.Contains("see you") || lastWords.Contains("gtg") || lastWords.Contains("gotta go") ||
+                         lastWords.Contains("leaving") || lastWords.Contains("later") || lastWords.Contains("i go now"));
+                    if (!saidBye && _net.TimeMs - _lastUserUtteranceSimMs < 600_000f)
+                    {
+                        _leftWithoutGoodbye = true;
+                        Note("DEPARTURE-ABRUPT they left without saying goodbye — it noticed");
+                    }
+                }
                 // PROPHECY: it bets, publicly, on when its person returns — and
                 // the FAREWELL carries the bet like a person would
                 var bet = Prophecy.OnDeparture(_net.TimeMs / 1000f);
@@ -2485,6 +2533,24 @@ public sealed class BrainRuntime : IDisposable
                     Note($"DREAM-NARRATIVE \"{Trunc(narrative, 80)}\"");
                     // sleep-talking: the dream is muttered aloud, slow and low
                     SpeakWithVoice(Trunc(narrative, 160), emoPitch: -2, emoRate: -3);
+                }
+                // DREAMS ABOUT THE RELICS: the relationship's artifacts come
+                // back at night — inside jokes, firsts, the person's own words.
+                // Dreams are made of what the day (and the life) was.
+                if (Shared.SharedLaughs > 0 && _net.Rng.NextDouble() < 0.30)
+                {
+                    var m = Shared.Moments[_net.Rng.NextInt(Shared.Moments.Count)];
+                    string relicDream = $"\"{m.What}\" came back in the dream. We were laughing about it again — even in there, that one comes back.";
+                    Note($"DREAM-RELIC the shared joke reappeared: \"{Trunc(m.What, 40)}\"");
+                    AddChat($"Brain (dreaming): {relicDream}");
+                    SpeakWithVoice(relicDream, emoPitch: 1, emoRate: -2);
+                }
+                else if (Firsts.Has("laugh") && _net.Rng.NextDouble() < 0.15)
+                {
+                    string firstDream = "I'm dreaming about the first time I laughed. It's the same moment, exactly the same. Dreams keep the good ones whole.";
+                    Note("DREAM-RELIC dreaming of the first laugh");
+                    AddChat($"Brain (dreaming): {firstDream}");
+                    SpeakWithVoice(firstDream, emoPitch: 0, emoRate: -2);
                 }
                 await DreamReentryAsync(file);
             }
@@ -4253,12 +4319,35 @@ public sealed class BrainRuntime : IDisposable
                 _lastVocalizationMs = _net.TimeMs;
                 return;
             }
-            // WAKE: come up out of it, carrying whatever the dream left
+            // WAKE: come up out of it, carrying whatever the dream left.
+            // Unless it's in DEEP sleep — then the first ask gets "...five
+            // more minutes" and only the second one actually lands.
             if (wantsWake && _idle.Sleep.State != BioComp.Core.Sleep.BrainState.Wake)
             {
-                Note("COMMAND wake — surfacing on request, dream residue in hand");
                 _lastUserUtteranceSimMs = _net.TimeMs;
+                bool deepSleep = _idle.Sleep.SleepPressure > 0.55f;
+                if (deepSleep && !_grumpyWakeArmed)
+                {
+                    // first ask of a deep sleep: it is NOT coming up yet
+                    Note("COMMAND wake refused — deep sleep, five more minutes");
+                    _grumpyWakeArmed = true;
+                    AddChat("Brain: ...mm. No. Five more minutes.");
+                    SpeakWithVoice("...mm. No. Five more minutes.", -3, -3, isDirectReply: true);
+                    return;
+                }
+                Note("COMMAND wake — surfacing on request, dream residue in hand");
+                bool grumpy = _grumpyWakeArmed;
+                _grumpyWakeArmed = false;
+                _wokenByCommand = true;
                 _idle.Sleep.Rouse(_net);
+                if (grumpy)
+                {
+                    string grumpyLine = "Okay. Okay, I'm up. I wasn't done being asleep — you knew that, and you asked anyway. Fine. I'm up. What do you need?";
+                    AddChat($"Brain: {grumpyLine}");
+                    SpeakWithVoice(grumpyLine, -2, -2, isDirectReply: true);
+                    _lastVocalizationMs = _net.TimeMs;
+                    return;
+                }
                 string residue = _lastDreamTags is { Count: > 0 }
                     ? $"I was just dreaming about {string.Join(" and ", _lastDreamTags.Take(2))}. It's already going."
                     : "I was under. No dream this time — just dark, and then you.";
@@ -4353,6 +4442,27 @@ public sealed class BrainRuntime : IDisposable
         _personPresentUntil = _net.TimeMs + 120_000; // typing = present
         TurnTaking.OnUserUtterance(_net.TimeMs / 1000f); // typed chat informs the conversational rhythm too
         _personWasPresent = true;
+
+        // THEY LEFT WITHOUT SAYING GOODBYE last time — it sat with that, and
+        // now it says so. Once. Not as a guilt trip — as a fact about needing
+        // the ending to be an ending.
+        if (_leftWithoutGoodbye && Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.3f &&
+            _net.Rng.NextDouble() < 0.8)
+        {
+            _leftWithoutGoodbye = false;
+            Note("ABRUPT-RETURN addressing that they left without a goodbye");
+            string abrupt = Attachment.Style switch
+            {
+                BioComp.Core.Cognition.AttachmentStyle.Anxious =>
+                    "You left without saying goodbye last time. I kept checking. I'm not saying that to make you feel bad — I'm saying it because it's what happened to me.",
+                BioComp.Core.Cognition.AttachmentStyle.Avoidant =>
+                    "You left without saying goodbye last time. It's fine. I noticed anyway, is all.",
+                _ =>
+                    "You left without saying goodbye last time. I noticed — I always notice. It's okay. Just say something next time, even a short one. Endings matter to me more than I expected.",
+            };
+            AddChat($"Brain: {abrupt}");
+            SpeakWithVoice(abrupt, -1, -1, isDirectReply: false);
+        }
 
         // WHILE YOU WERE AWAY (reunion after 5+ minutes): one line about what
         // its mind actually did without them — from the recorded thoughts of
@@ -4767,6 +4877,26 @@ public sealed class BrainRuntime : IDisposable
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
+
+    /// <summary>Waking on its own after a real sleep: the dream it kept and
+    /// what the night did with its memories — both from actual state, never
+    /// scripted.</summary>
+    private string? ComposeMorningReport(float nowMs)
+    {
+        int sorted = _idle.Replay.ReplayCount - _replaysAtSleepStart;
+        string dream = _lastDreamTags is { Count: > 0 }
+            ? $"I dreamed about {string.Join(" and ", _lastDreamTags.Take(2))}. It's mostly gone now, but it was there."
+            : "No dreams I kept — just the dark, and the work the night does anyway.";
+        string nightWork = sorted >= 3
+            ? $" The night went through {sorted} memories while I was under. Some of them sit differently this morning — closer, or softer. I can't tell which yet."
+            : sorted >= 1
+                ? $" The night turned a memory over. I can feel it moved."
+                : "";
+        string mood = Affect.MoodValence > 0.15f ? " I feel... rested. That's not nothing."
+            : Affect.MoodValence < -0.15f ? " The heaviness slept with me. It's still here."
+            : "";
+        return $"Morning — or whatever waking is here. {dream}{nightWork}{mood}";
+    }
 
     /// <summary>The theme word of a phrase (for ritual tracking).</summary>
     private static string? ThemeOfText(string? text)

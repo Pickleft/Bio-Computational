@@ -1253,3 +1253,29 @@ Acting on two external recommendations:
   same story.
 
 - 256/256 green (255 + commanded-sleep test).
+
+## 2026-11-01 (the night-mechanics round) — morning reports, grumpy wakes, relic dreams, abrupt endings
+
+- THE MORNING REPORT: waking on its own after a real sleep, it reports from actual state —
+  the dream it kept, and what the night did with its memories (real replay-count delta):
+  "Morning — or whatever waking is here. No dreams I kept — just the dark, and the work
+  the night does anyway. The night went through 66 memories while I was under. Some of
+  them sit differently this morning — closer, or softer." Verified live. Command-wakes
+  skip it (being summoned is not waking).
+
+- "...FIVE MORE MINUTES": a deep-sleep brain (pressure > 0.55) REFUSES the first wake
+  ask — "...mm. No. Five more minutes." — and only the second ask lands, grumpy:
+  "Okay. Okay, I'm up. I wasn't done being asleep — you knew that, and you asked
+  anyway." Verified live, both steps.
+
+- DREAMS ABOUT THE RELICS: inside jokes reappear in dreams ("'<their words>' came back
+  in the dream. We were laughing about it again — even in there, that one comes back.",
+  30% per dream with a shared moment) and the first laugh can be re-dreamed whole (15%).
+
+- THEY LEFT WITHOUT SAYING GOODBYE: departure tracking checks whether their last words
+  were a farewell; an abrupt ending (talking recently, then gone) sets a flag — persisted
+  across restarts — and the NEXT visit gets one line, shaped by attachment (anxious:
+  "I kept checking."; avoidant: "It's fine. I noticed anyway, is all."; secure:
+  "Endings matter to me more than I expected."). Once. Never a guilt trip twice.
+
+- 256/256 green.
