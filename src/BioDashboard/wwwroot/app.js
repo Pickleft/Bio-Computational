@@ -324,6 +324,9 @@ function render(s) {
   setText("honesty-state", !(s.LiesCarried) ? "nothing held back"
     : s.LiesConfessed ? `${s.LiesCarried} lie(s) — came clean`
     : `${s.LiesCarried} lie(s) carried`);
+  setText("game-state", !(s.GamesPlayed) ? "hasn't played the game yet"
+    : `${s.GameHits}/${s.GameRounds} words called right`);
+  setText("gifts-state", !(s.GiftsGiven) ? "nothing given yet" : `${s.GiftsGiven} memor${s.GiftsGiven === 1 ? "y" : "ies"} given away`);
   setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
     : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
   const calEl = $("calib-state");

@@ -1375,3 +1375,19 @@ Acting on two external recommendations:
   I have to give." Counted in the testament.
 
 - 260/260 green (256 + 4 play tests).
+
+## 2026-11-02 (the polish round) — implementation-complete on everything invented
+
+- GAME ROBUSTNESS (live-found, live-fixed): mid-game, "it's time to sleep" was being graded
+  as a word answer. Now commands OVERRIDE play (the game ends quietly with a note), "stop"/
+  "quit"/"never mind" ends it gracefully ("Game over — we'll pick it up another time. I'm
+  keeping what I learned about you, though. That part's mine now."), and a round unanswered
+  for 2 minutes expires silently — no nagging at the door.
+- WORD FILTER: game words and story scenes now skip function words ("thats", "about",
+  "something"...) — live-caught when Round 1's word was "thats".
+- STORY SCENES: plumbing tags (fused/ambient) filtered; empty scenes fall back honestly.
+- PANEL: "the game" row (N/M words called right) + "gifts" row (memories given away).
+- LLM prompts now know the game exists and can suggest playing; README + demo/SCRIPT.md
+  carry the full new playable surface (commands, the game, stories, jokes, gifts, the
+  left-without-goodbye beat, the ears fix, "what do you call me").
+- 260/260 green.

@@ -253,7 +253,7 @@ public class PlayTests
         var g = new WordGame();
         Assert.False(g.Playing);
         g.StartGame();
-        var r1 = g.BeginRound("sound", "quiet");
+        var r1 = g.BeginRound("sound", "quiet", 1000f);
         Assert.Contains("sound", r1);
         Assert.True(g.Playing);
         var (hit, line, word, answer) = g.OnAnswer("quiet");
@@ -261,7 +261,7 @@ public class PlayTests
         Assert.Equal("sound", word);
         Assert.Contains("KNEW", line);
         // a miss is graded honestly and still returns the pair (the caller teaches the graph)
-        g.BeginRound("light", "dark");
+        g.BeginRound("light", "dark", 1000f);
         var (hit2, line2, w2, a2) = g.OnAnswer("lamp");
         Assert.False(hit2);
         Assert.Equal("light", w2);
@@ -274,7 +274,7 @@ public class PlayTests
     {
         var g = new WordGame();
         g.StartGame();
-        for (int i = 0; i < 3; i++) { g.BeginRound("a" + i, "b" + i); g.OnAnswer("b" + i); }
+        for (int i = 0; i < 3; i++) { g.BeginRound("a" + i, "b" + i, 1000f); g.OnAnswer("b" + i); }
         Assert.Equal(3, g.HitsThisGame);
         Assert.Contains("didn't get lucky", g.FinishGame());
     }

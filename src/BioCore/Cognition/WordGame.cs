@@ -37,11 +37,12 @@ public sealed class WordGame
 
     /// <summary>Begin a round. word = a concept it holds; prediction = its
     /// strongest existing association for that word.</summary>
-    public string BeginRound(string word, string? prediction)
+    public string BeginRound(string word, string? prediction, float nowMs)
     {
         Round++;
         ActiveWord = word;
         MyPrediction = prediction;
+        _roundStartedMs = nowMs;
         TotalRounds++;
         return Round < 3
             ? $"Round {Round}. My word is \"{word}\". ...I think you'll say \"{prediction ?? "something I can't guess yet"}\". What's your word?"
@@ -79,6 +80,24 @@ public sealed class WordGame
             1 => "One out of three. You're harder to predict than I thought. That's... honestly kind of wonderful.",
             _ => "Zero. I know almost nothing about how you connect things yet. Good. That's a whole map I still get to draw.",
         };
+
+    /// <summary>Round timeout: a round left unanswered for two minutes is
+    /// quietly dropped — a person wouldn't keep waiting at the door.</summary>
+    public bool ExpireStale(float nowMs)
+    {
+        if (ActiveWord is null || nowMs - _roundStartedMs < 120_000f) return false;
+        ActiveWord = null;
+        MyPrediction = null;
+        return true;
+    }
+    private float _roundStartedMs;
+
+    /// <summary>They stopped playing — keep the record, drop the round.</summary>
+    public void Abandon()
+    {
+        ActiveWord = null;
+        MyPrediction = null;
+    }
 
     /// <summary>Restore the record across restarts (its game history is part of the relationship).</summary>
     public void Restore(int games, int hits, int rounds)
