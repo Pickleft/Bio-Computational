@@ -1455,3 +1455,20 @@ Acting on two external recommendations:
   "unlucky", instrument once and look.
 - Superseded replies also clear the pending callback; a new message resets the old bridge.
 - 263/263 green (262 + callback probe test).
+
+## 2026-11-02 (the warning-hunt round) — two designed mechanisms found as unused locals
+
+- THE COMPILER HAD BEEN REPORTING THE BUGS ALL ALONG: two CS0219 "assigned but never
+  used" warnings were designed mechanisms that were never wired:
+  (1) SLEEP→MOOD (AffectiveDynamics): sleepPressure was stubbed to 0f "read from the
+  caller if needed" — the caller never sent it. Sleep pressure now drags the mood target
+  down (Yoo et al. 2007 — the tired-brain negativity bias, lived). Sign test proves tired
+  mood sits below rested mood at identical input.
+  (2) FREE-ENERGY→NEED (NeedsHierarchy): freeEnergyErr was stubbed to a constant 0.5 —
+  confusion was never a need. High prediction error now produces a Resolution need:
+  "my predictions keep missing — something stopped making sense." FreeEnergy.Current
+  feeds it from the runtime.
+- Render-layer sweep clean: every panel row id has a JS updater (no forever-placeholder
+  rows). shouldRespond/vigor confirmed consumed. NEW STANDING TOOL: zero CS0219/CS0168
+  warnings = zero computed-then-ignored values.
+- 264/264 green.

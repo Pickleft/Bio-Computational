@@ -348,3 +348,19 @@ public class CallbackProbeTests
         Assert.Contains("tomatoes", cb);
     }
 }
+
+public class SleepMoodTests
+{
+    [Fact]
+    public void SleepPressure_DragsMoodDown()
+    {
+        var net = new BioComp.Core.Network.SpikingNetwork(
+            BioComp.Core.Network.BrainConfig.Default(scale: 1, seed: 7));
+        var rested = new AffectiveDynamics();
+        for (int i = 0; i < 150; i++) rested.Tick(net, 0.3f, 0.4f, true, false, 0.5f, 0f);
+        var tired = new AffectiveDynamics();
+        for (int i = 0; i < 150; i++) tired.Tick(net, 0.3f, 0.4f, true, false, 0.5f, 0.9f);
+        Assert.True(tired.MoodValence < rested.MoodValence,
+            $"tired mood {tired.MoodValence:F3} should sit below rested {rested.MoodValence:F3}");
+    }
+}

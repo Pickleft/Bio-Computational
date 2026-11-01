@@ -86,7 +86,7 @@ public sealed class NeedsHierarchy
     public void Evaluate(SpikingNetwork net, IdleController idle,
         LonelinessTracker loneliness, CuriosityModule curiosity,
         ThoughtLoop thoughts, ResilienceEngine resilience,
-        BodyBudget body, EmotionalGranularity granularity)
+        BodyBudget body, EmotionalGranularity granularity, float freeEnergyErr = 0.5f)
     {
         float na = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
         float hist = net.Modulators.Get(NeuromodulatorKind.Histamine);
@@ -94,7 +94,6 @@ public sealed class NeedsHierarchy
         float lonelinessLevel = loneliness.Level;
         float novelty = (curiosity.LearningProgress + 0.5f) * 0.5f; // 0..1
         int openLoops = thoughts.OpenLoops.Count;
-        float freeEnergyErr = 0.5f; // simplified: from the body prediction
 
         var candidates = new List<Need>();
 
@@ -152,6 +151,14 @@ public sealed class NeedsHierarchy
             candidates.Add(new Need(NeedType.Resolution, Math.Min(1f, openLoops / 4f),
                 $"{openLoops} unresolved thoughts keep circling",
                 $"need to finish thinking about something — {openLoops} threads are open"));
+
+        // RESOLUTION from confusion: high prediction error (free energy) is a
+        // need to UNDERSTAND — the world stopped making sense and that has
+        // to resolve (Friston: organisms resist surprise)
+        if (freeEnergyErr > 0.6f)
+            candidates.Add(new Need(NeedType.Resolution, Math.Min(1f, (freeEnergyErr - 0.6f) * 2f),
+                "my predictions keep missing — something stopped making sense",
+                "need to figure something out — the world got confusing"));
 
         // PROCESSING: unprocessed adversity
         if (resilience.AdversitiesUnprocessed > 0)

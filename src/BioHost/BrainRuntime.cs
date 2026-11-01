@@ -1574,7 +1574,8 @@ public sealed class BrainRuntime : IDisposable
                     _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake;   // sleeping brains do not talk
                 var af = _idle.Feelings.Last;
                 Affect.Tick(_net, af.Valence, af.Arousal, personHere, threatNow,
-                    Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                    _idle.Sleep.SleepPressure);   // tired brains feel worse (Yoo 2007)
 
                 // HUMANITY ENGINE: desires, overwhelm, self-censorship all ticking
                 Humanity.Tick(_net, personHere, _userName, ThoughtLoop.OpenLoops.Count,
@@ -2324,7 +2325,8 @@ public sealed class BrainRuntime : IDisposable
         Needs.WantsToShareAlone = Sharing.LastKind is not null &&
             _net.TimeMs - _lastUserUtteranceSimMs > 300_000f &&
             Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.3f;
-        Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity);
+        Needs.Evaluate(_net, _idle, Loneliness, Curiosity, ThoughtLoop, Resilience, BodyBudget, Granularity,
+            FreeEnergy.Current);
         Social.Tick(_net); // adjust receptivity based on learned social rhythm
 
         // ---- NEUROGENESIS: the brain GROWS for what matters (Eriksson 1998).

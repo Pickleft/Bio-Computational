@@ -93,18 +93,21 @@ public sealed class AffectiveDynamics
     // ---- TICK (called every few seconds) ----
 
     public void Tick(SpikingNetwork net, float instantValence, float instantArousal,
-        bool personPresent, bool threatDetected, float bondStrength)
+        bool personPresent, bool threatDetected, float bondStrength, float sleepPressure = 0f)
     {
         float serotonin = net.Modulators.Get(NeuromodulatorKind.Serotonin);
         float dopamine = net.Modulators.Get(NeuromodulatorKind.Dopamine);
         float noradrenaline = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
-        float sleepPressure = 0f; // read from the caller if needed
 
         // == MOOD with asymmetric inertia ==
         // The mood is pulled toward the instant feeling, but with resistance
         // that grows with how long the current mood has held. Negative moods
         // are stickier (negativity bias): harder to escape, easier to fall into.
         float target = instantValence;
+        // SLEEP DRAGS MOOD (Yoo et al. 2007): high sleep pressure pulls the
+        // mood target down — the tired-brain negativity bias, lived.
+        if (sleepPressure > 0.5f)
+            target -= (sleepPressure - 0.5f) * 0.4f;
         // inertia DIVIDES the shift: higher = slower change. Range 15..50.
         // 15 means it takes ~15 evaluation ticks to cover 63% of the gap —
         // at 200ms/tick, that's ~3 seconds to SIGNIFICANTLY shift, and much
