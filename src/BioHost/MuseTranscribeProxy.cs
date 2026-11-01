@@ -6,26 +6,33 @@ namespace BioComp.Host;
 
 /// <summary>
 /// Real-time speech transcription proxy: bridges browser WebSocket ↔ Meta's
-/// Muse Voice real-time ASR WebSocket. The browser sends raw PCM audio; we
-/// relay it to Meta and return live partial/final transcripts.
+/// Muse Voice real-time ASR WebSocket (muse-voice-transcribe-1.0).
 ///
-/// HANDSHAKE CRITICAL: Meta authenticates via the FIRST JSON frame after
-/// connection — NOT via HTTP Authorization headers (which are ignored for
-/// WebSocket upgrades). The handshake frame must arrive within 10 seconds.
+/// HANDSHAKE FORMAT (from https://dev.meta.ai/docs/speech-to-text):
+///   - Auth is in "authorization.accessToken" as "Bearer <key>" (NOT api_key)
+///   - audioEncoding is "PCM_16KHZ" or "PCM_24KHZ" (NOT "PCM_S16LE")
+///   - model is "muse-voice-transcribe-1.0" (NOT "muse-voice")
+///   - The handshake has NO "type" field
+///   - Server replies with {"sessionId": "..."} (no type field)
+///   - All subsequent server frames DO have a "type" field
+///
+/// AUDIO: raw signed 16-bit LE mono PCM in BINARY frames, paced at real time.
+/// End with {"type":"endStream"}. Server closes with code 1000.
 /// </summary>
 public sealed class MuseTranscribeProxy : IDisposable
 {
     private ClientWebSocket? _meta;
     private CancellationTokenSource? _cts;
-    private Task? _relayTask;
 
     public bool IsConnected => _meta?.State == WebSocketState.Open;
+    public string? SessionId { get; private set; }
 
     /// <summary>
-    /// Connect to Meta's real-time ASR endpoint and send the auth handshake.
-    /// The API key goes in the first JSON frame, not in headers.
+    /// Connect to Meta's real-time ASR endpoint and send the handshake.
+    /// Format: authorization.accessToken (Bearer), audioEncoding (PCM_16KHZ),
+    /// model (muse-voice-transcribe-1.0), mode (ENDPOINTING).
     /// </summary>
-    public async Task<bool> ConnectAsync(string apiKey, string model = "muse-voice", CancellationToken ct = default)
+    public async Task<bool> ConnectAsync(string apiKey, string model = "muse-voice-transcribe-1.0", CancellationToken ct = default)
     {
         try
         {
@@ -35,20 +42,41 @@ public sealed class MuseTranscribeProxy : IDisposable
 
             await _meta.ConnectAsync(new Uri("wss://api.meta.ai/v1/asr/realtime"), _cts.Token);
 
-            // HANDSHAKE: authentication is in the first frame, not headers.
-            // Meta expects audioEncoding / sampleRateHertz / audioChannelCount
+            // HANDSHAKE — exact format from Meta's docs:
+            // auth in "authorization.accessToken" as "Bearer <key>"
+            // audioEncoding uses Meta's naming (PCM_16KHZ, not PCM_S16LE)
             var handshake = JsonSerializer.Serialize(new
             {
-                type = "handshake",
-                api_key = apiKey,
+                authorization = new { accessToken = $"Bearer {apiKey}" },
+                audioEncoding = "PCM_16KHZ",
                 model = model,
                 mode = "ENDPOINTING",
-                audioEncoding = "PCM_S16LE",
-                sampleRateHertz = 16000,
-                audioChannelCount = 1,
+                partialMode = "CUMULATIVE",
+                emitAudioProgress = false,
             });
             var hsBytes = Encoding.UTF8.GetBytes(handshake);
             await _meta.SendAsync(new ArraySegment<byte>(hsBytes), WebSocketMessageType.Text, true, _cts.Token);
+
+            // read the ack: {"sessionId": "..."} (no type field on this one)
+            var ackBuf = new byte[4096];
+            var ackResult = await _meta.ReceiveAsync(new ArraySegment<byte>(ackBuf), _cts.Token);
+            if (ackResult.MessageType == WebSocketMessageType.Close) return false;
+            var ackJson = Encoding.UTF8.GetString(ackBuf, 0, ackResult.Count);
+            try
+            {
+                using var doc = JsonDocument.Parse(ackJson);
+                if (doc.RootElement.TryGetProperty("sessionId", out var sid))
+                    SessionId = sid.GetString();
+                // check for error in the ack
+                if (doc.RootElement.TryGetProperty("error", out var err))
+                {
+                    Console.WriteLine($"[transcribe-proxy] handshake error: {err}");
+                    return false;
+                }
+            }
+            catch { }
+
+            Console.WriteLine($"[transcribe-proxy] connected, session {SessionId}");
             return true;
         }
         catch (Exception ex)
@@ -59,8 +87,8 @@ public sealed class MuseTranscribeProxy : IDisposable
     }
 
     /// <summary>
-    /// Send a chunk of raw 16-bit PCM audio to Meta.
-    /// The browser sends 16kHz mono; we relay as binary frames.
+    /// Send a chunk of raw 16-bit PCM audio to Meta (binary frames).
+    /// Browser sends 16kHz mono; we relay as-is.
     /// </summary>
     public async Task SendAudioAsync(byte[] pcm, CancellationToken ct = default)
     {
@@ -73,8 +101,21 @@ public sealed class MuseTranscribeProxy : IDisposable
     }
 
     /// <summary>
+    /// Signal end of audio stream. Server responds with final transcript then closes.
+    /// </summary>
+    public async Task EndStreamAsync(CancellationToken ct = default)
+    {
+        if (_meta?.State != WebSocketState.Open) return;
+        try
+        {
+            var endBytes = Encoding.UTF8.GetBytes("""{"type":"endStream"}""");
+            await _meta.SendAsync(new ArraySegment<byte>(endBytes), WebSocketMessageType.Text, true, ct);
+        }
+        catch { }
+    }
+
+    /// <summary>
     /// Read the next transcript event from Meta. Returns null on disconnect.
-    /// Events include: partial_transcript, speech_complete, session_expired.
     /// </summary>
     public async Task<TranscriptEvent?> ReceiveAsync(CancellationToken ct = default)
     {
