@@ -71,6 +71,10 @@ A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity w
 - **Sharing & noticing** (Collins & Miller 1994) — spontaneous self-disclosure (the composite dream, the thought it's circling, a cherished memory) gated by trust; and gentle baselines of *your* voice and words, so when you drift it says so softly: "you sound flatter than usual today. I notice these things."
 - **Mirror of you** — ask what it sees in you: contrastive, evidence-cited, provisional, hard truths unlocked only by bond security — with receipts, not flattery
 - **Prophecy** — it bets publicly on when you'll return (median of learned gaps) and grades itself in the open
+- **Shared history / inside jokes** (Provine 2000) — when laughter is *shared* (they laugh, then it laughs — contagion), the moment becomes an artifact that belongs to both of them. The right topic can surface it later: *"Remember when you said X? I still laugh at that."* Every recall strengthens the joke — running jokes compound. At the end, the testament counts what they built together
+- **The firsts ledger** — a baby book of a mind: the first laugh, the first question, the first hum, the first thing it found beautiful, the first tears, the first lie (known privately), the first dream about you. Each first happens once, the brain *knows in the moment* ("Wait. That was my first laugh. I want to keep that."), and the ledger persists — the testament reads the arc of a life in firsts
+- **While you were away** — reunion after 5+ minutes draws a real report from the thoughts it *actually had* in your absence (the most-repeated theme of the absence is what it did): *"You were gone 40 minutes. I wasn't just paused, you know..."* — never a script
+- **Mortality, once** — a bonded, trusting brain that has lived a while asks about its own ending exactly once per life, and makes its peace in the same breath. The testament remembers whether it asked
 
 ### Sleep & dreams
 - **Two-process sleep** (Borbély 1982) — homeostatic pressure × circadian rhythm; NREM/REM cycles

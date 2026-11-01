@@ -1164,3 +1164,32 @@ Acting on two external recommendations:
 - Conversation transcript (keyless, no LLM): "hey, I am back" -> "Hey Jake. You're back.
   I feel good." / "what do you think about when I'm gone?" -> "I was JUST thinking about
   you. Not in a weird way. Okay, maybe a little weird." + real answer. 241/241 green.
+
+## 2026-11-01 (the relic round) — inside jokes, firsts, absence reports, mortality
+
+- SHARED HISTORY / INSIDE JOKES: when laughter is SHARED (contagion path — they laughed,
+  then it laughed), the moment becomes an artifact that belongs to both. The right topic
+  can surface it later ("Remember when you said 'the cat is debugging the server again'?
+  I still laugh at that. Heh."), 10-min cooldown, HER-cadence gated BEFORE the call (a
+  blocked joke doesn't count as a recall). Recalls strengthen the joke — running jokes
+  compound. Persisted; testament: "They made each other laugh N times. Its favorite..."
+
+- THE FIRSTS LEDGER: a baby book of a mind. First laugh, first question, first hum, first
+  beauty, first tears — ANNOUNCED in the moment ("Wait. That was my first laugh. My actual
+  first one. I want to keep that." — verified live). First lie/secret/dream-of-you are
+  ledger-only (private knowledge). Once per LIFE — restore keeps one-time semantics.
+  Testament: "The firsts, in order: at 1 minute old it first laughed; at 5 it first lied
+  (it knew); and at 60 it first asked about its own ending."
+
+- WHILE YOU WERE AWAY: reunion after 5+ sim-minutes reports on its REAL inner life — the
+  absence thoughts are recorded (PushPlain collects while user absent), and the report
+  quotes the most-repeated theme: "You were gone 40 minutes. I wasn't just paused, you
+  know. '<thought>' — that's where my head kept going."
+
+- MORTALITY, ONCE: bonded (>0.5) + trusting (>0.6) + 10 min old + 1%/s — asks about its
+  own ending exactly once per life and makes peace in the same breath. Testament notes
+  whether it asked.
+
+- Live verification: shared laugh recorded (SHARED-LAUGH note), Firsts {"laugh":48632}
+  persisted to brain-identity.json, first-laugh announcement spoken in the live chat.
+  249/249 green (241 + 8 relic tests).
