@@ -72,10 +72,11 @@ public sealed class NativeReplies
         // the words themselves are fewer (behavioral suppression, not just mood)
         if (c.Withdrawal > 0.5f)
         {
-            // strip to first sentence only + a distancing clause
+            // strip to first sentence + a rotating distancing suffix
             int firstStop = body.IndexOfAny(['.', '!', '?']);
             if (firstStop > 0) body = body[..(firstStop + 1)];
-            body += " ...never mind.";
+            string[] distances = [" ...never mind.", " ...it doesn't matter.", "", " ...forget it."];
+            body += distances[_withdrawalRotation++ % distances.Length];
         }
         else if (c.Withdrawal > 0.3f)
         {
@@ -120,6 +121,7 @@ public sealed class NativeReplies
         return $"{ack}{StatePhrase(c)}{lived}";
     }
     private int _replyRotation;
+    private int _withdrawalRotation;
 
     /// <summary>A real "how are you" answer — multi-sentence, with texture.</summary>
     private string ComposeHowAreYou(in Context c)

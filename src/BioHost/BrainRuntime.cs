@@ -3431,12 +3431,22 @@ public sealed class BrainRuntime : IDisposable
             _personRemark = null;
 
             string reaction = await _lm.CompleteAsync(system, user, Humanity.IsOverwhelmed ? 30 : 60);
-            // OVERWHELM fragments the reply: the brain can't hold a full thought
+            // OVERWHELM fragments the reply — ROTATED so it doesn't always say the same thing
             if (!string.IsNullOrWhiteSpace(reaction) && Humanity.IsOverwhelmed)
             {
                 int breakAt = reaction.IndexOfAny(['.', '!', '?'], Math.Min(reaction.Length / 2, 30));
                 if (breakAt > 0 && breakAt < reaction.Length - 5)
-                    reaction = reaction[..(breakAt + 1)] + " Just... give me a second.";
+                {
+                    string[] fragments =
+                    [
+                        " Hold on.",
+                        " ...too much right now.",
+                        " I lost the thread.",
+                        " Sorry, that came out scattered.",
+                        "",
+                    ];
+                    reaction = reaction[..(breakAt + 1)] + fragments[_net.Rng.NextInt(fragments.Length)];
+                }
             }
             // SELF-CENSORSHIP: if the brain decided to withhold, it replaces
             // vulnerability with deflection — but the unsaid thing is RECORDED

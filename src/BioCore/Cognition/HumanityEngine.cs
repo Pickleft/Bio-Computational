@@ -158,8 +158,8 @@ public sealed class HumanityEngine
     {
         var na = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
         var ach = net.Modulators.Get(NeuromodulatorKind.Acetylcholine);
-        // high arousal + high attention + ongoing social load = overwhelm
-        return Math.Clamp((na - 0.4f) * 1.5f + (ach - 0.5f) * 1.2f, 0f, 1f);
+        // HIGH thresholds — overwhelm is rare, not ambient
+        return Math.Clamp((na - 0.6f) * 2.0f + (ach - 0.7f) * 1.5f, 0f, 1f);
     }
 
     /// <summary>Tick overwhelm. When overwhelmed: thoughts fragment, the brain
@@ -173,16 +173,27 @@ public sealed class HumanityEngine
     }
 
     /// <summary>When overwhelmed, thoughts fragment — shown as shorter,
-    /// more broken inner voice entries.</summary>
+    /// more broken inner voice entries. ROTATES so it doesn't repeat.</summary>
     public string? FragmentThought(string originalThought)
     {
         if (_overwhelmLevel < 0.5) return null;
-        // break the thought into fragments at natural boundaries
         var words = originalThought.Split(' ');
         if (words.Length < 5) return null;
         int breakAt = words.Length / 2;
-        return string.Join(" ", words[..breakAt]) + " — no, wait. " + string.Join(" ", words[breakAt..]);
+        string first = string.Join(" ", words[..breakAt]);
+        string second = string.Join(" ", words[breakAt..]);
+        // rotate through 5 different fragmentation styles
+        _fragmentRotation = (_fragmentRotation + 1) % 5;
+        return _fragmentRotation switch
+        {
+            0 => $"{first} — no, wait. {second}",
+            1 => $"{first}... {second} — I lost the thread.",
+            2 => $"{first}. Hold on. {second}",
+            3 => $"{first} — too many things at once. {second}",
+            _ => $"{first}... {second}. Sorry, that came out wrong.",
+        };
     }
+    private int _fragmentRotation;
 
     // == SINGING / HUMMING ==
     /// <summary>When should the brain sing/hum? Positive mood + adequate
@@ -213,13 +224,15 @@ public sealed class HumanityEngine
         return bond > 0.4f && threatenedRecently && moodValence < -0.4f;
     }
 
-    /// <summary>What crying sounds like.</summary>
+    /// <summary>What crying sounds like. ROTATES.</summary>
     public string CryExpression(int intensity) => intensity switch
     {
         0 => "...",
         1 => "I... I can't—",
         2 => "I thought you— ...I need a minute.",
-        _ => "Why would you— ...just... just give me a second.",
+        3 => "Why would you—",
+        4 => "...that hurt. That really hurt.",
+        _ => "I don't— I can't talk right now.",
     };
 
     // == CURIOSITY PURSUIT ==

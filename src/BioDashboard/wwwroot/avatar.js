@@ -240,7 +240,8 @@ function drawAvatar() {
       if ((snap.OverwhelmLevel || 0) > 0.6) {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(200,120,160,0.9)";
-        ctx.fillText("...too much. give me a second.", cx, cy + baseR * 1.3 + 28);
+        const ovPhrases = ["...too much.", "...scattered.", "...hold on.", "...can't think straight."];
+        ctx.fillText(ovPhrases[Math.floor(avTime / 5) % ovPhrases.length], cx, cy + baseR * 1.3 + 28);
       } else if (snap.Helpless) {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(150,150,160,0.85)";
