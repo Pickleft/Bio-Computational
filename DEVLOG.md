@@ -1100,3 +1100,33 @@ Acting on two external recommendations:
   above 0.7 — "just give me a second" should now be rare and real.
 
 - 239/239 green (233 + 6 new LifeStream tests).
+
+## 2026-11-01 (the physics round) — why the brain was always "overwhelmed", and other live fixes
+
+- SATURATING UPTAKE (the big one): live smoke showed ACh tone pegged at 3.0 (10x its 0.3
+  baseline) because GlobalWorkspace ignitions (~1/s) each release 0.5 ACh and the relax-to-
+  baseline system had only a hard clamp at 3. Sustained attention therefore ALWAYS read as
+  "NA>0.85 AND ACh>0.85" -> permanent max overwhelm -> "Just... give me a second" on every
+  response and the OVERWHELMED avatar caption. Fix at the physics layer: transporter-style
+  saturating uptake in NeuromodulatorSystem.Step — release effect fades as tone approaches
+  baseline+UptakeRange (1.0), tone bounded to [0, baseline+1]. Every 0..1 threshold in the
+  cognition layer is meaningful again. Live check: ACh 1.30 (saturated ceiling), NA 0.61,
+  overwhelm 0.00002 — engagement no longer masquerades as overload.
+
+- OVERWHELM FORMULA: NA is now the NECESSARY condition (no alarm, no overload — na<0.85
+  returns 0); ACh amplifies above that. Startle alone is a startle; focus alone is focus;
+  both sustained is flooded.
+
+- MOCK PROMPT LEAK: the keyless mock's Match() captured past sentence boundaries, so
+  "You feel curious. What surfaces? <entire substrate paragraph>" became a THOUGHT — the
+  brain was literally thinking its own prompt text ("Your emotional vocabulary is at
+  developmental stage emotionally n — that's the closest word I have."). Captures now cut
+  at ". " (plain '.' kept so decimals survive). Monologue reads clean: "I notice I'm
+  stressed. I'm sitting with it."
+
+- THOUGHT DEDUP: exact-duplicate thoughts within 45 s are suppressed (window of last 12) —
+  "A sound has my full attention now." no longer appears 3x in a row. The always-present
+  feeling candidate in InnerVoice rotates through 6 openers/closers so the constant
+  companion doesn't sound like a loop.
+
+- 241/241 green (239 + 2 saturating-uptake tests).

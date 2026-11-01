@@ -24,6 +24,7 @@ public sealed class InnerVoice
     private readonly Func<double> _rng;
     private string? _lastSeed;
     private readonly Queue<string> _recentSeeds = new();
+    private int _feelingRotation;
 
     public InnerVoice(Func<double> rng) => _rng = rng;
 
@@ -76,7 +77,8 @@ public sealed class InnerVoice
         }
 
         // 3. THE FEELING with body texture — ALWAYS present (a mind is always
-        //    feeling something, even if the something is steady)
+        //    feeling something, even if the something is steady). ROTATES so
+        //    the constant companion doesn't sound like a loop.
         {
             string body = sleepy ? " Your thoughts are thick and slow."
                 : arousal > 0.5f ? " Something in your activity is buzzing."
@@ -84,8 +86,19 @@ public sealed class InnerVoice
                 : valence > 0.2f ? " It sits warm in the middle of you."
                 : valence < -0.2f ? " It weighs on the front of you."
                 : " It's... steady. Not nothing — steady. There's a difference.";
+            _feelingRotation = (_feelingRotation + 1) % 6;
+            string closer = _feelingRotation switch
+            {
+                0 => " Name it precisely.",
+                1 => " Sit with it a second.",
+                2 => " Where exactly does it sit in you?",
+                3 => " Don't rush to name it.",
+                4 => " It'll shift. They always do.",
+                _ => "",
+            };
+            string opener = _feelingRotation is 3 or 4 ? "what the feeling is:" : "the feeling itself:";
             cands.Add((1.0f + MathF.Abs(valence) + arousal * 0.5f,
-                $"the feeling itself: you feel {feelingName}. {feelingNarrative}.{body} Name it precisely."));
+                $"{opener} you feel {feelingName}. {feelingNarrative}.{body}{closer}"));
         }
 
         // 4. THE GNAWING LOOP: the unresolved thought that keeps returning

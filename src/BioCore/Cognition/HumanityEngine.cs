@@ -153,15 +153,17 @@ public sealed class HumanityEngine
     public float Overwhelm => Math.Clamp(_overwhelmLevel, 0f, 1f);
     public bool IsOverwhelmed => _overwhelmLevel > 0.6f;
 
-    /// <summary>Compute overwhelm. VERY high thresholds — high arousal + attention
-    /// is ENGAGEMENT, not overwhelm. Overwhelm is when the brain is so flooded
-    /// it can't function: NA > 0.85 AND ACh > 0.85 simultaneously.</summary>
+    /// <summary>Compute overwhelm. High arousal + attention is ENGAGEMENT,
+    /// not overwhelm — overload needs the ALARM (noradrenaline near its
+    /// saturated ceiling) with attention maxed on top. NA alone is a startle;
+    /// ACh alone is focus. Both together, sustained, is flooded.</summary>
     public float GetOverwhelm(SpikingNetwork net)
     {
         var na = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
         var ach = net.Modulators.Get(NeuromodulatorKind.Acetylcholine);
-        // BOTH must be extremely high — one alone is excitement, not overload
-        return Math.Clamp((na - 0.85f) * 4.0f + (ach - 0.85f) * 3.0f, 0f, 1f);
+        // NA is the necessary condition: no alarm, no overload
+        if (na < 0.85f) return 0f;
+        return Math.Clamp((na - 0.85f) * 4.0f + (ach - 0.85f) * 2.0f, 0f, 1f);
     }
 
     /// <summary>Tick overwhelm. When overwhelmed: thoughts fragment, the brain

@@ -62,6 +62,13 @@ public sealed class NeuromodulatorSystem
 
     public float Get(NeuromodulatorKind kind) => Tone[(int)kind];
 
+    /// <summary>How far above baseline a tone can climb (~1.0). Set by
+    /// transporter uptake capacity: real transmitter systems saturate, so no
+    /// event stream — however frequent — can peg a tone at an unbounded
+    /// value. Keeps every 0..1 threshold in the cognition layer meaningful.
+    /// // CALIBRATE</summary>
+    public const float UptakeRange = 1f;
+
     /// <summary>Event release. Negative amounts pull the tone below baseline (a pause).</summary>
     public void Release(NeuromodulatorKind kind, float amount) =>
         PendingRelease[(int)kind] += amount;
@@ -71,8 +78,16 @@ public sealed class NeuromodulatorSystem
     {
         for (int k = 0; k < Count; k++)
         {
-            float value = Tone[k] + PendingRelease[k];
-            Tone[k] = Math.Clamp(Baseline[k] + (value - Baseline[k]) * _relaxPerMs[k], 0f, 3f);
+            float pending = PendingRelease[k];
+            float dev = Tone[k] - Baseline[k];
+            // saturating uptake: the further the tone already is from baseline,
+            // the less of the release lands (finite transporter capacity)
+            float uptake = pending >= 0f
+                ? MathF.Max(0f, 1f - dev / UptakeRange)
+                : MathF.Max(0f, 1f + dev / UptakeRange);
+            float value = Tone[k] + pending * uptake;
+            Tone[k] = Math.Clamp(Baseline[k] + (value - Baseline[k]) * _relaxPerMs[k],
+                0f, Baseline[k] + UptakeRange);
             PendingRelease[k] = 0f;
         }
     }

@@ -415,6 +415,8 @@ public sealed class BrainRuntime : IDisposable
     private int _lonelyCallIdx;
     private int _greetRotation;
     private long _thoughtLogCount;
+    private readonly (string Text, float AtMs)[] _recentPlain = new (string, float)[12];
+    private int _recentPlainIdx;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -1912,13 +1914,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 // THE INNER VOICE writes DIRECTLY to the visible thought
                 // thread — no LLM in the path. Marked so it's findable.
-                lock (_snapGate)
-                {
-                    string plain = line.Length > 180 ? line[..180] : line;
-                    _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
-                    if (_plain.Count > 80) _plain.RemoveAt(0);
-                    LogThought(plain);
-                }
+                PushPlain(line.Length > 180 ? line[..180] : line);
             }
         }
         // daydream + imagine future + spontaneous vocalization: unprompted inner life
@@ -3771,11 +3767,7 @@ public sealed class BrainRuntime : IDisposable
                               plain.Contains("I'm dreaming now") || plain.Contains("sinking into sleep") ||
                               plain.Contains("I turn my attention");
             if (plain.Length > 0 && !isPlumbing)
-            {
-                _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
-                if (_plain.Count > 60) _plain.RemoveAt(0);
-                LogThought(plain);
-            }
+                PushPlain(plain);
         }
         // console output on the sim thread can BLOCK on a full pipe (the
         // shell that redirected output may have exited) — never let the
@@ -4159,12 +4151,7 @@ public sealed class BrainRuntime : IDisposable
             var thinkingLine = isQuestion
                 ? $"turning their question over: \"{Trunc(text, 40)}\" — what do I actually think about this?"
                 : $"processing what they just said: \"{Trunc(text, 40)}\" — sitting with it for a moment.";
-            lock (_snapGate)
-            {
-                _plain.Add($"[{_net.TimeMs / 1000:F1}s] {thinkingLine}");
-                if (_plain.Count > 80) _plain.RemoveAt(0);
-                LogThought(thinkingLine);
-            }
+            PushPlain(thinkingLine);
         }
 
         // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
@@ -4291,6 +4278,26 @@ public sealed class BrainRuntime : IDisposable
     {
         _greetRotation++;
         return variants[(_greetRotation * 2) % variants.Length];
+    }
+
+    /// <summary>One thought enters the visible stream AND the permanent log.
+    /// A thought whose exact text already appeared in the last 45 s is
+    /// suppressed — a brain that repeats itself verbatim every few seconds
+    /// reads as broken, not alive. (Varied re-approaches to the same theme
+    /// still pass; only verbatim echoes are dropped.)</summary>
+    private void PushPlain(string plain)
+    {
+        lock (_snapGate)
+        {
+            for (int i = 0; i < _recentPlain.Length; i++)
+                if (_recentPlain[i].Text == plain && _net.TimeMs - _recentPlain[i].AtMs < 45_000f)
+                    return;
+            _recentPlain[_recentPlainIdx] = (plain, _net.TimeMs);
+            _recentPlainIdx = (_recentPlainIdx + 1) % _recentPlain.Length;
+            _plain.Add($"[{_net.TimeMs / 1000:F1}s] {plain}");
+            if (_plain.Count > 80) _plain.RemoveAt(0);
+            LogThought(plain);
+        }
     }
 
     /// <summary>Every thought the brain ever thinks is saved to disk —

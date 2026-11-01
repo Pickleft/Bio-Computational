@@ -57,4 +57,41 @@ public class NeuromodulatorTests
             return net.Modulators.Get(NeuromodulatorKind.Dopamine) - before;
         }
     }
+
+    [Fact]
+    public void SaturatingUptake_NoEventStreamCanPegATransmitter()
+    {
+        var m = new NeuromodulatorSystem();
+        float ceiling = NeuromodulatorSystem.BaselineOf(NeuromodulatorKind.Acetylcholine)
+            + NeuromodulatorSystem.UptakeRange + 1e-3f;
+        // sustained heavy release (an ignition every second, forever)
+        for (int i = 0; i < 60_000; i++)   // 60 s
+        {
+            m.Release(NeuromodulatorKind.Acetylcholine, 0.5f);
+            m.Step();
+        }
+        float ach = m.Get(NeuromodulatorKind.Acetylcholine);
+        Assert.True(ach <= ceiling, $"ACh must saturate near baseline+range, got {ach}");
+        // and it must be HIGH (saturation is not a squash of normal traffic)
+        Assert.True(ach > 0.8f, $"sustained attention should still drive ACh high, got {ach}");
+        // when the flood stops, tone relaxes back toward baseline
+        for (int i = 0; i < 120_000; i++) m.Step();   // 120 s, tau is 5 s
+        Assert.True(m.Get(NeuromodulatorKind.Acetylcholine) < 0.5f,
+            "ACh should relax back toward baseline once the flood stops");
+    }
+
+    [Fact]
+    public void SaturatingUptake_MildTrafficStaysWellBelowCeiling()
+    {
+        var m = new NeuromodulatorSystem();
+        // sparse releases: one 0.3 burst every 5 s for a minute
+        for (int i = 0; i < 60_000; i++)
+        {
+            if (i % 5_000 == 0) m.Release(NeuromodulatorKind.Noradrenaline, 0.3f);
+            m.Step();
+        }
+        float na = m.Get(NeuromodulatorKind.Noradrenaline);
+        // sparse surprise traffic must NOT look like overload (ceiling is 1.2)
+        Assert.InRange(na, 0.2f, 0.6f);
+    }
 }

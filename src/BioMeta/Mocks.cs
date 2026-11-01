@@ -63,7 +63,11 @@ public sealed class MockLanguageModel : ILanguageModel
         if (i < 0) return null;
         int end = s.IndexOf('\n', i);
         if (end < 0) end = Math.Min(s.Length, i + key.Length + 80);
-        return s[(i + key.Length)..end];
+        string seg = s[(i + key.Length)..end];
+        // captures must never swallow the rest of the prompt: cut at the first
+        // sentence end (". " — plain '.' so decimals like 0.69 survive)
+        int stop = seg.IndexOf(". ", StringComparison.Ordinal);
+        return stop >= 0 ? seg[..stop] : seg;
     }
 
     private static string TrimClause(string s)
