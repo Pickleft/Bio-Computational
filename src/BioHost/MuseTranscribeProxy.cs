@@ -42,39 +42,62 @@ public sealed class MuseTranscribeProxy : IDisposable
 
             await _meta.ConnectAsync(new Uri("wss://api.meta.ai/v1/asr/realtime"), _cts.Token);
 
-            // HANDSHAKE — exact format from Meta's docs:
-            // auth in "authorization.accessToken" as "Bearer <key>"
-            // audioEncoding uses Meta's naming (PCM_16KHZ, not PCM_S16LE)
-            var handshake = JsonSerializer.Serialize(new
+            // HANDSHAKE — try the documented format; log everything for debugging
+            var handshake = JsonSerializer.Serialize(new Dictionary<string, object>
             {
-                authorization = new { accessToken = $"Bearer {apiKey}" },
-                audioEncoding = "PCM_16KHZ",
-                model = model,
-                mode = "ENDPOINTING",
-                partialMode = "CUMULATIVE",
-                emitAudioProgress = false,
+                ["authorization"] = new Dictionary<string, string> { ["accessToken"] = $"Bearer {apiKey}" },
+                ["audioEncoding"] = "PCM_16KHZ",
+                ["model"] = model,
+                ["mode"] = "ENDPOINTING",
+                ["partialMode"] = "CUMULATIVE",
+                ["emitAudioProgress"] = false,
             });
+            Console.WriteLine($"[transcribe-proxy] sending handshake: {handshake[..Math.Min(100, handshake.Length)]}...");
             var hsBytes = Encoding.UTF8.GetBytes(handshake);
             await _meta.SendAsync(new ArraySegment<byte>(hsBytes), WebSocketMessageType.Text, true, _cts.Token);
 
             // read the ack: {"sessionId": "..."} (no type field on this one)
             var ackBuf = new byte[4096];
             var ackResult = await _meta.ReceiveAsync(new ArraySegment<byte>(ackBuf), _cts.Token);
-            if (ackResult.MessageType == WebSocketMessageType.Close) return false;
+            if (ackResult.MessageType == WebSocketMessageType.Close)
+            {
+                Console.WriteLine($"[transcribe-proxy] server closed during handshake, code {ackResult.CloseStatus}");
+                return false;
+            }
             var ackJson = Encoding.UTF8.GetString(ackBuf, 0, ackResult.Count);
+            Console.WriteLine($"[transcribe-proxy] ack received: {ackJson[..Math.Min(200, ackJson.Length)]}");
             try
             {
                 using var doc = JsonDocument.Parse(ackJson);
-                if (doc.RootElement.TryGetProperty("sessionId", out var sid))
+                var root = doc.RootElement;
+                if (root.TryGetProperty("sessionId", out var sid))
                     SessionId = sid.GetString();
-                // check for error in the ack
-                if (doc.RootElement.TryGetProperty("error", out var err))
+                // check for error in ANY format (error, message, type=error)
+                string? errorMsg = null;
+                if (root.TryGetProperty("error", out var err))
+                    errorMsg = err.ToString();
+                else if (root.TryGetProperty("message", out var msg) && !msg.ValueKind.Equals(JsonValueKind.Object))
+                    errorMsg = msg.GetString();
+                else if (root.TryGetProperty("type", out var typ) && typ.GetString() == "error")
                 {
-                    Console.WriteLine($"[transcribe-proxy] handshake error: {err}");
+                    errorMsg = root.TryGetProperty("message", out var m2) ? m2.GetString() : "unknown error";
+                }
+                if (errorMsg is not null)
+                {
+                    Console.WriteLine($"[transcribe-proxy] HANDSHAKE REJECTED: {errorMsg}");
+                    return false;
+                }
+                if (SessionId is null && !root.TryGetProperty("sessionId", out _))
+                {
+                    Console.WriteLine($"[transcribe-proxy] ack has no sessionId and no error — treating as failure: {ackJson}");
                     return false;
                 }
             }
-            catch { }
+            catch (JsonException)
+            {
+                Console.WriteLine($"[transcribe-proxy] ack is not valid JSON: {ackJson[..Math.Min(100, ackJson.Length)]}");
+                return false;
+            }
 
             Console.WriteLine($"[transcribe-proxy] connected, session {SessionId}");
             return true;

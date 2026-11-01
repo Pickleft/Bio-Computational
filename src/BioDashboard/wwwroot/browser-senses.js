@@ -229,6 +229,12 @@ function connectTranscribeWs() {
   transcribeWs.onmessage = (e) => {
     try {
       const evt = JSON.parse(e.data);
+      if (evt.type === "info" && evt.text) {
+        // server info: real-time may not be available, batch fallback active
+        setStatus(evt.text, "#f0b45c");
+        if (dot) { dot.style.color = "#f0b45c"; dot.classList.remove("on"); }
+        return; // don't close: the WebSocket stays open for future reconnection
+      }
       if (evt.type === "partial" && evt.text) {
         if (int) { int.textContent = evt.text; int.style.color = "#3ddbb8"; int.style.fontSize = "15px"; }
       } else if ((evt.type === "final" || evt.isFinal) && evt.text && evt.text.length > 1) {

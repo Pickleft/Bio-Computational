@@ -162,8 +162,24 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     var opts = BioComp.Meta.MetaOptions.Load();
     if (!opts.HasKey)
     {
-        // No API key: fall back to browser-only mode (SpeechRecognition)
-        await browserWs.CloseAsync(WebSocketCloseStatus.NormalClosure, "no-api-key", CancellationToken.None);
+        // No API key — the server-side batch path (via /api/browser-audio →
+        // VAD → Meta batch transcription) still works. Don't close: tell the
+        // browser so it knows, then let the batch path handle everything.
+        var msg = JsonSerializer.Serialize(new { type = "info", text = "no API key — using server batch transcription", isFinal = false });
+        var msgBytes = System.Text.Encoding.UTF8.GetBytes(msg);
+        await browserWs.SendAsync(new ArraySegment<byte>(msgBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        // keep the WebSocket open: audio goes to /api/browser-audio (batch path works)
+        // just drain incoming (audio) and discard
+        var drainBuf = new byte[16384];
+        while (browserWs.State == WebSocketState.Open && !ctx.RequestAborted.IsCancellationRequested)
+        {
+            try
+            {
+                var r = await browserWs.ReceiveAsync(new ArraySegment<byte>(drainBuf), ctx.RequestAborted);
+                if (r.MessageType == WebSocketMessageType.Close) break;
+            }
+            catch { break; }
+        }
         return;
     }
 
@@ -171,7 +187,25 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     bool connected = await proxy.ConnectAsync(opts.ApiKey);
     if (!connected)
     {
-        await browserWs.CloseAsync(WebSocketCloseStatus.NormalClosure, "meta-connect-failed", CancellationToken.None);
+        // Real-time failed — DON'T CLOSE: tell the browser, then let the
+        // server batch path handle transcription. The audio still goes to
+        // /api/browser-audio which triggers server VAD + batch Meta transcription.
+        Console.WriteLine("[transcribe] real-time failed — falling back to batch (server VAD + Meta batch API)");
+        var msg = JsonSerializer.Serialize(new { type = "info", text = "real-time unavailable — using batch (slower but works)", isFinal = false });
+        var msgBytes = System.Text.Encoding.UTF8.GetBytes(msg);
+        if (browserWs.State == WebSocketState.Open)
+            await browserWs.SendAsync(new ArraySegment<byte>(msgBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        // drain incoming audio (the batch path handles it via /api/browser-audio)
+        var buf = new byte[16384];
+        while (browserWs.State == WebSocketState.Open && !ctx.RequestAborted.IsCancellationRequested)
+        {
+            try
+            {
+                var r = await browserWs.ReceiveAsync(new ArraySegment<byte>(buf), ctx.RequestAborted);
+                if (r.MessageType == WebSocketMessageType.Close) break;
+            }
+            catch { break; }
+        }
         return;
     }
     Console.WriteLine("[transcribe] Meta real-time ASR connected");
