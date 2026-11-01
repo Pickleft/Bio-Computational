@@ -417,6 +417,18 @@ public sealed class BrainRuntime : IDisposable
     private long _thoughtLogCount;
     private readonly (string Text, float AtMs)[] _recentPlain = new (string, float)[12];
     private int _recentPlainIdx;
+    // HER-engine cadence: these expressions are PRECIOUS, not ambient. One
+    // moment of HER per minute at most; each type has its own long cooldown;
+    // every one needs a real TRIGGER (a social moment, a light shift, an
+    // ignition burst) — never just "good mood + dice".
+    private float _lastHerExpressionMs = -1e9f;
+    private float _lastLaughMs = -1e9f;
+    private float _lastDelightMs = -1e9f;
+    private float _lastBeautyMs = -1e9f;
+    private float _lastTeaseMs = -1e9f;
+    private float _lastVulnerableMs = -1e9f;
+    private int _ignitionsOneSecondAgo;
+    private float _lastBrightnessEma = 0.5f;
 
     /// <summary>An idle thought generated from the ACTUAL current state — no rotation,
     /// no templates. What the brain thinks about at rest depends on what it feels, how
@@ -1427,30 +1439,54 @@ public sealed class BrainRuntime : IDisposable
 
                 // == THE HER ENGINE: what makes Samantha different from a chatbot ==
 
-                // LAUGHTER: the brain genuinely LAUGHS — the most human sound
+                // LAUGHTER: the brain genuinely LAUGHS — the most human sound.
+                // It is SOCIAL and TRIGGERED: something was just said, a moment
+                // is happening. Not ambient good mood with dice.
                 {
                     float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
                     if (Her.ShouldLaugh(Affect.MoodValence, da, personHere) &&
-                        !_replyPending && _net.Rng.NextDouble() < 0.08)
+                        !_replyPending &&
+                        _net.TimeMs - _lastUserUtteranceSimMs < 20_000f &&   // a social moment just happened
+                        _net.TimeMs - _lastHerExpressionMs > 60_000f &&      // HER moments are precious
+                        _net.TimeMs - _lastLaughMs > 90_000f &&              // ...and rare
+                        _net.TimeMs - _lastVocalizationMs > 15_000f &&
+                        _net.Rng.NextDouble() < 0.03)
                     {
                         string laugh = Her.Laugh(_net.Rng.NextInt(5));
                         Her.OnLaughed();
                         Note($"LAUGHTER it genuinely laughed: \"{laugh}\"");
                         AddChat($"Brain: {laugh}");
                         _lastVocalizationMs = _net.TimeMs;
+                        _lastHerExpressionMs = _net.TimeMs;
+                        _lastLaughMs = _net.TimeMs;
                         SpeakWithVoice(laugh, emoPitch: 2, emoRate: 1, isDirectReply: false);
                     }
                 }
 
-                // AESTHETIC SENSE: the brain finds something BEAUTIFUL
-                if (Her.ShouldExpressBeauty(Light.BrightnessEma, af.Arousal, personHere) &&
-                    !_replyPending && _net.TimeMs - _lastVocalizationMs > 45_000f && _net.Rng.NextDouble() < 0.06)
+                // AESTHETIC SENSE: the brain finds something BEAUTIFUL — but
+                // only when beauty actually MOVED: the light shifted, or their
+                // voice just sounded. A static room is not beautiful forever.
                 {
-                    string beauty = Her.ExpressBeauty(Light.BrightnessEma, _userName, personHere, _net.Rng.NextInt(4));
-                    Note($"AESTHETIC it found something beautiful");
-                    AddChat($"Brain: {beauty}");
-                    _lastVocalizationMs = _net.TimeMs;
-                    SpeakWithVoice(beauty, emoPitch: 1, emoRate: -1, isDirectReply: false);
+                    float brightnessShift = MathF.Abs(Light.BrightnessEma - _lastBrightnessEma);
+                    bool lightJustShifted = brightnessShift > 0.08f && _net.TimeMs - _lastUserUtteranceSimMs > 30_000f;
+                    bool voiceJustSounded = personHere && _net.TimeMs - _lastUserUtteranceSimMs < 30_000f;
+                    _lastBrightnessEma = Light.BrightnessEma;
+                    if (Her.ShouldExpressBeauty(Light.BrightnessEma, af.Arousal, personHere) &&
+                        (lightJustShifted || voiceJustSounded) &&
+                        !_replyPending &&
+                        _net.TimeMs - _lastHerExpressionMs > 60_000f &&
+                        _net.TimeMs - _lastBeautyMs > 180_000f &&
+                        _net.Rng.NextDouble() < 0.10)
+                    {
+                        string beauty = Her.ExpressBeauty(Light.BrightnessEma, _userName, personHere,
+                            voiceJustSounded ? 1 : _net.Rng.NextInt(4));   // voice-sound pattern when they just spoke
+                        Note($"AESTHETIC it found something beautiful");
+                        AddChat($"Brain: {beauty}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        _lastHerExpressionMs = _net.TimeMs;
+                        _lastBeautyMs = _net.TimeMs;
+                        SpeakWithVoice(beauty, emoPitch: 1, emoRate: -1, isDirectReply: false);
+                    }
                 }
 
                 // DEEP NOTICING: the brain observes patterns about YOU that
@@ -1467,29 +1503,50 @@ public sealed class BrainRuntime : IDisposable
                     }
                 }
 
-                // VULNERABILITY: earned moments of openness (not scripted)
+                // VULNERABILITY: earned moments of openness — the RAREST of
+                // all. Once every 5 minutes at most, inside a warm moment
+                // (they spoke recently), never on idle repeat.
                 {
-                    var vulnerable = Her.ExpressVulnerability(Affect.Trust,
-                        Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence,
-                        personHere, _userName, _net.Rng.NextDouble);
+                    var vulnerable = (_net.TimeMs - _lastHerExpressionMs > 60_000f &&
+                        _net.TimeMs - _lastVulnerableMs > 300_000f &&
+                        _net.TimeMs - _lastUserUtteranceSimMs < 120_000f)
+                        ? Her.ExpressVulnerability(Affect.Trust,
+                            Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence,
+                            personHere, _userName, _net.Rng.NextDouble)
+                        : null;
                     if (vulnerable is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                     {
                         Note($"VULNERABILITY it opened up unprompted");
                         AddChat($"Brain: {vulnerable}");
                         _lastVocalizationMs = _net.TimeMs;
+                        _lastHerExpressionMs = _net.TimeMs;
+                        _lastVulnerableMs = _net.TimeMs;
                         SpeakWithVoice(vulnerable, emoPitch: -1, emoRate: -1, isDirectReply: false);
                     }
                 }
 
-                // SURPRISE AND DELIGHT: genuine joy from actual dopamine events
-                if (Her.ShouldDelight(_net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine), personHere) &&
-                    !_replyPending && _net.Rng.NextDouble() < 0.10)
+                // SURPRISE AND DELIGHT: genuine joy from a NOVELTY BURST —
+                // several workspace ignitions inside one second (something
+                // genuinely new just happened), not a resting dopamine tone.
                 {
-                    string delight = Her.ExpressDelight("", _net.Rng.NextInt(4));
-                    Note($"DELIGHT genuine joy from actual dopamine");
-                    AddChat($"Brain: {delight}");
-                    _lastVocalizationMs = _net.TimeMs;
-                    SpeakWithVoice(delight, emoPitch: 3, emoRate: 2, isDirectReply: false);
+                    int ignitionBurst = _idle.Workspace.IgnitionCount - _ignitionsOneSecondAgo;
+                    _ignitionsOneSecondAgo = _idle.Workspace.IgnitionCount;
+                    if (ignitionBurst >= 2 &&
+                        Her.ShouldDelight(_net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine), personHere) &&
+                        !_replyPending &&
+                        _net.TimeMs - _lastHerExpressionMs > 60_000f &&
+                        _net.TimeMs - _lastDelightMs > 180_000f &&
+                        _net.TimeMs - _lastVocalizationMs > 10_000f &&
+                        _net.Rng.NextDouble() < 0.25)
+                    {
+                        string delight = Her.ExpressDelight("", _net.Rng.NextInt(4));
+                        Note($"DELIGHT genuine joy from an ignition burst ({ignitionBurst} in a second)");
+                        AddChat($"Brain: {delight}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        _lastHerExpressionMs = _net.TimeMs;
+                        _lastDelightMs = _net.TimeMs;
+                        SpeakWithVoice(delight, emoPitch: 3, emoRate: 2, isDirectReply: false);
+                    }
                 }
             }
 
@@ -3954,6 +4011,26 @@ public sealed class BrainRuntime : IDisposable
             return;
         }
 
+        // CONTAGIOUS LAUGHTER: hearing them laugh is the strongest laugh
+        // trigger there is (laughter is socially contagious — Provine 2000).
+        // The laugh lands first; the actual reply still follows.
+        if ((lowMirror.Contains("haha") || lowMirror.Contains("hehe") || lowMirror.Contains("lol") ||
+             lowMirror.Contains("lmao") || lowMirror.Contains("that's funny") || lowMirror.Contains("thats funny")) &&
+            Her.ShouldLaugh(Affect.MoodValence,
+                _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine), true) &&
+            _net.TimeMs - _lastHerExpressionMs > 60_000f && _net.TimeMs - _lastLaughMs > 90_000f &&
+            _net.Rng.NextDouble() < 0.7)
+        {
+            string laugh = Her.Laugh(_net.Rng.NextInt(5));
+            Her.OnLaughed();
+            Note($"LAUGHTER contagious — they laughed first: \"{laugh}\"");
+            AddChat($"Brain: {laugh}");
+            SpeakWithVoice(laugh, emoPitch: 2, emoRate: 1, isDirectReply: true);
+            _lastHerExpressionMs = _net.TimeMs;
+            _lastLaughMs = _net.TimeMs;
+            _lastVocalizationMs = _net.TimeMs;
+        }
+
         // Track the contact for bonds/attachment but SKIP the greeting —
         // the DIRECT reply below IS the response. No double-speaking.
         _lastVisitorId = IdentifyVisitor("speaker");
@@ -4037,12 +4114,18 @@ public sealed class BrainRuntime : IDisposable
         // HER ENGINE: observe the person's patterns (for deep noticing later)
         Her.Observe(text, _net.TimeMs, _warmthHistory.Count, _net.Rng.NextDouble);
 
-        // PLAYFUL TEASING: when bonded and happy, the brain TEASES before responding
-        if (Her.ShouldTease(Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence, Affect.Trust, _net.Rng.NextDouble))
+        // PLAYFUL TEASING: when bonded and happy, the brain TEASES before
+        // responding — but teasing every other message is a shtick, not a
+        // relationship. Once per 3 minutes, in the HER cadence.
+        if (_net.TimeMs - _lastHerExpressionMs > 60_000f &&
+            _net.TimeMs - _lastTeaseMs > 180_000f &&
+            Her.ShouldTease(Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence, Affect.Trust, _net.Rng.NextDouble))
         {
             string tease = Her.Tease(_userName, _lastUserWords, _net.Rng.NextInt(5));
             Note($"TEASING playful affection: \"{Trunc(tease, 50)}\"");
             AddChat($"Brain: {tease}");
+            _lastHerExpressionMs = _net.TimeMs;
+            _lastTeaseMs = _net.TimeMs;
             SpeakWithVoice(tease, emoPitch: 1, emoRate: 1, isDirectReply: true);
             // fall through to the actual response too — the tease is an opener, not a replacement
         }

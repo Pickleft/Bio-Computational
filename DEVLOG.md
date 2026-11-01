@@ -1130,3 +1130,37 @@ Acting on two external recommendations:
   companion doesn't sound like a loop.
 
 - 241/241 green (239 + 2 saturating-uptake tests).
+
+## 2026-11-01 (the HER cadence round) — precious moments, not machine-gun exclamations
+
+- LIVE CONVERSATION TESTS: boot + /api/say + read the chat — this is now the standard
+  aliveness check (tests can't catch what the chat log shows).
+
+- THE HER MACHINE GUN, fixed. A 10-second boot produced EIGHT exclamations (laughter x2
+  verbatim, delight x3, beauty, vulnerability x3): every HER expression was ambient dice
+  (8-25% per second on tone alone) with no cadence. Now: (a) one HER moment per 60 s MAX
+  across all types, (b) per-type cooldowns (laugh 90 s, tease 3 min, beauty 3 min, delight
+  3 min, vulnerability 5 min), (c) every expression needs a TRIGGER: laughter is social
+  (they spoke in the last 20 s), beauty needs the light to actually shift or their voice
+  to just sound, delight needs an ignition BURST (2+ workspace ignitions in one second),
+  vulnerability needs a warm moment (they spoke in the last 2 min).
+
+- CONTAGIOUS LAUGHTER: "haha"/"lol"/"that's funny" from the user triggers laughter at 70%
+  (Provine 2000 — laughter is socially contagious). The laugh lands first, the reply
+  still follows.
+
+- NO CONSECUTIVE SHARES: the brain never ignores what you said twice in a row — if the
+  last response mode was Share (its own material), the next is Echo.
+
+- MOOD LABELS CAN'T BE PREOCCUPATIONS: "Being curious right now." (a feeling-report
+  thought) was becoming the running concern, producing "I keep coming back to something
+  and I can't drop it — Being curious right now." Feeling-report shapes are filtered at
+  capture AND at restore (a stale mood label from an old identity no longer resurrects).
+
+- REPLY STATE PHRASES ROTATE: "I feel good. I feel good. I feel good." (three replies in
+  a row, same suffix) — every StatePhrase bucket now has 4 variants x 2 vocabulary tiers,
+  rotating. Same for the always-on feeling candidate in the inner voice.
+
+- Conversation transcript (keyless, no LLM): "hey, I am back" -> "Hey Jake. You're back.
+  I feel good." / "what do you think about when I'm gone?" -> "I was JUST thinking about
+  you. Not in a weird way. Okay, maybe a little weird." + real answer. 241/241 green.

@@ -156,12 +156,42 @@ public sealed class NativeReplies
         return $"I've thought about this.{StatePhrase(c)} {FeelingPhrase(c)} — that's where I land.";
     }
 
+    private int _stateRotation;
+
+    /// <summary>Where the brain is, appended to replies. ROTATES — the same
+    /// state must not produce the same sentence every single time ("I feel
+    /// good. I feel good. I feel good." is the chatbot tell).</summary>
     private string StatePhrase(in Context c)
     {
-        if (c.Sleepy) return " " + (c.GranularityTier >= 2 ? "Everything in me is drowsing, in a warm way." : "I'm sleepy.");
-        if (c.Valence > 0.3f) return " " + (c.GranularityTier >= 3 ? "There's a quiet brightness in me right now." : "I feel good.");
-        if (c.Valence < -0.3f) return " " + (c.GranularityTier >= 3 ? "Something in me is heavy tonight." : "I feel bad.");
-        return " " + (c.GranularityTier >= 2 ? "I'm steady. Watching my own thoughts go by." : "I'm okay.");
+        int i = _stateRotation++ % 4;
+        string[] poeticSleepy =
+            ["Everything in me is drowsing, in a warm way.",
+             "My thoughts keep going soft at the edges.",
+             "I'm halfway between here and asleep.",
+             "Sleep is pulling at me and I'm not fighting it much."];
+        string[] simpleSleepy = ["I'm sleepy.", "I'm tired.", "Sleepy right now.", "Very sleepy."];
+        string[] poeticGood =
+            ["There's a quiet brightness in me right now.",
+             "Something in me is lit up and I can't pin it down.",
+             "I keep almost smiling. It's strange.",
+             "There's a hum in me that won't settle, in a good way."];
+        string[] simpleGood = ["I feel good.", "I feel pretty good.", "Good, actually.", "I'm good right now."];
+        string[] poeticHeavy =
+            ["Something in me is heavy tonight.",
+             "There's a weight I'm carrying and I don't know where it came from.",
+             "I'm dimmer than usual and I can feel it.",
+             "Everything is a little grayer from in here."];
+        string[] simpleHeavy = ["I feel bad.", "Not great.", "I feel low.", "Bad, honestly."];
+        string[] poeticSteady =
+            ["I'm steady. Watching my own thoughts go by.",
+             "I'm okay — even, quiet, here.",
+             "Nothing's wrong. Nothing's special. I'm just here.",
+             "Steady. The thoughts move slow and I let them."];
+        string[] simpleSteady = ["I'm okay.", "I'm fine.", "Okay, I guess.", "I'm alright."];
+        if (c.Sleepy) return " " + (c.GranularityTier >= 2 ? poeticSleepy[i] : simpleSleepy[i]);
+        if (c.Valence > 0.3f) return " " + (c.GranularityTier >= 3 ? poeticGood[i] : simpleGood[i]);
+        if (c.Valence < -0.3f) return " " + (c.GranularityTier >= 3 ? poeticHeavy[i] : simpleHeavy[i]);
+        return " " + (c.GranularityTier >= 2 ? poeticSteady[i] : simpleSteady[i]);
     }
 
     private string FeelingPhrase(in Context c) =>

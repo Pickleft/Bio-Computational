@@ -91,6 +91,17 @@ public sealed class LifeStream
         return t.Length <= 64 ? t : t[..64].Trim() + "...";
     }
 
+    /// <summary>Feeling-report shapes: these say how the brain IS, not what
+    /// it is turning over. They must not become preoccupations.</summary>
+    private static bool LooksLikeMoodLabel(string t)
+    {
+        var s = t.ToLowerInvariant();
+        return s.StartsWith("i feel") || s.StartsWith("i'm") || s.StartsWith("im ") ||
+               s.StartsWith("i notice") || s.StartsWith("being ") || s.StartsWith("there's a") ||
+               s.Contains("closest word") || s.Contains("that's where i am") ||
+               s.Contains("something in that stays") || s.Contains("quality to this moment");
+    }
+
     /// <summary>
     /// Sample the running thought stream. A concern only gains strength when
     /// it recurs ACROSS chains — one chain looping on itself doesn't count.
@@ -108,7 +119,12 @@ public sealed class LifeStream
         if (pendingWord is { Length: > 2 })
             words.Add(pendingWord.ToLowerInvariant());
 
-        if (words.Count > 0 && currentThought is { Length: > 3 })
+        // a preoccupation must be ABOUT something: mood-label thoughts
+        // ("Being curious right now." / "I feel calm.") are state reports,
+        // not concerns — they don't get to become the running worry
+        bool isMoodLabel = currentThought is null || LooksLikeMoodLabel(currentThought);
+
+        if (words.Count > 0 && !isMoodLabel)
         {
             // does this thought touch an EXISTING concern? (any content word
             // overlapping the concern's theme or its phrase)
@@ -129,7 +145,7 @@ public sealed class LifeStream
             else if (_concerns.Count < 12)
             {
                 var theme = words.OrderByDescending(w => w.Length).First();
-                _concerns[theme] = new Concern(theme, PhraseOf(currentThought), 1, 1, now);
+                _concerns[theme] = new Concern(theme, PhraseOf(currentThought ?? theme), 1, 1, now);
             }
         }
         if (chainsStarted != _lastChainCounted) _lastChainCounted = chainsStarted;
@@ -192,15 +208,20 @@ public sealed class LifeStream
         float preoccupationStrength, Func<double> rng)
     {
         double r = rng();
-        if (preoccupationStrength > 0.5f && bond > 0.2f && r < 0.35)
-            return ResponseMode.Share;
-        if (_preoccupation is { Length: > 5 } && userText.Length > 0 && ThemeOf(userText) is { } t &&
+        ResponseMode mode;
+        if (preoccupationStrength > 0.5f && bond > 0.2f && r < 0.35 && _lastMode != ResponseMode.Share)
+            mode = ResponseMode.Share;   // never twice in a row — ignoring what they said twice is rude
+        else if (_preoccupation is { Length: > 5 } && userText.Length > 0 && ThemeOf(userText) is { } t &&
             _concerns.ContainsKey(t) && r < 0.5)
-            return ResponseMode.Tangent;
-        if (r > 0.9 && moodValence < -0.2f)
-            return ResponseMode.Present;
-        return ResponseMode.Echo;
+            mode = ResponseMode.Tangent;
+        else if (r > 0.9 && moodValence < -0.2f)
+            mode = ResponseMode.Present;
+        else
+            mode = ResponseMode.Echo;
+        _lastMode = mode;
+        return mode;
     }
+    private ResponseMode _lastMode;
 
     /// <summary>Bring the preoccupation into the conversation (rotates, never repeats back-to-back).</summary>
     public string? ShareLine(string? userName)
@@ -243,11 +264,14 @@ public sealed class LifeStream
         };
     }
 
-    /// <summary>Restore across restarts (the concern survives the process dying).</summary>
+    /// <summary>Restore across restarts (the concern survives the process dying).
+    /// A saved "preoccupation" that is really a mood label is dropped — the
+    /// brain would rather rebuild a real concern than restore a fake one.</summary>
     public void Restore(string? preoccupation, float strength, string? selfReflection, float nowMs)
     {
-        _preoccupation = preoccupation is { Length: > 5 } ? preoccupation : null;
-        _preoccupationStrength = Math.Clamp(strength, 0f, 1f);
+        _preoccupation = preoccupation is { Length: > 5 } && !LooksLikeMoodLabel(preoccupation)
+            ? preoccupation : null;
+        _preoccupationStrength = _preoccupation is null ? 0 : Math.Clamp(strength, 0f, 1f);
         _selfReflection = selfReflection is { Length: > 8 } ? selfReflection : null;
         if (_preoccupation is { } p && ThemeOf(p) is { } t)
             _concerns[t] = new Concern(t, p, 4, 4, nowMs);   // chains>1 so it stays a live concern
