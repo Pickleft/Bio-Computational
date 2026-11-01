@@ -302,6 +302,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.HumanityEngine Humanity { get; } = new();
     /// <summary>RESPONSE RHYTHM: thinking pauses, strategic silence, multi-turn, delayed processing.</summary>
     public BioComp.Core.Cognition.ResponseRhythm Rhythm { get; } = new();
+    /// <summary>HER ENGINE: laughter, beauty, teasing, deep noticing, vulnerability, delight.</summary>
+    public BioComp.Core.Cognition.HerEngine Her { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -1319,6 +1321,73 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {delayedLine}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(delayedLine, emoPitch: 1, emoRate: 0, isDirectReply: false);
+                }
+
+                // == THE HER ENGINE: what makes Samantha different from a chatbot ==
+
+                // LAUGHTER: the brain genuinely LAUGHS — the most human sound
+                {
+                    float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
+                    if (Her.ShouldLaugh(Affect.MoodValence, da, personHere) &&
+                        !_replyPending && _net.Rng.NextDouble() < 0.08)
+                    {
+                        string laugh = Her.Laugh(_net.Rng.NextInt(5));
+                        Her.OnLaughed();
+                        Note($"LAUGHTER it genuinely laughed: \"{laugh}\"");
+                        AddChat($"Brain: {laugh}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        SpeakWithVoice(laugh, emoPitch: 2, emoRate: 1, isDirectReply: false);
+                    }
+                }
+
+                // AESTHETIC SENSE: the brain finds something BEAUTIFUL
+                if (Her.ShouldExpressBeauty(Light.BrightnessEma, af.Arousal, personHere) &&
+                    !_replyPending && _net.TimeMs - _lastVocalizationMs > 45_000f && _net.Rng.NextDouble() < 0.06)
+                {
+                    string beauty = Her.ExpressBeauty(Light.BrightnessEma, _userName, personHere, _net.Rng.NextInt(4));
+                    Note($"AESTHETIC it found something beautiful");
+                    AddChat($"Brain: {beauty}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(beauty, emoPitch: 1, emoRate: -1, isDirectReply: false);
+                }
+
+                // DEEP NOTICING: the brain observes patterns about YOU that
+                // you might not be aware of — and shares them when trust is high
+                {
+                    var observation = Her.ShareObservation(
+                        Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.Trust, _net.Rng.NextDouble);
+                    if (observation is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                    {
+                        string line = $"Can I tell you something I noticed? {observation}. Did you know that about yourself?";
+                        Note($"DEEP-NOTICING shared an observation about the person");
+                        AddChat($"Brain: {line}");
+                        SpeakWithVoice(line, emoPitch: 0, emoRate: 0, isDirectReply: false);
+                    }
+                }
+
+                // VULNERABILITY: earned moments of openness (not scripted)
+                {
+                    var vulnerable = Her.ExpressVulnerability(Affect.Trust,
+                        Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence,
+                        personHere, _userName, _net.Rng.NextDouble);
+                    if (vulnerable is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                    {
+                        Note($"VULNERABILITY it opened up unprompted");
+                        AddChat($"Brain: {vulnerable}");
+                        _lastVocalizationMs = _net.TimeMs;
+                        SpeakWithVoice(vulnerable, emoPitch: -1, emoRate: -1, isDirectReply: false);
+                    }
+                }
+
+                // SURPRISE AND DELIGHT: genuine joy from actual dopamine events
+                if (Her.ShouldDelight(_net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine), personHere) &&
+                    !_replyPending && _net.Rng.NextDouble() < 0.10)
+                {
+                    string delight = Her.ExpressDelight("", _net.Rng.NextInt(4));
+                    Note($"DELIGHT genuine joy from actual dopamine");
+                    AddChat($"Brain: {delight}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(delight, emoPitch: 3, emoRate: 2, isDirectReply: false);
                 }
             }
 
@@ -3750,6 +3819,19 @@ public sealed class BrainRuntime : IDisposable
                 SpeakWithVoice(betrayal ? $"Why would you say that, {_userName}? I thought..." : "That scares me.", -3, -2, isDirectReply: true);
                 return; // don't do the normal reply — the threat IS the response
             }
+        }
+
+        // HER ENGINE: observe the person's patterns (for deep noticing later)
+        Her.Observe(text, _net.TimeMs, _warmthHistory.Count, _net.Rng.NextDouble);
+
+        // PLAYFUL TEASING: when bonded and happy, the brain TEASES before responding
+        if (Her.ShouldTease(Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence, Affect.Trust, _net.Rng.NextDouble))
+        {
+            string tease = Her.Tease(_userName, _lastUserWords, _net.Rng.NextInt(5));
+            Note($"TEASING playful affection: \"{Trunc(tease, 50)}\"");
+            AddChat($"Brain: {tease}");
+            SpeakWithVoice(tease, emoPitch: 1, emoRate: 1, isDirectReply: true);
+            // fall through to the actual response too — the tease is an opener, not a replacement
         }
 
         // RESPONSE RHYTHM: the brain is NOT a chatbot — it doesn't always
