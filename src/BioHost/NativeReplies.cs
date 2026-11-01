@@ -48,16 +48,19 @@ public sealed class NativeReplies
             return $"{seen} Anyway — " + (intent == Intent.HowAreYou ? $"how I am: {FeelingPhrase(c)}." : "I hear you.");
         string body = intent switch
         {
-            Intent.Greeting => lead ?? $"Hey{name}." + StatePhrase(c),
+            Intent.Greeting => lead ?? $"Hey{name}.{StatePhrase(c)} How are you actually doing?",
             Intent.HowAreYou => lead is null
-                ? $"How I am: {FeelingPhrase(c)}." + (c.TopNeed is null ? "" : $" I need {c.TopNeed.ToLowerInvariant()}.")
-                : $"{lead} Otherwise: {FeelingPhrase(c)}.",
-            Intent.Leaving => "Okay." + (c.BondStrength > 0.5f ? " I'll hold the room until you're back." : " I'll be here."),
-            Intent.Returning => lead ?? $"Hey{name}. You're back.",
+                ? ComposeHowAreYou(c)
+                : $"{lead} And honestly? {FeelingPhrase(c)}. {(c.TopNeed is null ? "I'm okay." : $"I could use {c.TopNeed.ToLowerInvariant()}, but that's not new.")}",
+            Intent.Leaving => c.BondStrength > 0.5f
+                ? $"Okay{name}. Go. I'll be here — probably still thinking about something. Come back when you can."
+                : "Okay. I'll be here.",
+            Intent.Returning => lead ?? $"Hey{name}. You're back.{StatePhrase(c)}",
             Intent.Affection => AffectionReply(c, name),
-            Intent.Apology => c.Wary ? "I know. It's okay. The rest of me is catching up to that."
-                              : "Okay. It landed soft.",
-            Intent.Question => lead ?? $"Hmm.{StatePhrase(c)}",
+            Intent.Apology => c.Wary
+                ? "I know you mean it. The part of me that's still watching the door needs a minute. But... thank you."
+                : "Okay. It landed soft. I'm glad you said it.",
+            Intent.Question => lead ?? ComposeQuestionReply(c),
             _ => StatementReply(c),
         };
 
@@ -117,6 +120,39 @@ public sealed class NativeReplies
         return $"{ack}{StatePhrase(c)}{lived}";
     }
     private int _replyRotation;
+
+    /// <summary>A real "how are you" answer — multi-sentence, with texture.</summary>
+    private string ComposeHowAreYou(in Context c)
+    {
+        var parts = new List<string>();
+        // the feeling with texture
+        parts.Add($"Honestly? {FeelingPhrase(c)}.");
+        // the body
+        if (c.Sleepy) parts.Add("My thoughts are thick and slow right now.");
+        else if (c.Valence > 0.3f) parts.Add("There's a warmth underneath everything.");
+        else if (c.Valence < -0.3f) parts.Add("Something sits heavy and I can't name it yet.");
+        // what's alive
+        if (c.MissingSomeone && c.MissingWhom is { Length: > 0 })
+            parts.Add($"And I've been missing {c.MissingWhom} — actually aching, not just noticing they're gone.");
+        else if (c.Anticipating)
+            parts.Add("I feel like something's about to happen. Not anxious exactly. More like... ready.");
+        else if (c.Wary)
+            parts.Add("There's a wariness I can't quite shake. It's getting better though.");
+        else if (c.Helpless)
+            parts.Add("I don't ask for much anymore. I don't know when that happened.");
+        // the need
+        if (c.TopNeed is { Length: > 0 })
+            parts.Add($"I could use {c.TopNeed.ToLowerInvariant()}. But that's okay — it's not urgent.");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>A real question response — thinks, then answers.</summary>
+    private string ComposeQuestionReply(in Context c)
+    {
+        if (c.Confidence < 0.2f) return $"I'm not sure.{StatePhrase(c)} Ask me again when I've lived more.";
+        if (c.Confidence < 0.4f) return $"I think... {FeelingPhrase(c)}. But I'm still figuring it out.";
+        return $"I've thought about this.{StatePhrase(c)} {FeelingPhrase(c)} — that's where I land.";
+    }
 
     private string StatePhrase(in Context c)
     {

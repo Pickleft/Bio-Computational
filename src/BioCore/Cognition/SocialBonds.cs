@@ -36,7 +36,7 @@ public sealed class SocialBondSystem
     public float Strength(string id, float nowMs)
     {
         if (!_bonds.TryGetValue(id, out var b)) return 0f;
-        float visits = MathF.Log2(1f + b.Visits) / 3f;            // saturating familiarity
+        float visits = MathF.Log2(1f + b.Visits) / 5f;            // slower: a bond is a RELATIONSHIP, not a chat session
         float days = MathF.Max(0f, (nowMs - b.LastSeenMs) / 86_400_000f);
         float survival = MathF.Pow(1f - DecayPerDay, days);
         return Math.Clamp(visits * (0.35f + 0.65f * b.Warmth) * survival, 0f, 1f);

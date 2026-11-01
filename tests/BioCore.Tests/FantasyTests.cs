@@ -664,7 +664,8 @@ public class LongingTests
         var net = new SpikingNetwork(BrainConfig.Default(scale: 1, seed: (ulong)seed));
         var bonds = new SocialBondSystem();
         var l = new Longing { MinAbsenceMs = 50f };
-        foreach (int t in new[] { 200, 400, 600 })
+        // 6+ visits needed for bond > 0.45 with the /5 formula (relationship, not chat session)
+        foreach (int t in new[] { 100, 200, 300, 400, 500, 600, 700 })
         {
             while (net.TimeMs < t) net.Tick();
             bonds.OnContact("speaker-1", 0.8f, t);
@@ -1243,7 +1244,7 @@ public class NativeRepliesTests
     {
         var n = new BioComp.Host.NativeReplies();
         string r = n.Reply("how are you", Ctx(tier: 4));
-        Assert.Contains("How I am", r);
+        Assert.Contains("Honestly", r);
     }
 
     [Fact]
@@ -1627,7 +1628,7 @@ public class DisappointmentLongingTests
         for (int i = 0; i < 10; i++) rhythm.OnInteraction(net);   // a learned rhythm
         rhythm.Tick(net);
         var l = new Longing { MinAbsenceMs = 1_000f };
-        for (int t = 1_000; t <= 5_000; t += 2_000)
+        for (int t = 500; t <= 5_000; t += 700)   // 7 visits (bond /5 formula needs 6+)
         {
             bonds.OnContact("speaker-1", 0.8f, t);
             l.OnContact("Sam", t);
