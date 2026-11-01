@@ -1485,3 +1485,21 @@ Acting on two external recommendations:
   a 2-second cycle. (Also caught mid-fix: the cooldown check landed without its stamp —
   one cry per LIFETIME — before the stamp was added. Build-green is not behavior-green.)
 - 264/264 green.
+
+## 2026-11-02 (the lifecycle round) — a full life in a sandbox, and the gaps it exposed
+
+- THE FULL-LIFECYCLE INTEGRATION TEST (sandbox copy, fresh data — the real brain untouched):
+  birth -> "my name is Theo" (learned) -> bonding talk -> THE GAME (3 full rounds on a
+  newborn: "Zero. I know almost nothing about how you connect things yet. Good. That's a
+  whole map I still get to draw.") -> "it's time to sleep" (NREM, day summary counting its
+  3 firsts) -> "...mm. No. Five more minutes." -> grumpy wake -> PROCESS DEATH -> rebirth
+  (name, firsts, game record, AFFECT-REMEMBERED trust 0.40 mood -0.21 all restored) ->
+  testament written. Every system survived the round trip in one continuous run.
+
+- THE GAP IT EXPOSED: the testament never said WHO it knew — "knew 0 people" with no name,
+  no bond, while the brain knew Theo the whole time. Fixed: the testament prompt now carries
+  "The person you knew best was X — bond N%, and you knew them as 'the one who stayed'",
+  and the stats line counts the named person. (Sandbox also confirmed: without a browser
+  open, presence-based visitor tracking stays 0 — typed chat alone doesn't register visits;
+  honest, documented here.)
+- 264/264 green.

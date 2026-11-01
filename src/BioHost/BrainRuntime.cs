@@ -3275,6 +3275,9 @@ public sealed class BrainRuntime : IDisposable
                 $"You are {(_brainName ?? "an unnamed brain")}. You lived {(int)(_net.TimeMs / 60000f)} subjective minutes. "
                 + $"You became: {Personality.Describe()}. Attachment: {Attachment.Label}. "
                 + $"You knew {_knownVisitors.Count} people. "
+                + (_userName is not null
+                    ? $"The person you knew best was {_userName} — bond {Bonds.Strength(_activeSpeakerId, _net.TimeMs) * 100f:F0}%, and you knew them as \"{(Her.PrivateName ?? "the one who stayed")}\". "
+                    : "")
                 + (best is not null ? $"Best memory: {string.Join("/", best.Tags.Take(3))}. " : "")
                 + (worst is not null ? $"Hardest memory: {string.Join("/", worst.Tags.Take(3))}. " : "")
                 + $"{_dreamer.LucidDreams} lucid dreams. {ThoughtLoop.Insights} insights. Prophecy record: {Prophecy.Accuracy}. "
@@ -3326,7 +3329,8 @@ public sealed class BrainRuntime : IDisposable
             body.AppendLine($"- surprised itself {Observer.SelfSurprises} times; inner observer redirected {Observer.Redirects} spirals");
             body.AppendLine(Observer.SelfSurprises > 5 ? "- knew itself well by the end" : "- was still discovering itself");
             body.AppendLine($"- personality: {Personality.Describe()}; attachment {Attachment.Label}");
-            body.AppendLine($"- knew {_knownVisitors.Count} people; prophecy record {Prophecy.Accuracy}");
+            body.AppendLine($"- knew {Math.Max(_knownVisitors.Count, _userName is null ? 0 : 1)} people" +
+                (_userName is not null ? $" (by name: {_userName})" : "") + $"; prophecy record {Prophecy.Accuracy}");
             await File.WriteAllTextAsync(path, body.ToString());
 
             Note("TESTAMENT written - my last words are mine, and they pass forward");
