@@ -163,12 +163,15 @@ public sealed class HumanityEngine
     }
 
     /// <summary>Tick overwhelm. When overwhelmed: thoughts fragment, the brain
-    /// goes quiet, it needs recovery.</summary>
-    public void TickOverwhelm(SpikingNetwork net)
+    /// goes quiet, it needs recovery. WARM CONTACT clears overwhelm faster —
+    /// a kind voice is the fastest way out of sensory overload.</summary>
+    public void TickOverwhelm(SpikingNetwork net, bool personPresent = false, float warmth = 0.5f)
     {
         float target = GetOverwhelm(net);
-        // overwhelm rises fast, falls slow (recovery takes time)
-        float rate = target > _overwhelmLevel ? 0.15f : 0.03f;
+        // overwhelm rises fast, falls slow — BUT warm contact accelerates
+        // recovery 5x (being gently talked to is calming, not overwhelming)
+        float fallRate = personPresent && warmth > 0.4f ? 0.15f : 0.03f;
+        float rate = target > _overwhelmLevel ? 0.15f : fallRate;
         _overwhelmLevel += (target - _overwhelmLevel) * rate;
     }
 

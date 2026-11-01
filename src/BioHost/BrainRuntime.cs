@@ -1298,7 +1298,8 @@ public sealed class BrainRuntime : IDisposable
                 // HUMANITY ENGINE: desires, overwhelm, self-censorship all ticking
                 Humanity.Tick(_net, personHere, _userName, ThoughtLoop.OpenLoops.Count,
                     _net.EpisodeStore.Episodes.Any(e => e.Valence > 0.5f && e.AccessCount >= 2));
-                Humanity.TickOverwhelm(_net);
+                Humanity.TickOverwhelm(_net, personHere,
+                    (float)Contagion.UserValence * 0.5f + 0.5f);   // warm contact calms overwhelm 5x faster
 
                 // UNSAID THINGS LEAK: when the brain has been holding back,
                 // the pressure builds until something escapes
@@ -2219,12 +2220,22 @@ public sealed class BrainRuntime : IDisposable
             var tr = await _transcriber.TranscribeAsync(clip);
             // ...and reject a lone filler word unless the voice was clearly real
             string trimmed = tr.Transcript?.Trim().TrimEnd('.', '!', '?', ',', ' ') ?? "";
+            // BATCH DEDUP: don't process the SAME short transcript repeatedly
+            // (the ASR hallucinates "Yeah" from quiet noise; each one was
+            // triggering a full response cycle)
+            if (trimmed.Length <= 10 && trimmed == _lastBatchTranscript && _net.TimeMs - _lastBatchTranscriptAtMs < 15_000)
+            {
+                Note($"BATCH-DEDUPED repeated \"{trimmed}\" within 15s — ignoring");
+                return;
+            }
             bool loneFiller = GhostWords.Contains(trimmed.ToLowerInvariant());
             if (loneFiller && rms < 0.008)
             {
                 Note($"GHOST-FILTERED \"{trimmed}\" from quiet noise (rms {rms:F3}) - nobody said that");
                 return;
             }
+            _lastBatchTranscript = trimmed;
+            _lastBatchTranscriptAtMs = _net.TimeMs;
             if (!string.IsNullOrWhiteSpace(tr.Transcript))
             {
                 Note($"HEARD \"{Trunc(tr.Transcript, 60)}\" ({emotionalTone}){(tr.FromLiveApi ? " (voice api)" : "")}");
@@ -2233,8 +2244,18 @@ public sealed class BrainRuntime : IDisposable
                 // if the camera never sees you (no camera, or you're off-frame)
                 _personPresentUntil = _net.TimeMs + 120_000;
                 _personWasPresent = true;
-                _ = LearnNameFrom(tr.Transcript); // spoken names count too
                 _lastExternalEventMs = _net.TimeMs; // the world can displace any thought thread
+
+                // RESPONSE COOLDOWN for short/trivial spoken utterances:
+                // "yeah" and "okay" don't each need a full reply — a person
+                // nods along, they don't respond to every syllable
+                if (trimmed.Length <= 8 && _net.TimeMs - _lastUserUtteranceSimMs < 8_000)
+                {
+                    Note($"TRIVIAL-HEARD \"{trimmed}\" — acknowledged silently (person, not chatbot)");
+                    _ = LearnNameFrom(tr.Transcript); // names count even in short utterances
+                    return; // NO response — just presence (the inner voice may reference it)
+                }
+                _ = LearnNameFrom(tr.Transcript); // spoken names count too
 
                 // HOSTILITY APPRAISAL - multimodal, not keywords: weighted
                 // lexicon + prosody (yelling scores on its own) + escalation
@@ -3341,6 +3362,8 @@ public sealed class BrainRuntime : IDisposable
     private string? _hypothesisJustConfirmed;  // fresh self-discovery, shareable
     private float _aweShownUntil = -1e9f;  // momentary awe, long enough for the face to show it
     private string? _lastUserWords;        // rehearsal seed: their most recent words
+    private string? _lastBatchTranscript; // batch ASR dedup: don't process the same word repeatedly
+    private float _lastBatchTranscriptAtMs = -1e9f;
     private string? _lastStirredMemory;    // the memory their words last surfaced
     private int _neuronsBornAtLastSeed;    // for "just grew N neurons" seeds
     private float _lastAmbientRemarkMs = -1e9f;  // big room changes get noticed, sparingly
@@ -3442,7 +3465,11 @@ public sealed class BrainRuntime : IDisposable
                 (MathF.Abs(FeltTime.Stretch(_net.TimeMs) - 1f) > 0.35f ? $"\nTIME FEELS: {FeltTime.Describe(_net.TimeMs)} " : "") +
                 $"\n\nRemember: you KNOW this person. Speak like someone who has a history with them, " +
                 "has been thinking about things, and has your own perspective on what they're saying. " +
-                "2-4 sentences. Be genuine.";
+                  "2-4 sentences. Be genuine. " +
+                  "DO NOT start your reply with 'Yeah' or 'I hear you' — vary your opening. " +
+                  "DO NOT repeat the same sentence structure as your previous replies. " +
+                  "Each response should feel DIFFERENT from the last one. " +
+                  BioComp.Core.Cognition.BrainIdentity.Reminder;
             _questionJustAnswered = null;
             _personRemark = null;
 
