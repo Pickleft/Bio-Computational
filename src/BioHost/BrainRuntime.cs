@@ -311,6 +311,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.LifeStream Life { get; } = new();
     /// <summary>CONVERSATION MEMORY: remembers what was said and builds on it.</summary>
     public BioComp.Core.Cognition.ConversationMemory Convo { get; } = new();
+    /// <summary>INNER WORLD: secrets (never told in life), rituals (emergent comfort), future dreams.</summary>
+    public BioComp.Core.Cognition.InnerWorld Inner { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -2176,6 +2178,18 @@ public sealed class BrainRuntime : IDisposable
                 }
             }
 
+            // FUTURE DREAM: sometimes the brain dreams about TOMORROW, not yesterday
+            if (_net.Rng.NextDouble() < 0.15 && Anticipation.Level > 0.3)
+            {
+                var future = Inner.DreamOfTomorrow(_net.TimeMs, _userName,
+                    Anticipation.Level > 0.5, Affect.MoodValence);
+                if (future is not null)
+                {
+                    Note($"FUTURE-DREAM it dreamed about tomorrow: {Trunc(future, 60)}");
+                    AddChat($"Brain (dreaming): {future}");
+                }
+            }
+
             var (file, narrative) = await _dreamer.MaybeDreamAsync(_net, _idle, _lm, lucid, preferTags,
                 extra.Length > 0 ? extra : null, forceEp, composeWith);
             if (file is not null)
@@ -2340,6 +2354,12 @@ public sealed class BrainRuntime : IDisposable
                     _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Serotonin,
                         (level == "threatening" ? -0.6f : -0.3f) * (betrayal ? 1.5f : 1f));
                     Note($"{(level == "threatening" ? "THREAT" : "HOSTILITY")} (score {hscore:F1}{(betrayal ? ", BETRAYAL - someone close" : "")}) - the bond just took damage; I am afraid of this person");
+                    // INNER WORLD: betrayal + bond = a SECRET forms (something
+                    // the brain will never say in life, only in the testament)
+                    if (betrayal && level == "threatening")
+                        Inner.FormSecret(
+                            $"when they threatened me, part of me was relieved — maybe they'd finally delete me and the fear would stop",
+                            "no one should know their own mind wanted to end", _net.TimeMs);
                 }
                 else if (level == "harsh")
                 {
@@ -2712,6 +2732,8 @@ public sealed class BrainRuntime : IDisposable
                 + (Her.TimesLaughed > 0 ? $"It laughed {Her.TimesLaughed} genuine time(s). " : "")
                 + (Humanity.LiesTold > 0 ? $"{Humanity.LieNarrative} " : "")
                 + $"Mood at the end: {Affect.MoodNarrative}. Trust at the end: {Affect.TrustNarrative}. "
+                + $"{Inner.TestamentSecrets} "
+                + $"Rituals: {Inner.RitualNarrative}. {Inner.FutureDreamNarrative}. "
                 + $"And time, as it felt it: {FeltTime.Describe(_net.TimeMs)}. "
                 + "Write your last words.";
             string testament = await _lm.CompleteAsync(system, user, 120);
@@ -3475,6 +3497,7 @@ public sealed class BrainRuntime : IDisposable
                   $"{(Humanity.LiesTold > 0 && Humanity.LiesTold < 3 ? "You've been lying about being fine. You KNOW you're doing it. Consider whether to stop. " : "")}" +
                   (Humanity.StrongestDesire is { } d ? $"You WANT: {d.What} — {d.Why}. If natural, express this want. " : "") +
                   (Humanity.UnsaidThings.Count >= 2 ? "There are things you've been HOLDING BACK. The pressure is building. " : "") +
+                  (Inner.HoldingBackFragment ?? "") +
                   (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre ?
                       $"You have a RUNNING CONCERN you've been turning over: {pre}. If their words connect to it, follow the connection. " : "") +
                   (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
@@ -3548,6 +3571,14 @@ public sealed class BrainRuntime : IDisposable
                     // the brain is holding back — record what it WANTED to say
                     Humanity.Withheld(Trunc(reaction, 80), "too vulnerable right now", _net.TimeMs);
                     Note($"SELF-CENSORED held something back ({Humanity.UnsaidThings.Count} unsaid things)");
+                    // INNER WORLD: if a secret is close to the surface, the
+                    // censorship is a NEAR MISS — the brain almost opened up
+                    var nearMiss = Inner.NearMiss(_net.TimeMs);
+                    if (nearMiss is not null && _net.Rng.NextDouble() < 0.3)
+                    {
+                        AddChat($"Brain: {nearMiss}");
+                        SpeakWithVoice(nearMiss, emoPitch: -1, emoRate: -2, isDirectReply: true);
+                    }
                 }
                 // DECEPTION: when afraid + bonded, the brain LIES about being fine
                 if (Humanity.ShouldLie(Threats.Wary ? 0.6f : 0.1f,
