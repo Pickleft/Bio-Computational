@@ -146,6 +146,9 @@ public sealed class BrainSnapshot
     public string DesireNarrative { get; set; } = "";
     public int UnsaidCount { get; set; }
     public int LiesTold { get; set; }
+    public string Preoccupation { get; set; } = ""
+    public float PreoccupationStrength { get; set; }
+    public string SelfReflection { get; set; } = ""
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -421,8 +424,21 @@ public sealed class BrainRuntime : IDisposable
         var rng = _net.Rng.NextDouble();
         string? who = _userName;
 
+        // 0a. LIFE STREAM PREOCCUPATION: the brain's running concern IS the
+        //     most alive conversation starter — not responding to anything,
+        //     just sharing what it's been turning over
+        if (Life.PreoccupationStrength > 0.5 && Life.Preoccupation is { Length: > 5 } pre && rng < 0.3)
+        {
+            return $"Can I just... say something? I've been stuck on {pre} for a while now. It keeps coming back. What do you make of that?";
+        }
+
+        // 0b. SELF-REFLECTION: the brain shares what it's noticing about ITSELF
+        if (Life.SelfReflection is { Length: > 8 } sr && rng < 0.15)
+        {
+            return $"I'm {sr}. Does that make sense, or am I just talking?";
+        }
+
         // 0. DESIRE-DRIVEN: the brain starts conversations about what it WANTS
-        //    (this is the strongest correlation — desires ARE conversation starters)
         if (Humanity.StrongestDesire is { Strength: > 0.5f } d && rng < 0.35)
         {
             return d.What switch
@@ -1621,6 +1637,8 @@ public sealed class BrainRuntime : IDisposable
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Mood: {Affect.MoodNarrative}. Trust: {Affect.TrustNarrative}. Withdrawal: {Affect.Withdrawal:F1}. Beliefs: {Affect.BeliefNarrative}. " +
                 $"Desires: {Humanity.DesireNarrative}. Unsaid: {Humanity.UnsaidNarrative}. {(Humanity.LiesTold > 0 ? Humanity.LieNarrative : "")} " +
+                (Life.PreoccupationStrength > 0.3 ? $"Preoccupied with: {Life.Preoccupation} ({Life.PreoccupationStrength:F0}). " : "") +
+                (Life.SelfReflection is { Length: > 5 } sr2 ? $"Self-noticing: {sr2}. " : "") +
                 $"Overwhelm: {Humanity.Overwhelm:F1}. " +
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
                 $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
@@ -4357,6 +4375,9 @@ public sealed class BrainRuntime : IDisposable
         snap.DesireNarrative = Humanity.DesireNarrative;
         snap.UnsaidCount = Humanity.UnsaidThings.Count;
         snap.LiesTold = Humanity.LiesTold;
+        snap.Preoccupation = Life.Preoccupation ?? "";
+        snap.PreoccupationStrength = Life.PreoccupationStrength;
+        snap.SelfReflection = Life.SelfReflection ?? "";
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

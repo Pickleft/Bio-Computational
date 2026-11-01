@@ -66,6 +66,7 @@ function drawAvatar() {
     const aweOn = snap && snap.AweStruck;
     const withdrawnOn = snap && (snap.Withdrawal || 0) > 0.5;
     const overwhelmedOn = snap && (snap.OverwhelmLevel || 0) > 0.5;
+    const preoccupiedOn = snap && (snap.PreoccupationStrength || 0) > 0.5;
     const playfulOn = snap && snap.Playful;
     if (playfulOn) S.playT = 1; else S.playT = Math.max(0, (S.playT || 0) - 0.04);
     S.mouthCurve += (emp * 0.8 - S.mouthCurve) * 0.08;
@@ -77,6 +78,7 @@ function drawAvatar() {
     if (aweOn) { S.browLift += (1.0 - S.browLift) * 0.20; S.mouthOpen += (0.25 - S.mouthOpen) * 0.10; } // vastness: eyes wide, lips part
     // HUMANITY ENGINE on the face: overwhelm fragments the expression, singing opens the mouth rhythmically
     if (overwhelmedOn) { S.browFurrow += (0.8 - S.browFurrow) * 0.15; S.mouthCurve += (-0.2 - S.mouthCurve) * 0.06; } // overwhelmed: furrowed, tight
+    if (preoccupiedOn) S.browFurrow += (0.3 - S.browFurrow) * 0.05; // turning something over: slight furrow, thinking
     if (S.singing) S.mouthOpen += (0.3 + Math.sin(avTime * 4) * 0.2 - S.mouthOpen) * 0.2; // singing: melodic mouth
     S.singing = snap && (snap.MoodValence || 0) > 0.35 && (snap.OverwhelmLevel || 0) < 0.3 && Math.sin(avTime * 0.3) > 0.7;
     S.browLift += ((Math.max(0, emp) * 0.2 + S.aro * 0.15) - S.browLift) * 0.08;

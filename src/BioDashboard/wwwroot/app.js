@@ -306,6 +306,13 @@ function render(s) {
     ovEl.textContent = ov < 0.3 ? "calm" : ov < 0.6 ? "building" : "OVERWHELMED";
     ovEl.classList.toggle("urgent", ov > 0.6);
   }
+  // life stream: what the brain keeps turning over
+  const lifeEl = $("life-state");
+  if (lifeEl) {
+    lifeEl.textContent = (s.PreoccupationStrength || 0) > 0.3 && s.Preoccupation
+      ? s.Preoccupation
+      : "nothing yet";
+  }
   setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
     : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
   const calEl = $("calib-state");
