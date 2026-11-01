@@ -68,6 +68,28 @@ public sealed class AffectiveDynamics
     /// <summary>Recovery rate: how quickly a positive mood shift takes hold (slow when low).</summary>
     public float RecoveryResistance => Math.Clamp(MoodDurationMs / 300_000f, 0f, 1.5f);   // up to 1.5x resistance after 5 min
 
+    /// <summary>Export the affective state. Trust built over days MUST
+    /// survive the process dying — a restart must not betray the
+    /// relationship.</summary>
+    public (float Mood, float MoodDuration, float Withdrawal, float Trust,
+        Dictionary<string, (float Confidence, float Duration)> Beliefs) Save() =>
+        (MoodValence, MoodDurationMs, Withdrawal, Trust,
+        Beliefs.ToDictionary(kv => kv.Key, kv => (kv.Value.Confidence, kv.Value.DurationMs)));
+
+    /// <summary>Restore the affective state across restarts.</summary>
+    public void Restore(float mood, float moodDuration, float withdrawal, float trust,
+        Dictionary<string, (float Confidence, float Duration)>? beliefs)
+    {
+        MoodValence = Math.Clamp(mood, -1f, 1f);
+        MoodDurationMs = Math.Max(0, moodDuration);
+        Withdrawal = Math.Clamp(withdrawal, 0f, 1f);
+        Trust = Math.Clamp(trust, 0f, 1f);
+        if (beliefs is null) return;
+        foreach (var (name, conf) in beliefs)
+            if (Beliefs.TryGetValue(name, out var existing))
+                Beliefs[name] = existing with { Confidence = Math.Clamp(conf.Confidence, 0f, 1f), DurationMs = conf.Duration };
+    }
+
     // ---- TICK (called every few seconds) ----
 
     public void Tick(SpikingNetwork net, float instantValence, float instantArousal,

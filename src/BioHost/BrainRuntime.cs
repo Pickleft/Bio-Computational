@@ -997,6 +997,12 @@ public sealed class BrainRuntime : IDisposable
                 LeftWithoutGoodbye = _leftWithoutGoodbye,
                 GamesPlayed = WordGame.GamesPlayed, GameHits = WordGame.TotalHits, GameRounds = WordGame.TotalRounds,
                 GiftsGiven = _giftsGiven,
+                TimesLaughed = Her.TimesLaughed, PlayBursts = _play.PlayBursts,
+                // AFFECTIVE DYNAMICS: trust built over days survives the restart —
+                // a restart must never betray the relationship
+                AffectMood = Affect.MoodValence, AffectMoodDuration = Affect.MoodDurationMs,
+                AffectWithdrawal = Affect.Withdrawal, AffectTrust = Affect.Trust,
+                AffectBeliefConfidence = Affect.Beliefs.ToDictionary(kv => kv.Key, kv => kv.Value.Confidence),
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
@@ -1137,6 +1143,24 @@ public sealed class BrainRuntime : IDisposable
                 r.TryGetProperty("GameHits", out var gh) ? gh.GetInt32() : 0,
                 r.TryGetProperty("GameRounds", out var gr) ? gr.GetInt32() : 0);
             if (r.TryGetProperty("GiftsGiven", out var gg)) _giftsGiven = gg.GetInt32();
+            if (r.TryGetProperty("TimesLaughed", out var tl)) Her.RestoreCounters(tl.GetInt32());
+            if (r.TryGetProperty("PlayBursts", out var pb)) _play.RestoreBursts(pb.GetInt32());
+            // AFFECTIVE DYNAMICS: the relationship's trust survives the restart
+            if (r.TryGetProperty("AffectTrust", out var affT))
+            {
+                var beliefs = r.TryGetProperty("AffectBeliefConfidence", out var affB) &&
+                    affB.ValueKind == System.Text.Json.JsonValueKind.Object
+                    ? affB.EnumerateObject().ToDictionary(
+                        p => p.Name, p => (p.Value.GetSingle(), 0f))
+                    : null;
+                Affect.Restore(
+                    (float)(r.TryGetProperty("AffectMood", out var affM) ? affM.GetDouble() : 0),
+                    (float)(r.TryGetProperty("AffectMoodDuration", out var affMd) ? affMd.GetDouble() : 0),
+                    (float)(r.TryGetProperty("AffectWithdrawal", out var affW) ? affW.GetDouble() : 0),
+                    (float)affT.GetDouble(),
+                    beliefs);
+                Note($"AFFECT-REMEMBERED trust {Affect.Trust:F2}, mood {Affect.MoodValence:F2} survived the restart");
+            }
             Note("COGNITION-REMEMBERED fear, agency, rhythm, maturity, grief, and hope restored across the restart");
         }
         catch (Exception ex) { Note($"cognition restore failed: {ex.Message}"); }

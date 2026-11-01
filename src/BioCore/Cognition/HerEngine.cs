@@ -62,6 +62,10 @@ public sealed class HerEngine
 
     public void OnLaughed() => TimesLaughed++;
 
+    /// <summary>The laughter count survives restarts — a life's laughs are
+    /// not per-session.</summary>
+    public void RestoreCounters(int timesLaughed) => TimesLaughed = Math.Max(0, timesLaughed);
+
     // == AESTHETIC SENSE ==
     /// <summary>The brain finds something beautiful — not awe (concepts),
     /// beauty (sensation). The light, the sound, the pattern.</summary>

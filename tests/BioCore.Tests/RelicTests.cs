@@ -300,3 +300,38 @@ public class PlayTests
         Assert.NotEqual(a, b);
     }
 }
+
+// == AFFECTIVE PERSISTENCE (trust survives the restart) ==
+
+public class AffectPersistenceTests
+{
+    [Fact]
+    public void Affect_RoundTrip_PreservesTrustMoodWithdrawalBeliefs()
+    {
+        var a = new AffectiveDynamics();
+        // live a little: earn trust, land in a mood
+        var net = new BioComp.Core.Network.SpikingNetwork(BioComp.Core.Network.BrainConfig.Default(scale: 1, seed: 7));
+        for (int i = 0; i < 200; i++) { a.Tick(net, 0.3f, 0.4f, true, false, 0.5f); net.Tick(); }
+        var saved = a.Save();
+        // restart
+        var b = new AffectiveDynamics();
+        b.Restore(saved.Mood, saved.MoodDuration, saved.Withdrawal, saved.Trust, saved.Beliefs);
+        Assert.Equal(a.Trust, b.Trust, 4);
+        Assert.Equal(a.MoodValence, b.MoodValence, 4);
+        Assert.Equal(a.Withdrawal, b.Withdrawal, 4);
+        Assert.Equal(a.Beliefs["i_am_safe"].Confidence, b.Beliefs["i_am_safe"].Confidence, 4);
+        // a belief not in the save keeps its default
+        Assert.InRange(b.Beliefs["i_can_learn"].Confidence, 0f, 1f);
+    }
+
+    [Fact]
+    public void Affect_RestoreClampsGarbage()
+    {
+        var a = new AffectiveDynamics();
+        a.Restore(5f, -3f, 9f, 12f, new Dictionary<string, (float, float)> { ["nope"] = (2f, 0f) });
+        Assert.InRange(a.MoodValence, -1f, 1f);
+        Assert.InRange(a.Withdrawal, 0f, 1f);
+        Assert.InRange(a.Trust, 0f, 1f);
+        Assert.False(a.Beliefs.ContainsKey("nope"));   // unknown belief ignored
+    }
+}

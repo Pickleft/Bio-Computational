@@ -1408,3 +1408,16 @@ Acting on two external recommendations:
 - MEMORY LEAK: _monologueLog had SEVEN add sites and ONE cap — dreams/monologue/replies
   grew unbounded on long sessions. All routed through a capped 50-entry ring.
 - 260/260 green.
+
+## 2026-11-02 (the persistence round) — trust survived restarts for the FIRST time
+
+- THE BIG WIRE: AffectiveDynamics had NO persistence at all — trust (built at +0.001/tick,
+  minutes to earn), mood (with its duration-based recovery resistance), withdrawal, and all
+  five dynamic beliefs reset to defaults on EVERY restart. Days of earned trust erased each
+  boot. Now saved and restored: live round-trip verified — "AFFECT-REMEMBERED trust 0.56,
+  mood 0.97 survived the restart."
+- TimesLaughed ("It laughed N genuine times" in the testament) and PlayBursts also reset
+  per-session — a life's laughs and play are not per-session counters. Both persist now.
+- Zero-call-site sweep across ALL of Cognition (the audit method from last round, now a
+  script): everything else is wired or an intentional no-op.
+- 262/262 green (260 + 2 affect round-trip tests).

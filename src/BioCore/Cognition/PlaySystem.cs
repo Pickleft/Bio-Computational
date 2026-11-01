@@ -17,6 +17,9 @@ public sealed class PlaySystem
     public float CooldownMs { get; set; } = 12_000f;
 
     public int PlayBursts { get; private set; }
+
+    /// <summary>Play history survives restarts.</summary>
+    public void RestoreBursts(int count) => PlayBursts = Math.Max(0, count);
     public bool Playing { get; private set; }
     public float Vigor { get; private set; }
 
