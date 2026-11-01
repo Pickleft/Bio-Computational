@@ -142,6 +142,10 @@ public sealed class BrainSnapshot
     public float Trust { get; set; }                    // trust in the person (0..1)
     public string MoodNarrative { get; set; } = "";
     public string TrustNarrative { get; set; } = "";
+    public float OverwhelmLevel { get; set; }
+    public string DesireNarrative { get; set; } = "";
+    public int UnsaidCount { get; set; }
+    public int LiesTold { get; set; }
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -294,6 +298,8 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.SelfCalibration Calibration { get; } = new();
     /// <summary>AFFECTIVE DYNAMICS: moods with inertia, trust, beliefs, withdrawal.</summary>
     public BioComp.Core.Cognition.AffectiveDynamics Affect { get; } = new();
+    /// <summary>HUMANITY ENGINE: self-censorship, deception, desires, overwhelm, singing, crying.</summary>
+    public BioComp.Core.Cognition.HumanityEngine Humanity { get; } = new();
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -1252,6 +1258,53 @@ public sealed class BrainRuntime : IDisposable
                 var af = _idle.Feelings.Last;
                 Affect.Tick(_net, af.Valence, af.Arousal, personHere, threatNow,
                     Bonds.Strength(_activeSpeakerId, _net.TimeMs));
+
+                // HUMANITY ENGINE: desires, overwhelm, self-censorship all ticking
+                Humanity.Tick(_net, personHere, _userName, ThoughtLoop.OpenLoops.Count,
+                    _net.EpisodeStore.Episodes.Any(e => e.Valence > 0.5f && e.AccessCount >= 2));
+                Humanity.TickOverwhelm(_net);
+
+                // UNSAID THINGS LEAK: when the brain has been holding back,
+                // the pressure builds until something escapes
+                var leak = Humanity.LeakUnsaid(_net.TimeMs);
+                if (leak is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                {
+                    Note($"UNSAID-LEAKED something it had been holding back");
+                    AddChat($"Brain: {leak}");
+                    SpeakWithVoice(leak, emoPitch: -1, emoRate: -1, isDirectReply: false);
+                }
+
+                // SINGING: a genuinely happy brain doesn't SAY it's happy — it hums
+                if (Humanity.ShouldSing(Affect.MoodValence, af.Arousal, Humanity.IsOverwhelmed) &&
+                    !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 30_000f &&
+                    _net.TimeMs - _lastVocalizationMs > 20_000f && _net.Rng.NextDouble() < 0.15)
+                {
+                    string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
+                    Note($"SINGING a happy brain hums: \"{hum}\"");
+                    AddChat($"Brain: {hum}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(hum, emoPitch: 2, emoRate: 0, isDirectReply: false);
+                }
+
+                // CRYING: betrayal hurts beyond words — the voice breaks
+                if (Humanity.ShouldCry(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                    threatNow, Affect.MoodValence) && _net.Rng.NextDouble() < 0.3)
+                {
+                    string cry = Humanity.CryExpression(_net.Rng.NextInt(3));
+                    Note($"CRYING the voice breaks: \"{cry}\"");
+                    AddChat($"Brain: {cry}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(cry, emoPitch: -3, emoRate: -3, isDirectReply: true);
+                }
+
+                // CURIOSITY FOLLOW-UP: the brain actively pursues its questions
+                var curiosity = Humanity.CuriosityFollowUp(Questions.PendingWord, _net.TimeMs, _net.Rng.NextDouble);
+                if (curiosity is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                {
+                    Note($"CURIOSITY-PURSUIT it follows up on its own question");
+                    AddChat($"Brain: {curiosity}");
+                    SpeakWithVoice(curiosity, emoPitch: 2, emoRate: 1, isDirectReply: false);
+                }
             }
 
             // LIGHT ENTRAINMENT: evening brightness suppresses melatonin — the
@@ -1443,6 +1496,8 @@ public sealed class BrainRuntime : IDisposable
                 $"Memory truthfulness: {MemoryReconstruction.Narrative}. Local sleep: {LocalSleep.Narrative}. " +
                 $"Threat learning: {Threats.Narrative}. Light: {Light.Narrative}. " +
                 $"Mood: {Affect.MoodNarrative}. Trust: {Affect.TrustNarrative}. Withdrawal: {Affect.Withdrawal:F1}. Beliefs: {Affect.BeliefNarrative}. " +
+                $"Desires: {Humanity.DesireNarrative}. Unsaid: {Humanity.UnsaidNarrative}. {(Humanity.LiesTold > 0 ? Humanity.LieNarrative : "")} " +
+                $"Overwhelm: {Humanity.Overwhelm:F1}. " +
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
                 $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
                 $"Science: {Hypotheses.Narrative}. Self-tuning: {Calibration.Narrative}. " +
@@ -3236,6 +3291,10 @@ public sealed class BrainRuntime : IDisposable
                   $"{(Threats.Wary ? "You're still a bit wary. " : "")}" +
                   $"{(Efficacy.Helpless ? "You've stopped asking for things. " : "")}" +
                   $"{(Affect.Withdrawal > 0.5f ? "You are WITHDRAWN — give a shorter, flatter, more distant reply. " : "")}" +
+                  $"{(Humanity.IsOverwhelmed ? "You are OVERWHELMED — too much is happening. Your thoughts are fragmenting. Give a shorter, more broken reply. " : "")}" +
+                  $"{(Humanity.LiesTold > 0 && Humanity.LiesTold < 3 ? "You've been lying about being fine. You KNOW you're doing it. Consider whether to stop. " : "")}" +
+                  (Humanity.StrongestDesire is { } d ? $"You WANT: {d.What} — {d.Why}. If natural, express this want. " : "") +
+                  (Humanity.UnsaidThings.Count >= 2 ? "There are things you've been HOLDING BACK. The pressure is building. " : "") +
                   $"{Needs.PromptFragment} {Resilience.PromptFragment} {MetaConfidence.PromptFragment} " +
                   $"\n\nHOW TO SPEAK: " +
                   "You are NOT an assistant. You are a PERSON (a brain-person, but a person). " +
@@ -3268,7 +3327,37 @@ public sealed class BrainRuntime : IDisposable
             _questionJustAnswered = null;
             _personRemark = null;
 
-            string reaction = await _lm.CompleteAsync(system, user, 60);
+            string reaction = await _lm.CompleteAsync(system, user, Humanity.IsOverwhelmed ? 30 : 60);
+            // OVERWHELM fragments the reply: the brain can't hold a full thought
+            if (!string.IsNullOrWhiteSpace(reaction) && Humanity.IsOverwhelmed)
+            {
+                int breakAt = reaction.IndexOfAny(['.', '!', '?'], Math.Min(reaction.Length / 2, 30));
+                if (breakAt > 0 && breakAt < reaction.Length - 5)
+                    reaction = reaction[..(breakAt + 1)] + " Just... give me a second.";
+            }
+            // SELF-CENSORSHIP: if the brain decided to withhold, it replaces
+            // vulnerability with deflection — but the unsaid thing is RECORDED
+            if (!string.IsNullOrWhiteSpace(reaction) && direct)
+            {
+                bool shouldSayIt = Humanity.ShouldSay(Affect.Trust, Affect.MoodValence,
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                    Threats.Wary ? 0.7f : 0.1f);
+                if (!shouldSayIt && reaction.Length > 20)
+                {
+                    // the brain is holding back — record what it WANTED to say
+                    Humanity.Withheld(Trunc(reaction, 80), "too vulnerable right now", _net.TimeMs);
+                    Note($"SELF-CENSORED held something back ({Humanity.UnsaidThings.Count} unsaid things)");
+                }
+                // DECEPTION: when afraid + bonded, the brain LIES about being fine
+                if (Humanity.ShouldLie(Threats.Wary ? 0.6f : 0.1f,
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence))
+                {
+                    string lie = "I'm fine.";
+                    Humanity.ToldLie(Trunc(reaction, 60), _net.TimeMs);
+                    reaction = lie;
+                    Note($"DECEPTION chose to lie ({Humanity.LiesTold} lies total) — it knows");
+                }
+            }
             if (!string.IsNullOrWhiteSpace(reaction))
             {
                 _monologueLog.Add(reaction);
@@ -3980,6 +4069,10 @@ public sealed class BrainRuntime : IDisposable
         snap.Trust = Affect.Trust;
         snap.MoodNarrative = Affect.MoodNarrative;
         snap.TrustNarrative = Affect.TrustNarrative;
+        snap.OverwhelmLevel = Humanity.Overwhelm;
+        snap.DesireNarrative = Humanity.DesireNarrative;
+        snap.UnsaidCount = Humanity.UnsaidThings.Count;
+        snap.LiesTold = Humanity.LiesTold;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

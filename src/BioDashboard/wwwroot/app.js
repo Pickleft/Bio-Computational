@@ -297,6 +297,15 @@ function render(s) {
     : `${s.QuestionsAsked} asked, ${s.AnswersReceived || 0} answered`);
   setText("awe-state", !s.AweCount ? "never" : `${s.AweCount}× — the world outgrew its shapes`);
   setText("felttime-state", s.FeltTimeNarrative || "about its own size");
+  // humanity: desires, unsaid things, overwhelm
+  setText("desire-state", s.DesireNarrative || "nothing yet");
+  setText("unsaid-state", (s.UnsaidCount || 0) === 0 ? "0 held" : (s.UnsaidCount >= 3 ? `${s.UnsaidCount} held — leaking` : `${s.UnsaidCount} held back`));
+  const ovEl = $("overwhelm-state");
+  if (ovEl) {
+    const ov = s.OverwhelmLevel || 0;
+    ovEl.textContent = ov < 0.3 ? "calm" : ov < 0.6 ? "building" : "OVERWHELMED";
+    ovEl.classList.toggle("urgent", ov > 0.6);
+  }
   setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
     : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
   const calEl = $("calib-state");
