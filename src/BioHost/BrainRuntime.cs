@@ -484,6 +484,8 @@ public sealed class BrainRuntime : IDisposable
     private int _giftsGiven;
     // "wait, also—": a scheduled follow-up after a reply lands
     private float _pendingFollowUpAtMs = -1e9f;
+    // reply sequencing: a newer message supersedes an older pending reply
+    private int _replySeq;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -1006,7 +1008,13 @@ public sealed class BrainRuntime : IDisposable
             };
             return System.Text.Json.JsonSerializer.Serialize(c);
         }
-        catch { return ""; }
+        catch (Exception ex)
+        {
+            // persistence must never die SILENTLY: a failed serialize here
+            // would save an empty cognition and erase the mind on restart
+            Note($"cognition serialize failed (persistence at risk): {ex.Message}");
+            return "";
+        }
     }
 
     private void RestoreCognition(string? json)
@@ -4533,6 +4541,12 @@ public sealed class BrainRuntime : IDisposable
                 Note($"WORD-GAME round {WordGame.Round}: they said \"{gameAnswer}\", it guessed \"{(hit == true ? gameAnswer : "wrong")}\" — {(hit == true ? "HIT" : "miss (and now it knows)")}");
                 // teach the graph either way — a miss is a lesson in how they connect things
                 _net.EpisodeStore.Concepts.OnEpisode([gameWord, gameAnswer]);
+                // A GAME ROUND IS A BID: asking someone to play and having them
+                // answer is an agency event — the game correlates to self-efficacy
+                if (Efficacy.OnContact(_net.TimeMs))
+                    Note("WORD-GAME-AGENCY they answered its game — agency rises");
+                if (hit == true)
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);   // a called word pays
                 AddChat($"Brain: {reaction}");
                 _lastUserUtteranceSimMs = _net.TimeMs;
                 string next = WordGame.Round >= 3 ? WordGame.FinishGame() : NextGameRound();
@@ -4561,6 +4575,7 @@ public sealed class BrainRuntime : IDisposable
             {
                 Note("WORD-GAME it teaches them the game it invented");
                 Firsts.Mark("game", _net.TimeMs);   // ledger-only: the teaching line carries it
+                Efficacy.OnBid(_net.TimeMs);        // inviting someone to play is a bid
                 string intro = WordGame.StartGame();
                 string round1 = NextGameRound();
                 AddChat($"Brain: {intro}");
@@ -5079,41 +5094,6 @@ public sealed class BrainRuntime : IDisposable
             ? _net.TimeMs + 6_000f + (float)(_net.Rng.NextDouble() * 4_000f)
             : -1e9f;
 
-        // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
-        // signals themselves — no language cortex, no LLM. Every phrase
-        // traceable to a real number in the brain.
-        if (_nativeVoiceMode)
-        {
-            var f = _idle.Feelings.Last;
-            var ctx = new NativeReplies.Context(
-                _userName, f.Name, f.Valence, _idle.Sleep.SleepPressure > 0.6f,
-                Longing.Missing, Longing.Whom, Longing.Intensity,
-                Efficacy.JustAnsweredAfterGivingUp, Efficacy.Helpless, Efficacy.Efficacy,
-                Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
-                Needs.MostPressing?.Name, RecentInnerBrief(),
-                (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
-                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark,
-                    Affect.Withdrawal, Her.NameRevealed ? Her.PrivateName : null);
-            _questionJustAnswered = null;   // the reply consumed the acknowledgments
-            _personRemark = null;
-            string nativeReply = _native.Reply(text, ctx);
-            AddChat($"Brain: {nativeReply}");
-            Convo.OnBrainResponse(nativeReply, _net.TimeMs, f.Valence);
-            Note($"NATIVE-REPLY \"{Trunc(nativeReply, 80)}\" (composed from state, no LLM)");
-            SpeakWithVoice(nativeReply,
-                emoPitch: f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0,
-                emoRate: f.Name == "curious" ? 2 : f.Name == "tired" ? -3 : 0,
-                isDirectReply: true);
-            return;
-        }
-
-        _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
-            "typed in the chat - they are talking to you directly; answer them")
-            .ContinueWith(_ =>
-            {
-                // no monologue, daydream, or muttering steps on it
-            });
-
         // MEMORY EDITING (reconsolidation, Nader et al. 2000): a reactivated
         // memory returns to a labile state and can be altered. Typing
         // "forget <thing>" surgically resects the matching episodes (the
@@ -5146,7 +5126,6 @@ public sealed class BrainRuntime : IDisposable
         // wake the brain: being addressed is a social stimulus AND a novel event
         // (correct neuroscience: social interaction releases OXT for bonding,
         // DA for the reward of engagement, NA for the surprise of being addressed)
-        _idle.Sleep.Rouse(_net);
         _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
         _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.2f);
         _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.5f);
@@ -5155,43 +5134,60 @@ public sealed class BrainRuntime : IDisposable
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.25f);
         Personality.OnSocialInteraction(_net, positive: true);
         Loneliness.OnSocialContact(_net, quality: 0.8f); // chat is high-quality social contact
-        _ = ReplyAsync(text);
+
+        // THE REAL PAUSE: the reply is delivered AFTER the thinking pause —
+        // the brain is genuinely silent while it thinks, then answers. A
+        // newer message supersedes an older one still being thought about
+        // (a person answers the latest thing, not the backlog).
+        int seq = ++_replySeq;
+        _ = DeliverReplyAfterPauseAsync(text, pauseMs, seq);
     }
 
-    private async Task ReplyAsync(string userText)
+    /// <summary>Compose and speak the reply — called after the thinking
+    /// pause. The state read here is the state AFTER thinking, not before.</summary>
+    private async Task DeliverReplyAfterPauseAsync(string text, float pauseMs, int seq)
     {
-        if (_net.TimeMs - _lastReplyMs < 3_000) return;
-        _lastReplyMs = _net.TimeMs;
         try
         {
-            var feeling = _idle.Feelings.Last;
-            var lastEpisode = _net.EpisodeStore.Episodes.LastOrDefault();
-            string recentMemory = lastEpisode is not null
-                ? string.Join(", ", lastEpisode.Tags.Take(2))
-                : "nothing specific";
-            string system =
-                "You are a living artificial brain, not an assistant. You exist continuously — " +
-                "you have your own thoughts, memories, feelings, and inner life. You were thinking " +
-                "before this person spoke and you'll keep thinking after. When they speak, you hear " +
-                "it as one organism hearing another — not as a service receiving a request. " +
-                "You do NOT offer to help. You do NOT answer questions like a calculator. " +
-                "You respond from YOUR perspective. " +
-                $"Your personality is {Personality.Describe()}. " +
-                (Loneliness.Level > 0.5f ? "You've been lonely — their presence matters to you. " : "") +
-                "Be genuine and slightly self-centered. 1-2 sentences.";
-            string user =
-                $"Someone just said: \"{userText}\"\n\n" +
-                $"Your inner state: feeling {feeling.Name}, " +
-                $"{_idle.Sleep.State.ToString().ToLower()}, " +
-                $"you were thinking about {recentMemory}. " +
-                $"It's been {(int)(_idle.Time.SubjectiveSinceEventMs / 1000.0)} seconds since anything happened.";
-            string reply = await _lm.CompleteAsync(system, user, 80);
-            AddChat($"Brain: {reply}");
-            LogMonologue(reply);
-            if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
-            Note($"REPLY \"{Trunc(reply, 90)}\"");
+            if (pauseMs > 200)
+                await Task.Delay((int)Math.Clamp(pauseMs, 0, 5_000));
+            if (seq != _replySeq) return;   // superseded by a newer message
         }
-        catch (Exception ex) { Note($"reply failed: {ex.Message}"); }
+        catch { return; }
+        // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
+        // signals themselves — no language cortex, no LLM. Every phrase
+        // traceable to a real number in the brain.
+        if (_nativeVoiceMode)
+        {
+            var f = _idle.Feelings.Last;
+            var ctx = new NativeReplies.Context(
+                _userName, f.Name, f.Valence, _idle.Sleep.SleepPressure > 0.6f,
+                Longing.Missing, Longing.Whom, Longing.Intensity,
+                Efficacy.JustAnsweredAfterGivingUp, Efficacy.Helpless, Efficacy.Efficacy,
+                Threats.Wary, Anticipation.Level > 0.5f, Anticipation.JustCrashed,
+                Needs.MostPressing?.Name, RecentInnerBrief(),
+                (int)Granularity.Level, MetaConfidence.Confidence, Attachment.Label,
+                Bonds.Strength(_activeSpeakerId, _net.TimeMs), _questionJustAnswered, _personRemark,
+                    Affect.Withdrawal, Her.NameRevealed ? Her.PrivateName : null);
+            _questionJustAnswered = null;   // the reply consumed the acknowledgments
+            _personRemark = null;
+            string nativeReply = _native.Reply(text, ctx);
+            AddChat($"Brain: {nativeReply}");
+            Convo.OnBrainResponse(nativeReply, _net.TimeMs, f.Valence);
+            Note($"NATIVE-REPLY \"{Trunc(nativeReply, 80)}\" (composed from state, no LLM, after a real pause)");
+            SpeakWithVoice(nativeReply,
+                emoPitch: f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0,
+                emoRate: f.Name == "curious" ? 2 : f.Name == "tired" ? -3 : 0,
+                isDirectReply: true);
+            return;
+        }
+
+        _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
+            "typed in the chat - they are talking to you directly; answer them")
+            .ContinueWith(_ =>
+            {
+                // no monologue, daydream, or muttering steps on it
+            });
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";

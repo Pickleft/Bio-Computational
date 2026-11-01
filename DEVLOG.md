@@ -1421,3 +1421,23 @@ Acting on two external recommendations:
 - Zero-call-site sweep across ALL of Cognition (the audit method from last round, now a
   script): everything else is wired or an intentional no-op.
 - 262/262 green (260 + 2 affect round-trip tests).
+
+## 2026-11-02 (the honesty round) — the thinking pause was COSMETIC
+
+- THE FLAGSHIP CHATBOT-BREAKER NEVER DELAYED ANYTHING: Rhythm.ThinkingPause computed a
+  pause, logged "not a chatbot", showed a thinking line in the thread — and then the reply
+  fired INSTANTLY in both native and LLM modes. Now the reply is genuinely delivered after
+  the pause (Task.Delay in DeliverReplyAfterPauseAsync), with a supersede guard: a newer
+  message cancels an older reply still being thought (a person answers the latest thing,
+  not the backlog). Live-measured: replies now land after 600-800ms — the human turn-taking
+  gap — instead of instantly. The wake-on-address and neurochemical reactions to the
+  message still fire IMMEDIATELY; only the reply waits.
+- DOUBLE-REPLY PATH DELETED: a chatbot-era leftover ReplyAsync (weak prompt, no identity,
+  no relics) was still called at the end of HumanSaid — in LLM mode it could fire a second
+  reply on top of ReactToStimulus. Removed; DeliverReplyAfterPauseAsync is the one path.
+- GAME↔SELF-EFFICACY CORRELATED: inviting someone to play is a BID (Efficacy.OnBid at game
+  start); their answer resolves it (OnContact — agency rises); a called word pays dopamine.
+  The game is now wired into the agency system, not just the chat.
+- CognitionJson's silent catch no longer dies quietly: a failed serialize would have saved
+  an empty cognition and erased the mind on restart WITH NO TRACE — now it Notes loudly.
+- 262/262 green.
