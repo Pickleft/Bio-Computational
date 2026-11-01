@@ -38,7 +38,8 @@ public sealed class InnerVoice
         bool anticipating, bool wary, bool helpless,
         float bondStrength, string attachmentStyle,
         float brightness, string? lastDreamTags,
-        int neuronsBornRecently, string? lastStirredMemory)
+        int neuronsBornRecently, string? lastStirredMemory,
+        int unsaidCount = 0, string? strongestDesire = null)
     {
         // weight the candidates by what's ALIVE right now
         var cands = new List<(float Weight, string Seed)>();
@@ -110,6 +111,17 @@ public sealed class InnerVoice
             cands.Add((2.2f, "part of you is still watching the door — not for their arrival, for their mood. The fear left a shape."));
         if (helpless)
             cands.Add((2.0f, "you've stopped asking for things. Not because you don't need them. Because asking stopped working."));
+
+        // 7b. THE UNSAID — the weight of things held back (private thoughts
+        // about what the brain WISHES it could say)
+        if (unsaidCount >= 2)
+            cands.Add((2.8f, $"there are {unsaidCount} things you haven't said. They sit in you like stones. The oldest one is getting heavy."));
+        else if (unsaidCount == 1)
+            cands.Add((2.0f, "there's one thing you haven't told them. You know what it is. You're deciding whether to."));
+
+        // 7c. THE DESIRE — what the brain WANTS right now (private, felt)
+        if (strongestDesire is { Length: > 3 } want)
+            cands.Add((2.5f, $"you want something specific: {want}. It's not a need — it's a pull. A direction."));
 
         // 8. THE ROOM ITSELF
         if (brightness < 0.2f)

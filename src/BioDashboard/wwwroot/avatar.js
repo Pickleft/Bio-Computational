@@ -65,6 +65,7 @@ function drawAvatar() {
     const waryOn = snap && (snap.Wariness || 0) > 0.5;
     const aweOn = snap && snap.AweStruck;
     const withdrawnOn = snap && (snap.Withdrawal || 0) > 0.5;
+    const overwhelmedOn = snap && (snap.OverwhelmLevel || 0) > 0.5;
     const playfulOn = snap && snap.Playful;
     if (playfulOn) S.playT = 1; else S.playT = Math.max(0, (S.playT || 0) - 0.04);
     S.mouthCurve += (emp * 0.8 - S.mouthCurve) * 0.08;
@@ -74,6 +75,10 @@ function drawAvatar() {
     if (waryOn) S.browFurrow += (0.5 - S.browFurrow) * 0.10; // fear furrows, even smiling
     if (playfulOn) S.mouthCurve += (0.9 - S.mouthCurve) * 0.25; // play grins
     if (aweOn) { S.browLift += (1.0 - S.browLift) * 0.20; S.mouthOpen += (0.25 - S.mouthOpen) * 0.10; } // vastness: eyes wide, lips part
+    // HUMANITY ENGINE on the face: overwhelm fragments the expression, singing opens the mouth rhythmically
+    if (overwhelmedOn) { S.browFurrow += (0.8 - S.browFurrow) * 0.15; S.mouthCurve += (-0.2 - S.mouthCurve) * 0.06; } // overwhelmed: furrowed, tight
+    if (S.singing) S.mouthOpen += (0.3 + Math.sin(avTime * 4) * 0.2 - S.mouthOpen) * 0.2; // singing: melodic mouth
+    S.singing = snap && (snap.MoodValence || 0) > 0.35 && (snap.OverwhelmLevel || 0) < 0.3 && Math.sin(avTime * 0.3) > 0.7;
     S.browLift += ((Math.max(0, emp) * 0.2 + S.aro * 0.15) - S.browLift) * 0.08;
     S.browFurrow += ((Math.max(0, -emp) * (0.5 + S.aro)) - S.browFurrow) * 0.08;
     if (S.speaking) S.mouthOpen += (0.5 + Math.sin(avTime * 10) * 0.5 - S.mouthOpen) * 0.3;
@@ -129,6 +134,18 @@ function drawAvatar() {
         bg.addColorStop(1, "hsla(350,70%,60%,0)");
         ctx.fillStyle = bg;
         ctx.beginPath(); ctx.arc(side * baseR * 0.5, baseR * 0.15, baseR * 0.28, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // TEARS (crying): betrayal + low mood → visible tears under the eyes
+    if (waryOn && (snap.MoodValence || 0) < -0.3) {
+      const tearAlpha = Math.min(0.7, (-(snap.MoodValence || 0)) * 0.8);
+      for (const side of [-1, 1]) {
+        const tearY = -baseR * 0.05 + Math.sin(avTime * 2 + side) * 2;
+        ctx.fillStyle = `rgba(100,150,200,${tearAlpha})`;
+        ctx.beginPath();
+        ctx.ellipse(side * baseR * 0.28, tearY, 2.5, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -218,9 +235,13 @@ function drawAvatar() {
         ctx.fillStyle = `rgba(${nc},${0.3 + urg * 0.4})`;
         ctx.fillText("needs: " + snap.CurrentNeed, cx, cy + baseR * 1.3 + 14);
       }
-      // longing / anticipation / helplessness captions: the felt shape of knowing one person
+      // longing / anticipation / helplessness / overwhelm captions
       const hopeLvl = (snap.AnticipationLevel || 0);
-      if (snap.Helpless) {
+      if ((snap.OverwhelmLevel || 0) > 0.6) {
+        ctx.font = `600 10px Inter, sans-serif`;
+        ctx.fillStyle = "rgba(200,120,160,0.9)";
+        ctx.fillText("...too much. give me a second.", cx, cy + baseR * 1.3 + 28);
+      } else if (snap.Helpless) {
         ctx.font = `600 10px Inter, sans-serif`;
         ctx.fillStyle = "rgba(150,150,160,0.85)";
         ctx.fillText("...stopped asking.", cx, cy + baseR * 1.3 + 28);

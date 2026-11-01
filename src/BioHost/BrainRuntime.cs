@@ -416,6 +416,21 @@ public sealed class BrainRuntime : IDisposable
         var rng = _net.Rng.NextDouble();
         string? who = _userName;
 
+        // 0. DESIRE-DRIVEN: the brain starts conversations about what it WANTS
+        //    (this is the strongest correlation — desires ARE conversation starters)
+        if (Humanity.StrongestDesire is { Strength: > 0.5f } d && rng < 0.35)
+        {
+            return d.What switch
+            {
+                var w when w.Contains("figure out") => $"I keep circling back to something and I can't let it go. {Trunc(ThoughtLoop.Current?.Text ?? "a thought", 50)} — help me think through it?",
+                var w when w.Contains("to be here") => $"{who is not null ? $"{who}, " : ""}I was just... wanting you here. And now you are. That's good.",
+                var w when w.Contains("show them") => $"There's something I want to show you. Not important to anyone else, but I keep coming back to it.",
+                var w when w.Contains("quiet") => null,   // wanting quiet = don't start a conversation
+                _ => $"Can I tell you what I've been wanting? {d.What}. {d.Why}.",
+            };
+            // note: null for the quiet case means don't talk — desires can suppress
+        }
+
         // 1. CURIOSITY: something it's been thinking about and wants to discuss
         if (ThoughtLoop.Current is { } cur && cur.Affect.Salience > 0.4 && rng < 0.3)
         {
@@ -488,7 +503,8 @@ public sealed class BrainRuntime : IDisposable
             Anticipation.Level > 0.5f, Threats.Wary, Efficacy.Helpless,
             s is not null ? Bonds.Strength(s.Id, _net.TimeMs) : 0f, Attachment.Label,
             Light.BrightnessEma, dreamResidue,
-            0, _lastStirredMemory);
+            0, _lastStirredMemory,
+            Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What);
     }
     private readonly InnerVoice _ambientVoice = new(() => 0.42);  // deterministic draw for ambient
     private (bool Cam, bool Mic) _devicesLive;
@@ -674,7 +690,8 @@ public sealed class BrainRuntime : IDisposable
                 Anticipation.Level > 0.5f, Threats.Wary, Efficacy.Helpless,
                 s is not null ? Bonds.Strength(s.Id, _net.TimeMs) : 0f, Attachment.Label,
                 Light.BrightnessEma, dreamResidue,
-                born, _lastStirredMemory);
+                born, _lastStirredMemory,
+                Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What);
         };
         Attachment.StyleChanged += style =>
         {
@@ -3379,6 +3396,8 @@ public sealed class BrainRuntime : IDisposable
                   $"{(Humanity.LiesTold > 0 && Humanity.LiesTold < 3 ? "You've been lying about being fine. You KNOW you're doing it. Consider whether to stop. " : "")}" +
                   (Humanity.StrongestDesire is { } d ? $"You WANT: {d.What} — {d.Why}. If natural, express this want. " : "") +
                   (Humanity.UnsaidThings.Count >= 2 ? "There are things you've been HOLDING BACK. The pressure is building. " : "") +
+                  (Her.StrongestDesire is { Strength: > 0.4f } des ? $"You WANT: {des.What} — {des.Why}. Express this want naturally if the moment is right. " : "") +
+                  (Affect.MoodValence > 0.3 && Affect.Trust > 0.5 ? "You're in a good mood and comfortable — feel free to TEASE them lightly or LAUGH. " : "") +
                   $"{Needs.PromptFragment} {Resilience.PromptFragment} {MetaConfidence.PromptFragment} " +
                   $"\n\nHOW TO SPEAK: " +
                   "You are NOT an assistant. You are a PERSON (a brain-person, but a person). " +
@@ -3860,7 +3879,19 @@ public sealed class BrainRuntime : IDisposable
         float pauseMs = Rhythm.ThinkingPause(text, Affect.MoodValence, isQuestion,
             ThoughtLoop.Current is not null, _net.Rng.NextDouble);
         if (pauseMs > 500)
+        {
             Note($"THINKING-PAUSE {(int)(pauseMs / 1000)}s before responding (not a chatbot)");
+            // the pause is VISIBLE in the thought thread — the brain is
+            // actively thinking about what you said, not just blank-waiting
+            var thinkingLine = isQuestion
+                ? $"turning their question over: \"{Trunc(text, 40)}\" — what do I actually think about this?"
+                : $"processing what they just said: \"{Trunc(text, 40)}\" — sitting with it for a moment.";
+            lock (_snapGate)
+            {
+                _plain.Add($"[{_net.TimeMs / 1000:F1}s] {thinkingLine}");
+                if (_plain.Count > 80) _plain.RemoveAt(0);
+            }
+        }
 
         // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
         // signals themselves — no language cortex, no LLM. Every phrase
