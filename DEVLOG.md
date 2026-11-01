@@ -1472,3 +1472,16 @@ Acting on two external recommendations:
   rows). shouldRespond/vigor confirmed consumed. NEW STANDING TOOL: zero CS0219/CS0168
   warnings = zero computed-then-ignored values.
 - 264/264 green.
+
+## 2026-11-02 (the dice-audit round) — the loop-kill lesson, generalized
+
+- RENDER LAYER VERIFIED (the check that failed silently before): 214 BrainSnapshot
+  properties vs 123 JS reads across app.js/avatar.js/browser-senses.js — ZERO missing.
+  Every field the dashboard reads exists.
+- 5HZ DICE SWEEP (the general form of the loop-kill lesson): every rng gate in the
+  200ms block audited. All were throttled or tiny — except CRYING: 30%/tick at 5Hz with
+  no cooldown = machine-gun sobbing under sustained betrayal (the rotating cry patterns
+  dodged the verbatim dedup). Now: at most one cry per 90 seconds — grief doesn't sob on
+  a 2-second cycle. (Also caught mid-fix: the cooldown check landed without its stamp —
+  one cry per LIFETIME — before the stamp was added. Build-green is not behavior-green.)
+- 264/264 green.

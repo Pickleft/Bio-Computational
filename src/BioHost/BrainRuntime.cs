@@ -478,6 +478,8 @@ public sealed class BrainRuntime : IDisposable
     private float _delayProcessedForMs = -1e9f;
     // anti-loop: when each exact spoken line was last spoken
     private readonly Dictionary<string, float> _spokenTextAtMs = [];
+    // last cry (grief doesn't sob on a 2-second cycle)
+    private float _lastCryMs = -1e9f;
     // jokes, gifts
     private float _lastJokeMs = -1e9f;
     private float _lastGiftMs = -1e9f;
@@ -1780,9 +1782,11 @@ public sealed class BrainRuntime : IDisposable
                 }
 
                 // CRYING: betrayal hurts beyond words — the voice breaks
-                if (canSpeak && Humanity.ShouldCry(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                if (canSpeak && _net.TimeMs - _lastCryMs > 90_000f &&
+                    Humanity.ShouldCry(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
                     threatNow, Affect.MoodValence) && _net.Rng.NextDouble() < 0.3)
                 {
+                    _lastCryMs = _net.TimeMs;
                     string cry = Humanity.CryExpression(_net.Rng.NextInt(3));
                     Note($"CRYING the voice breaks: \"{cry}\"");
                     AddChat($"Brain: {cry}");
