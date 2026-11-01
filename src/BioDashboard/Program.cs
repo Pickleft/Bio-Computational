@@ -258,6 +258,19 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
             {
                 var evt = await proxy.ReceiveAsync(cts.Token);
                 if (evt is null) break;
+                // "Ingress audio slower than real-time" is RECOVERABLE: Meta
+                // measured a stalled stream (was: gated silence + throttled
+                // sends). The browser now keeps the clock with zero-frames;
+                // when it still happens, the session simply restarts.
+                if (evt.Type == "error" && evt.Text is { } et && et.Contains("slower than real-time", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("[transcribe] ingress-rate error — restarting ASR session");
+                    var restart = System.Text.Json.JsonSerializer.Serialize(new { type = "info", text = "audio stream hiccup — restarting ears...", isFinal = false });
+                    var rb = System.Text.Encoding.UTF8.GetBytes(restart);
+                    if (browserWs.State == WebSocketState.Open)
+                        await browserWs.SendAsync(new ArraySegment<byte>(rb), WebSocketMessageType.Text, true, cts.Token);
+                    break;   // ends the loops -> browser reconnects -> fresh Meta session
+                }
                 var json = System.Text.Json.JsonSerializer.Serialize(new { type = evt.Type, text = evt.Text, isFinal = evt.IsFinal });
                 var bytes = System.Text.Encoding.UTF8.GetBytes(json);
                 await browserWs.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cts.Token);

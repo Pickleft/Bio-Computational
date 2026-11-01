@@ -123,38 +123,49 @@ async function enableBrowserSenses() {
       const vadEl = document.getElementById("audio-vad");
       if (vadEl) vadEl.textContent = rms > 0.01 ? "VOICE" : "quiet";
 
-      // send to server and Meta ASR at most every 50ms — gate at speech level
-      // (sending silence makes Meta hallucinate "Yeah"; we only send when
-      // there's actual voice energy)
+      // SEND EVERY audio callback (the audio clock IS the real-time clock —
+      // wall-clock throttles made ingress slower than real-time and Meta
+      // killed the session). During silence we send ZERO frames: the ingress
+      // clock keeps running, and true zeros carry no speech features to
+      // hallucinate on (the old "Yeah" hallucinations came from sending the
+      // mic's noise floor, not from zeros).
+      const aboveGate = rms > 0.004;
       const now = Date.now();
-      if (now - lastSend > 50 && rms > 0.004) {
+      if (aboveGate || now - lastSend > 50) {
         lastSend = now;
         // resample to 16 kHz
         const ratio = audioCtx.sampleRate / 16000;
         const outLen = Math.max(1, Math.floor(input.length / ratio));
         const out = new Float32Array(outLen);
-        for (let i = 0; i < outLen; i++) {
-          const pos = i * ratio;
-          const i0 = Math.floor(pos), frac = pos - i0;
-          out[i] = input[i0] + (input[i0 + 1] - input[i0]) * frac;
-        }
+        if (aboveGate) {
+          for (let i = 0; i < outLen; i++) {
+            const pos = i * ratio;
+            const i0 = Math.floor(pos), frac = pos - i0;
+            out[i] = input[i0] + (input[i0 + 1] - input[i0]) * frac;
+          }
+        } // else: leave zeros — silence keeps the clock, carries no signal
         // convert to int16
         const pcm = new Int16Array(out.length);
-        for (let i = 0; i < out.length; i++) {
-          pcm[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
+        if (aboveGate) {
+          for (let i = 0; i < out.length; i++) {
+            pcm[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
+          }
         }
-        // send to server (presence + VAD path)
-        fetch("/api/browser-audio", {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: pcm.buffer,
-        }).catch(() => {});
+        // send to server (presence + VAD path) — only REAL audio, not zeros
+        if (aboveGate) {
+          fetch("/api/browser-audio", {
+            method: "POST",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: pcm.buffer,
+          }).catch(() => {});
+        }
 
-        // ALSO send via WebSocket to Meta real-time ASR (primary transcription)
+        // send via WebSocket to Meta real-time ASR (primary transcription) —
+        // EVERY frame including zeros, at exactly real-time rate
         if (transcribeWs && transcribeWs.readyState === WebSocket.OPEN) {
           transcribeWs.send(pcm.buffer);
-        } else if (transcribeWs && transcribeWs.readyState === WebSocket.CONNECTING && wsAudioQueue.length < 20) {
-          wsAudioQueue.push(pcm.buffer);   // queue until connected
+        } else if (transcribeWs && transcribeWs.readyState === WebSocket.CONNECTING && wsAudioQueue.length < 20 && aboveGate) {
+          wsAudioQueue.push(pcm.buffer);   // queue real audio until connected
         }
       }
     };

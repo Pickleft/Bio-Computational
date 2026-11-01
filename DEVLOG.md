@@ -1309,3 +1309,19 @@ Acting on two external recommendations:
   came clean). Topic repetition counts persist with engagement.
 
 - 256/256 green.
+
+## 2026-11-01 (the ears round) — "Ingress audio slower than real-time" root-caused and fixed
+
+- ROOT CAUSE (two bugs in the browser audio path): (1) silence was gated — frames below
+  rms 0.004 were never sent, so quiet periods sent NOTHING and Meta's real-time endpoint
+  measured a stalled stream; (2) the 50ms send throttle skipped every other 46ms audio
+  callback, so even during continuous speech we only delivered ~93% of real-time.
+- FIX: the audio callback itself is the clock now — every callback sends its frame, and
+  during silence it sends ZERO frames (true zeros keep the ingress clock running and carry
+  no speech features to hallucinate on; the old "Yeah" hallucinations came from the mic's
+  noise floor, not from zeros). Real audio still goes to the server VAD path only (zeros
+  don't pollute it).
+- RECOVERY: when Meta still reports the ingress error, the server treats it as recoverable —
+  tells the browser "audio stream hiccup — restarting ears..." and the session restarts
+  cleanly instead of showing a scary red error.
+- 256/256 green.
