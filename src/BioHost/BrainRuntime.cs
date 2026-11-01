@@ -486,6 +486,8 @@ public sealed class BrainRuntime : IDisposable
     private float _pendingFollowUpAtMs = -1e9f;
     // reply sequencing: a newer message supersedes an older pending reply
     private int _replySeq;
+    // the conversation-memory callback, spoken as the reply's lead-in
+    private string? _pendingConvoCallback;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -4448,6 +4450,7 @@ public sealed class BrainRuntime : IDisposable
         if (text.Length == 0) return;
         if (text.Length > 200) text = text[..200];
         _lastUserWords = text;   // the inner voice rehearses their words
+        _pendingConvoCallback = null;   // a new message resets the old bridge
         AddChat($"You: {text}");
 
         // WHILE YOU WERE AWAY: capture how long they were gone BEFORE the
@@ -4999,12 +5002,14 @@ public sealed class BrainRuntime : IDisposable
             _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine),
             Contagion.UserValence);
 
-        // CALLBACK: does this connect to something said earlier?
+        // CALLBACK: does this connect to something said earlier? If so it is
+        // SPOKEN as the lead-in to the reply (after the pause) — the brain
+        // bridges this moment to an earlier one, out loud.
         var callback = Convo.FindCallback(text, _net.TimeMs);
-        if (callback is not null && _net.Rng.NextDouble() < 0.4)
+        if (callback is not null && _net.Rng.NextDouble() < 0.6)
         {
             Note($"CONVO-CALLBACK connected to earlier in the conversation");
-            // don't respond yet — the callback enriches the response below
+            _pendingConvoCallback = callback;
         }
 
         // CONTRADICTION: did they just contradict themselves?
@@ -5151,9 +5156,17 @@ public sealed class BrainRuntime : IDisposable
         {
             if (pauseMs > 200)
                 await Task.Delay((int)Math.Clamp(pauseMs, 0, 5_000));
-            if (seq != _replySeq) return;   // superseded by a newer message
+            if (seq != _replySeq) { _pendingConvoCallback = null; return; }   // superseded
         }
         catch { return; }
+        // the callback bridges this moment to an earlier one, out loud,
+        // right before the reply
+        if (_pendingConvoCallback is { } cb)
+        {
+            _pendingConvoCallback = null;
+            AddChat($"Brain: {cb}");
+            SpeakWithVoice(cb, emoPitch: 0, emoRate: 0, isDirectReply: true);
+        }
         // NATIVE VOICE (direct talk): the reply is COMPOSED from the live
         // signals themselves — no language cortex, no LLM. Every phrase
         // traceable to a real number in the brain.

@@ -335,3 +335,16 @@ public class AffectPersistenceTests
         Assert.False(a.Beliefs.ContainsKey("nope"));   // unknown belief ignored
     }
 }
+
+public class CallbackProbeTests
+{
+    [Fact]
+    public void FindCallback_FiresOnTopicOverlapAcrossTime()
+    {
+        var c = new ConversationMemory();
+        c.OnUserMessage("I started growing tomatoes on the balcony", 10_000f, 0.5f, 0.2f);
+        var cb = c.FindCallback("the tomatoes are actually coming up", 55_000f);
+        Assert.NotNull(cb);
+        Assert.Contains("tomatoes", cb);
+    }
+}

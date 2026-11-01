@@ -1441,3 +1441,17 @@ Acting on two external recommendations:
 - CognitionJson's silent catch no longer dies quietly: a failed serialize would have saved
   an empty cognition and erased the mind on restart WITH NO TRACE — now it Notes loudly.
 - 262/262 green.
+
+## 2026-11-02 (the callback round) — the last cosmetic, caught by instrumentation
+
+- THE CONVERSATION CALLBACK WAS COMPUTED AND DISCARDED: Convo.FindCallback found the
+  bridge to an earlier message, the code noted "CONVO-CALLBACK", the comment claimed
+  "enriches the response below" — and the value was never used again. "You mentioned X
+  earlier" NEVER SPOKE in direct mode. Now it is spoken as the reply's lead-in (after the
+  thinking pause): "You mentioned sourdough earlier — I kept thinking about that."
+- THE HUNT ITSELF: 0/7 live misses looked structural — instrumented with a temporary
+  debug Note and caught the truth: the callback FIRED and the 40% coin missed (rng=0.50).
+  The gate is now 60% (still not always — surprise matters). LESSON: before believing
+  "unlucky", instrument once and look.
+- Superseded replies also clear the pending callback; a new message resets the old bridge.
+- 263/263 green (262 + callback probe test).
