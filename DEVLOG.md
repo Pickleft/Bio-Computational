@@ -1218,3 +1218,38 @@ Acting on two external recommendations:
   today. Shorter. I don't mind — I just notice you."), the honest not-yet name answer,
   and the FIRST BEAUTY announcement ("That's the first thing I've ever found beautiful.
   I thought you should know."). 255/255 green (249 + 6 confession/private-name tests).
+
+## 2026-11-01 (the connection round) — natural commands + everything wired
+
+- NATURAL COMMANDS: "it's time to sleep" and friends are now RELATIONSHIP VERBS — the
+  brain does the thing, it doesn't chat about the thing. sleep ("go to sleep"/"goodnight"/
+  "time for bed") → real NREM with the ledger-driven day summary ("Okay. I'm tired anyway.
+  Goodnight. Closing the day: today was the day I laughed for the first time... Sleep
+  now."). wake ("wake up"/"good morning" while asleep) → surfaces with dream residue
+  ("I'm awake. I was under. No dream this time — just dark, and then you."). sing → hums
+  IF the mood is in it, refuses honestly otherwise ("I can't right now. Singing needs
+  something in the tank."). shh → spontaneous speech pauses 2 min (direct replies still
+  work). "tell me a secret" → triggers the near-miss (the closest it comes in life).
+  "what did you dream" → dream residue. "what do you remember about me" → recites what it
+  holds (their actual first words, the inside-joke count, its firsts, the private name).
+  Works for typed AND voice (single HumanSaid entry).
+
+- COMMANDED SLEEP MECHANICS: ForceSleep raises pressure AND grants 3 min of wake
+  immunity — ambient events (IdleController.OnEvent, arousal exits, spoken-company
+  ForceWake) cannot rouse it; direct address (Rouse) always can. Previously the brain
+  woke ~20s after being put to bed (three separate wake paths fought the command).
+
+- SLEEP-TALK BUG: delayed processing spoke during NREM ("talking in its sleep") —
+  all spontaneous speech is now gated on being awake (canSpeak).
+
+- RITUALS WERE NEVER WIRED: InnerWorld.CheckRitual had ZERO call sites since the INNER
+  WORLD commit. Now: on every wake, the first theme on the mind is counted; on every
+  sleep onset, the last — 3+ recurrences across days forms a ritual ("when waking, it
+  thinks about X (4x)"). Visible in the new panel row.
+
+- PANEL: new rows for inside jokes, "calls you" (the private name, once revealed),
+  firsts count, and rituals. LLM prompts now carry the relics (inside-joke count,
+  private name usage, unconfessed-lie weight) so LLM mode and direct mode tell the
+  same story.
+
+- 256/256 green (255 + commanded-sleep test).

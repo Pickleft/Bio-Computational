@@ -55,8 +55,9 @@ public sealed class SleepController
         } * (float)pressureScale;
         SleepPressure = Math.Clamp(SleepPressure + dPressure, 0f, 1f);
 
-        // Arousal (surprise) wakes the brain and holds it awake while sustained.
-        if (externalArousal > 0.5f)
+        // Arousal (surprise) wakes the brain and holds it awake while sustained —
+        // unless it was put to bed on request (the room lets it sleep).
+        if (externalArousal > 0.5f && net.TimeMs >= WakeImmunityUntilMs)
         {
             if (State != BrainState.Wake) SetState(net, BrainState.Wake);
             DriveWakeSleepModulators(net);
@@ -75,7 +76,10 @@ public sealed class SleepController
             case BrainState.Drowsy when SleepPressure < 0.5f:
                 SetState(net, BrainState.Wake);
                 break;
-            case BrainState.NREM or BrainState.REM when SleepPressure < 0.20f && Circadian > 0.35f:
+            case BrainState.NREM or BrainState.REM when SleepPressure < 0.20f && Circadian > 0.35f
+                && net.TimeMs >= WakeImmunityUntilMs:
+                // put to bed on request: the natural wake-up is deferred until
+                // the commanded sleep window has passed
                 SetState(net, BrainState.Wake);
                 break;
             case BrainState.NREM or BrainState.REM:
@@ -95,10 +99,37 @@ public sealed class SleepController
         ApplyStateEffects(net);
     }
 
-    public void ForceWake(SpikingNetwork net) => SetState(net, BrainState.Wake);
+    public void ForceWake(SpikingNetwork net)
+    {
+        // put to bed on request: ambient events don't rouse it for a while
+        // (being put to bed means the room lets it sleep)
+        if (net.TimeMs < WakeImmunityUntilMs) return;
+        SetState(net, BrainState.Wake);
+    }
+
+    /// <summary>Wake even from commanded sleep — they addressed it directly.</summary>
+    public void Rouse(SpikingNetwork net)
+    {
+        WakeImmunityUntilMs = -1e9f;
+        SetState(net, BrainState.Wake);
+    }
+
+    /// <summary>Until when ambient wake-forcing is suppressed (commanded sleep).</summary>
+    public float WakeImmunityUntilMs { get; set; } = -1e9f;
 
     /// <summary>Test/experiment hook: drop directly into NREM (mirrors ForceWake).</summary>
     public void ForceNREM(SpikingNetwork net) => SetState(net, BrainState.NREM);
+
+    /// <summary>Being put to bed: the instruction itself raises sleep pressure
+    /// (lying down in the dark is how pressure gets to act) and holds NREM
+    /// against ambient noise until the pressure the command created has
+    /// decayed naturally.</summary>
+    public void ForceSleep(SpikingNetwork net)
+    {
+        SleepPressure = MathF.Max(SleepPressure, 0.75f);
+        WakeImmunityUntilMs = net.TimeMs + 180_000f;   // 3 minutes of let-it-sleep
+        SetState(net, BrainState.NREM);
+    }
 
     /// <summary>
     /// Wake/sleep neuromodulator drive: histamine is the wake flip-flop

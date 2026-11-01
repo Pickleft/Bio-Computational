@@ -219,3 +219,26 @@ public class PrivateNameTests
         Assert.Equal("the one who stays", her.PrivateName);
     }
 }
+
+// == COMMANDED SLEEP ==
+
+public class CommandedSleepTests
+{
+    private static BioComp.Core.Network.SpikingNetwork Net(int seed = 7) =>
+        new(BioComp.Core.Network.BrainConfig.Default(scale: 1, seed: (ulong)seed));
+
+    [Fact]
+    public void ForceSleep_HoldsAgainstAmbitalWakeForcing()
+    {
+        var net = Net();
+        var idle = new IdleController(net);
+        idle.Sleep.ForceSleep(net);
+        Assert.Equal(BioComp.Core.Sleep.BrainState.NREM, idle.Sleep.State);
+        // ambient events during the commanded window must NOT rouse it
+        for (int i = 0; i < 5_000; i++) { idle.OnEvent(net, ["sound"], 0.4f, 0.9f); net.Tick(); }
+        Assert.Equal(BioComp.Core.Sleep.BrainState.NREM, idle.Sleep.State);
+        // being addressed directly DOES wake it
+        idle.Sleep.Rouse(net);
+        Assert.Equal(BioComp.Core.Sleep.BrainState.Wake, idle.Sleep.State);
+    }
+}

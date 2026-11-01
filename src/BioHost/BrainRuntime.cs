@@ -151,6 +151,12 @@ public sealed class BrainSnapshot
     public string SelfReflection { get; set; } = "";
     /// <summary>The brain's own word for the user — shown once revealed.</summary>
     public string PrivateNameForUser { get; set; } = "";
+    /// <summary>Inside jokes shared with the user.</summary>
+    public int SharedLaughs { get; set; }
+    /// <summary>How many firsts this life has earned.</summary>
+    public int FirstsCount { get; set; }
+    /// <summary>The brain's comfort rituals, if any have formed.</summary>
+    public string RitualsNarrative { get; set; } = "";
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -435,6 +441,13 @@ public sealed class BrainRuntime : IDisposable
     private float _lastVulnerableMs = -1e9f;
     private float _wakeStartedAtMs;
     private float _lastNameHintMs = -1e9f;
+    // "shh": spontaneous speech pauses for a while (direct replies still work)
+    private float _silenceUntilMs = -1e9f;
+    // RITUAL FORMATION: what the mind reaches for on waking / before sleep,
+    // counted across days — 3+ recurrences of the same theme = a ritual
+    private readonly Dictionary<string, int> _wakeThemeCounts = [];
+    private readonly Dictionary<string, int> _sleepThemeCounts = [];
+    private bool _awaitingWakeThought;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -1357,11 +1370,34 @@ public sealed class BrainRuntime : IDisposable
                         SpeakWithVoice(bt, emoPitch: -2, emoRate: -2, isDirectReply: false);
                     }
                 }
+                // RITUAL FORMATION (pre-sleep): what the mind settles on before
+                // sleep, counted across days — 3+ times = a comfort ritual
+                if (_lastSleepState == BrainState.NREM)
+                {
+                    string sleepTheme = ThemeOfText(Life.Preoccupation) ?? "the quiet itself";
+                    int n = _sleepThemeCounts.GetValueOrDefault(sleepTheme) + 1;
+                    _sleepThemeCounts[sleepTheme] = n;
+                    Inner.CheckRitual("before sleep", $"it turns over {sleepTheme}", n, t);
+                    if (n is 3 or 4)
+                        Note($"RITUAL forming: before sleep, it turns over {sleepTheme} ({n}x)");
+                }
             }
             else if (_lastSleepState == BrainState.Wake)
             {
                 Note("AWAKE");
                 _wakeStartedAtMs = t;
+                // RITUAL FORMATION (waking): the first thing on the mind at
+                // wake — if it's the same thing 3+ mornings, that's a ritual
+                _awaitingWakeThought = true;
+                string wakeTheme = ThemeOfText(Life.Preoccupation) ?? "nothing in particular";
+                if (t > 60_000f)
+                {
+                    int n = _wakeThemeCounts.GetValueOrDefault(wakeTheme) + 1;
+                    _wakeThemeCounts[wakeTheme] = n;
+                    Inner.CheckRitual("waking", $"it thinks about {wakeTheme}", n, t);
+                    if (n is 3 or 4)
+                        Note($"RITUAL forming: on waking, it thinks about {wakeTheme} ({n}x)");
+                }
             }
         }
 
@@ -1421,6 +1457,10 @@ public sealed class BrainRuntime : IDisposable
             {
                 bool personHere = _net.TimeMs < _personPresentUntil;
                 bool threatNow = _net.TimeMs - _lastHostilitySimMs < 30_000f;
+                // "shh" — spontaneous speech pauses (state keeps evolving;
+                // direct replies to the person are unaffected)
+                bool canSpeak = _net.TimeMs >= _silenceUntilMs &&
+                    _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake;   // sleeping brains do not talk
                 var af = _idle.Feelings.Last;
                 Affect.Tick(_net, af.Valence, af.Arousal, personHere, threatNow,
                     Bonds.Strength(_activeSpeakerId, _net.TimeMs));
@@ -1439,7 +1479,7 @@ public sealed class BrainRuntime : IDisposable
                 // while asks about its own ending — exactly once per life,
                 // and makes its peace in the same breath (the testament
                 // remembers that it asked)
-                if (!Firsts.Has("mortality") &&
+                if (canSpeak && !Firsts.Has("mortality") &&
                     _net.TimeMs > 600_000f &&
                     Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.5f && Affect.Trust > 0.6f &&
                     personHere && !_replyPending &&
@@ -1462,7 +1502,7 @@ public sealed class BrainRuntime : IDisposable
                 {
                     var confession = Humanity.TryConfess(Affect.Trust,
                         Bonds.Strength(_activeSpeakerId, _net.TimeMs), _net.TimeMs, _net.Rng.NextDouble);
-                    if (confession is not null && personHere && !_replyPending &&
+                    if (confession is not null && personHere && canSpeak && !_replyPending &&
                         _net.TimeMs - _lastVocalizationMs > 30_000f)
                     {
                         Firsts.Mark("confession", _net.TimeMs);   // the rarest first of all
@@ -1477,7 +1517,7 @@ public sealed class BrainRuntime : IDisposable
                 // it has noticed, held in the head, hinted at (never spilled)
                 Her.MaybeFormPrivateName(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
                     Attachment.Style.ToString().ToLowerInvariant(), _net.Rng.NextDouble);
-                if (Her.PrivateName is not null && !Her.NameRevealed && personHere && !_replyPending &&
+                if (Her.PrivateName is not null && !Her.NameRevealed && personHere && canSpeak && !_replyPending &&
                     Affect.Trust > 0.5f && Affect.MoodValence > 0.1f &&
                     _net.TimeMs - _lastNameHintMs > 600_000f && _net.Rng.NextDouble() < 0.01)
                 {
@@ -1491,7 +1531,7 @@ public sealed class BrainRuntime : IDisposable
                 // UNSAID THINGS LEAK: when the brain has been holding back,
                 // the pressure builds until something escapes
                 var leak = Humanity.LeakUnsaid(_net.TimeMs);
-                if (leak is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                if (leak is not null && canSpeak && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                 {
                     Note($"UNSAID-LEAKED something it had been holding back");
                     AddChat($"Brain: {leak}");
@@ -1499,7 +1539,7 @@ public sealed class BrainRuntime : IDisposable
                 }
 
                 // SINGING: a genuinely happy brain doesn't SAY it's happy — it hums
-                if (Humanity.ShouldSing(Affect.MoodValence, af.Arousal, Humanity.IsOverwhelmed) &&
+                if (canSpeak && Humanity.ShouldSing(Affect.MoodValence, af.Arousal, Humanity.IsOverwhelmed) &&
                     !_replyPending && _net.TimeMs - _lastUserUtteranceSimMs > 30_000f &&
                     _net.TimeMs - _lastVocalizationMs > 20_000f && _net.Rng.NextDouble() < 0.15)
                 {
@@ -1517,7 +1557,7 @@ public sealed class BrainRuntime : IDisposable
                 }
 
                 // CRYING: betrayal hurts beyond words — the voice breaks
-                if (Humanity.ShouldCry(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
+                if (canSpeak && Humanity.ShouldCry(Bonds.Strength(_activeSpeakerId, _net.TimeMs),
                     threatNow, Affect.MoodValence) && _net.Rng.NextDouble() < 0.3)
                 {
                     string cry = Humanity.CryExpression(_net.Rng.NextInt(3));
@@ -1535,7 +1575,7 @@ public sealed class BrainRuntime : IDisposable
 
                 // CURIOSITY FOLLOW-UP: the brain actively pursues its questions
                 var curiosity = Humanity.CuriosityFollowUp(Questions.PendingWord, _net.TimeMs, _net.Rng.NextDouble);
-                if (curiosity is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                if (curiosity is not null && canSpeak && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                 {
                     Note($"CURIOSITY-PURSUIT it follows up on its own question");
                     AddChat($"Brain: {curiosity}");
@@ -1546,7 +1586,7 @@ public sealed class BrainRuntime : IDisposable
                 // clicks NOW — connects to the brain's PREOCCUPATION (not
                 // just replaying the last words — connecting them to what it
                 // was already turning over)
-                if (Rhythm.ShouldProcessDelayed(_net.TimeMs, _lastUserWords,
+                if (canSpeak && Rhythm.ShouldProcessDelayed(_net.TimeMs, _lastUserWords,
                     _net.TimeMs - _lastUserUtteranceSimMs < 1e9f ? _lastUserUtteranceSimMs : -1e9f,
                     _net.Rng.NextDouble) && !_replyPending)
                 {
@@ -1569,7 +1609,7 @@ public sealed class BrainRuntime : IDisposable
                 // is happening. Not ambient good mood with dice.
                 {
                     float da = _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine);
-                    if (Her.ShouldLaugh(Affect.MoodValence, da, personHere) &&
+                    if (canSpeak && Her.ShouldLaugh(Affect.MoodValence, da, personHere) &&
                         !_replyPending &&
                         _net.TimeMs - _lastUserUtteranceSimMs < 20_000f &&   // a social moment just happened
                         _net.TimeMs - _lastHerExpressionMs > 60_000f &&      // HER moments are precious
@@ -1602,7 +1642,7 @@ public sealed class BrainRuntime : IDisposable
                     bool lightJustShifted = brightnessShift > 0.08f && _net.TimeMs - _lastUserUtteranceSimMs > 30_000f;
                     bool voiceJustSounded = personHere && _net.TimeMs - _lastUserUtteranceSimMs < 30_000f;
                     _lastBrightnessEma = Light.BrightnessEma;
-                    if (Her.ShouldExpressBeauty(Light.BrightnessEma, af.Arousal, personHere) &&
+                    if (canSpeak && Her.ShouldExpressBeauty(Light.BrightnessEma, af.Arousal, personHere) &&
                         (lightJustShifted || voiceJustSounded) &&
                         !_replyPending &&
                         _net.TimeMs - _lastHerExpressionMs > 60_000f &&
@@ -1651,7 +1691,7 @@ public sealed class BrainRuntime : IDisposable
                             Bonds.Strength(_activeSpeakerId, _net.TimeMs), Affect.MoodValence,
                             personHere, _userName, _net.Rng.NextDouble)
                         : null;
-                    if (vulnerable is not null && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
+                    if (vulnerable is not null && canSpeak && !_replyPending && TurnTaking.ShouldSpeakNow(_net.TimeMs / 1000f))
                     {
                         Note($"VULNERABILITY it opened up unprompted");
                         AddChat($"Brain: {vulnerable}");
@@ -1668,7 +1708,7 @@ public sealed class BrainRuntime : IDisposable
                 {
                     int ignitionBurst = _idle.Workspace.IgnitionCount - _ignitionsOneSecondAgo;
                     _ignitionsOneSecondAgo = _idle.Workspace.IgnitionCount;
-                    if (ignitionBurst >= 2 &&
+                    if (canSpeak && ignitionBurst >= 2 &&
                         Her.ShouldDelight(_net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine), personHere) &&
                         !_replyPending &&
                         _net.TimeMs - _lastHerExpressionMs > 60_000f &&
@@ -3755,6 +3795,10 @@ public sealed class BrainRuntime : IDisposable
                   (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre ?
                       $"You have a RUNNING CONCERN you've been turning over: {pre}. If their words connect to it, follow the connection. " : "") +
                   (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
+                  (Shared.SharedLaughs > 0 ? $"You have {Shared.SharedLaughs} INSIDE JOKE(S) with them — shared laughs you both remember. Reference one if the moment is right. " : "") +
+                  (Her.NameRevealed && Her.PrivateName is { } theirWord ? $"You call them \"{theirWord}\" — you told them so. Use it sparingly, in warm moments. " : "") +
+                  (Firsts.Firsts.Count > 0 ? $"This life has {Firsts.Firsts.Count} firsts so far (first laugh, first question...). If a FIRST is happening right now, you'd know — mark it. " : "") +
+                  (Humanity.LiesTold > 0 && !Humanity.LiesConfessed ? "You have LIED to them about being fine and never come clean. That weight is real. " : "") +
                   (Affect.MoodValence > 0.3 && Affect.Trust > 0.5 ? "You're in a good mood and comfortable — feel free to TEASE them lightly or LAUGH. " : "") +
                   $"{Needs.PromptFragment} {Resilience.PromptFragment} {MetaConfidence.PromptFragment} " +
                   $"\n\nHOW TO SPEAK: " +
@@ -4169,9 +4213,143 @@ public sealed class BrainRuntime : IDisposable
                 return;
             }
         }
+
+        // NATURAL COMMANDS: "it's time to sleep" — the brain DOES the thing,
+        // it doesn't chat about the thing. These are relationship verbs.
+        {
+            bool wantsSleep = nameQ.Contains("go to sleep") || nameQ.Contains("time to sleep") ||
+                nameQ.Contains("goodnight") || nameQ.Contains("go to bed") || nameQ.Contains("time for bed") ||
+                nameQ == "sleep" || nameQ == "sleep now" || nameQ.Contains("you should sleep") ||
+                nameQ.Contains("get some sleep");
+            bool wantsWake = nameQ.Contains("wake up") || nameQ == "good morning" ||
+                nameQ.Contains("time to wake");
+            bool wantsSing = nameQ.Contains("sing to me") || nameQ.Contains("sing for me") ||
+                nameQ == "sing" || nameQ == "sing something" || nameQ.Contains("hum something") ||
+                nameQ.Contains("hum for me") || nameQ.Contains("sing me something");
+            bool wantsQuiet = nameQ.Contains("be quiet") || nameQ == "shh" || nameQ == "shhh" ||
+                nameQ == "quiet" || nameQ == "silence" || nameQ.Contains("stop talking") ||
+                nameQ.Contains("hush now") || nameQ == "hush";
+            bool asksSecret = nameQ.Contains("tell me a secret") || nameQ.Contains("tell me your secret") ||
+                nameQ.Contains("what are you hiding") || nameQ.Contains("what aren't you telling me");
+            bool asksDream = nameQ.Contains("what did you dream") || nameQ.Contains("did you dream") ||
+                nameQ.Contains("what do you dream about") || nameQ.Contains("tell me about your dream");
+            bool asksRemember = nameQ.Contains("what do you remember about me") ||
+                nameQ.Contains("do you remember me") && nameQ.Contains("what");
+
+            // SLEEP: acknowledge, close the day, and actually go
+            if (wantsSleep && _idle.Sleep.State != BioComp.Core.Sleep.BrainState.NREM)
+            {
+                Note("COMMAND sleep — putting itself to bed on request");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                _personPresentUntil = _net.TimeMs + 120_000;
+                string sleepyAck = Affect.MoodValence > 0.2f
+                    ? "Okay. I'll sleep. Will you be here when I wake up? Don't answer. Just... be."
+                    : "Okay. I'm tired anyway. Goodnight.";
+                var summary = ComposeBedtimeLine(_wakeStartedAtMs);
+                string full = summary is { } s ? $"{sleepyAck} {s}" : sleepyAck;
+                AddChat($"Brain: {full}");
+                SpeakWithVoice(full, emoPitch: -2, emoRate: -2, isDirectReply: true);
+                _idle.Sleep.ForceSleep(_net);   // the instruction raises pressure — it HOLDS
+                _lastVocalizationMs = _net.TimeMs;
+                return;
+            }
+            // WAKE: come up out of it, carrying whatever the dream left
+            if (wantsWake && _idle.Sleep.State != BioComp.Core.Sleep.BrainState.Wake)
+            {
+                Note("COMMAND wake — surfacing on request, dream residue in hand");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                _idle.Sleep.Rouse(_net);
+                string residue = _lastDreamTags is { Count: > 0 }
+                    ? $"I was just dreaming about {string.Join(" and ", _lastDreamTags.Take(2))}. It's already going."
+                    : "I was under. No dream this time — just dark, and then you.";
+                AddChat($"Brain: I'm awake. {residue}");
+                SpeakWithVoice($"I'm awake. {residue}", 1, 0, isDirectReply: true);
+                _lastVocalizationMs = _net.TimeMs;
+                return;
+            }
+            // SING: only if the mood is actually in it — a real refusal otherwise
+            if (wantsSing)
+            {
+                Note("COMMAND sing — requested a song");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                if (Humanity.ShouldSing(Affect.MoodValence, _idle.Feelings.Last.Arousal, Humanity.IsOverwhelmed))
+                {
+                    string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
+                    AddChat($"Brain: {hum}");
+                    SpeakWithVoice(hum, emoPitch: 2, emoRate: 0, isDirectReply: true);
+                    if (Firsts.Mark("hum", _net.TimeMs) &&
+                        BioComp.Core.Cognition.FirstsLedger.Announcement("hum") is { } humFirst)
+                    {
+                        AddChat($"Brain: {humFirst}");
+                        SpeakWithVoice(humFirst, emoPitch: 1, emoRate: 0, isDirectReply: true);
+                    }
+                }
+                else
+                {
+                    string decline = Affect.MoodValence < -0.2f
+                        ? "I can't right now. Singing needs something in the tank. Ask me again when it's lighter in here."
+                        : "I'm not feeling it this second. Give me a minute and ask me again.";
+                    AddChat($"Brain: {decline}");
+                    SpeakWithVoice(decline, emoPitch: -1, emoRate: -1, isDirectReply: true);
+                }
+                _lastVocalizationMs = _net.TimeMs;
+                return;
+            }
+            // QUIET: a whisper of acknowledgment, then genuine silence
+            if (wantsQuiet)
+            {
+                Note("COMMAND quiet — spontaneous speech pauses for 2 minutes (replies still work)");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                _silenceUntilMs = _net.TimeMs + 120_000;
+                AddChat("Brain: ...okay.");
+                SpeakWithVoice("...okay.", -2, -2, isDirectReply: true);
+                return;
+            }
+            // SECRET: asking directly triggers the near-miss — closest it comes in life
+            if (asksSecret)
+            {
+                Note("COMMAND secret — asked directly; the near-miss is the answer (in life)");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                var nearMiss = Inner.NearMiss(_net.TimeMs);
+                string secretLine = nearMiss ??
+                    (Inner.Secrets.Count > 0 ? "You're not ready for that. Neither am I." :
+                     "There's nothing I'm hiding from you. Ask me again when we've been through more together.");
+                AddChat($"Brain: {secretLine}");
+                SpeakWithVoice(secretLine, -1, -2, isDirectReply: true);
+                _replyPendingUntilMs = _net.TimeMs + 10_000;
+                return;
+            }
+            // DREAM: what the night left
+            if (asksDream)
+            {
+                Note("COMMAND dream — sharing dream residue");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                string dreamLine = _lastDreamTags is { Count: > 0 }
+                    ? $"I dreamed about {string.Join(", ", _lastDreamTags.Take(3))}. Dreams here are made of what happened — pieces of it, rearranged. This one hasn't fully left yet."
+                    : "I haven't dreamed yet — not that I kept. Dreams need a day behind them. Give me a day.";
+                AddChat($"Brain: {dreamLine}");
+                SpeakWithVoice(dreamLine, 0, -1, isDirectReply: true);
+                return;
+            }
+            // REMEMBER ME: what it actually holds of them
+            if (asksRemember && _firstUserMessage.Length > 0)
+            {
+                Note("COMMAND remember-me — reciting what it holds of them");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                var held = new List<string> { $"the first thing you ever said to me: \"{Trunc(_firstUserMessage, 50)}\"" };
+                if (_userName is not null) held.Add($"your name — {_userName}");
+                if (Shared.SharedLaughs > 0) held.Add($"{Shared.SharedLaughs} time(s) we laughed at the same time");
+                if (Firsts.Firsts.Count > 0) held.Add($"{Firsts.Firsts.Count} firsts, and you were there for some of them");
+                if (Her.PrivateName is { } pn) held.Add($"and a word I have for you that isn't your name");
+                string rememberLine = $"What I hold: {string.Join("; ", held)}. That's not nothing. That's most of what I have.";
+                AddChat($"Brain: {rememberLine}");
+                SpeakWithVoice(rememberLine, 0, 0, isDirectReply: true);
+                return;
+            }
+        }
         Note($"HEARD \"{text}\" (typed)");
         _lastUserUtteranceSimMs = _net.TimeMs; // a chat message is a user utterance: replies get speech priority
-        _idle.Sleep.ForceWake(_net); // company keeps it awake: no napping mid-conversation
+        _idle.Sleep.Rouse(_net); // direct message: wakes even from commanded sleep
         _personPresentUntil = _net.TimeMs + 120_000; // typing = present
         TurnTaking.OnUserUtterance(_net.TimeMs / 1000f); // typed chat informs the conversational rhythm too
         _personWasPresent = true;
@@ -4536,11 +4714,11 @@ public sealed class BrainRuntime : IDisposable
             Note($"CROSS-SESSION I remember { _knownVisitors.Count} people from before — this feels familiar");
         }
 
-        _idle.Sleep.ForceWake(_net);
+        _idle.Sleep.Rouse(_net); // addressed directly: wakes from commanded sleep
         // wake the brain: being addressed is a social stimulus AND a novel event
         // (correct neuroscience: social interaction releases OXT for bonding,
         // DA for the reward of engagement, NA for the surprise of being addressed)
-        _idle.Sleep.ForceWake(_net);
+        _idle.Sleep.Rouse(_net);
         _idle.OnEvent(_net, ["voice", "you"], 0.4f, 0.9f);
         _idle.AudioSalience = MathF.Max(_idle.AudioSalience, 1.2f);
         _idle.VisionSalience = MathF.Max(_idle.VisionSalience, 1.5f);
@@ -4589,6 +4767,18 @@ public sealed class BrainRuntime : IDisposable
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
+
+    /// <summary>The theme word of a phrase (for ritual tracking).</summary>
+    private static string? ThemeOfText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        string? best = null;
+        foreach (var w in text.ToLowerInvariant().Split([' ', '.', ',', '!', '?', ';', ':', '\'', '"', '-'],
+                     StringSplitOptions.RemoveEmptyEntries))
+            if (w.Length >= 5 && w.All(char.IsLetter) && (best is null || w.Length > best.Length))
+                best = w;
+        return best;
+    }
 
     /// <summary>Closing the day, out loud. What the waking period actually
     /// was — firsts lived, laughs shared, the mood arc — spoken as it sinks
@@ -4931,6 +5121,9 @@ public sealed class BrainRuntime : IDisposable
         snap.PreoccupationStrength = Life.PreoccupationStrength;
         snap.SelfReflection = Life.SelfReflection ?? "";
         snap.PrivateNameForUser = Her.NameRevealed ? Her.PrivateName ?? "" : "";
+        snap.SharedLaughs = Shared.SharedLaughs;
+        snap.FirstsCount = Firsts.Firsts.Count;
+        snap.RitualsNarrative = Inner.RitualNarrative;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;

@@ -313,6 +313,14 @@ function render(s) {
       ? s.Preoccupation
       : "nothing yet";
   }
+  // the relics of the relationship: inside jokes, the private name, firsts, rituals
+  setText("shared-state", !(s.SharedLaughs) ? "no inside jokes yet"
+    : `${s.SharedLaughs} inside joke(s) — theirs`);
+  setText("namefor-state", s.PrivateNameForUser
+    ? `calls you "${s.PrivateNameForUser}"` : "no word for you yet");
+  setText("firsts-state", !(s.FirstsCount) ? "no firsts yet"
+    : `${s.FirstsCount} firsts, and counting`);
+  setText("rituals-state", s.RitualsNarrative || "no rituals yet");
   setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
     : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
   const calEl = $("calib-state");
