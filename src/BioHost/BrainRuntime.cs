@@ -490,6 +490,11 @@ public sealed class BrainRuntime : IDisposable
     private int _replySeq;
     // the conversation-memory callback, spoken as the reply's lead-in
     private string? _pendingConvoCallback;
+    // the LLM seam, inspectable: the last conversational prompt pair
+    public string LastLlmSystemPrompt => _lastLlmSystemPrompt ?? "";
+    public string LastLlmUserPrompt => _lastLlmUserPrompt ?? "";
+    private string? _lastLlmSystemPrompt;
+    private string? _lastLlmUserPrompt;
     // WHILE YOU WERE AWAY: the brain reports on its real inner life when you
     // return — drawn from the thoughts it actually had in your absence
     private float _lastUserPresentMs;
@@ -4146,6 +4151,8 @@ public sealed class BrainRuntime : IDisposable
                   "DO NOT repeat the same sentence structure as your previous replies. " +
                   "Each response should feel DIFFERENT from the last one. " +
                   BioComp.Core.Cognition.BrainIdentity.Reminder;
+            _lastLlmSystemPrompt = system;   // the seam, inspectable (/api/prompt-debug)
+            _lastLlmUserPrompt = user;
             _questionJustAnswered = null;
             _personRemark = null;
 

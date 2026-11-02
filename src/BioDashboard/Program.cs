@@ -98,6 +98,16 @@ app.MapGet("/api/farewell", async () =>
 
 app.MapGet("/api/map", () => Results.Json(runtime.GetMapData()));
 
+// THE SEAM, INSPECTABLE: the exact prompt pair the language cortex last
+// received (the one surface keyless smoke tests cannot exercise)
+app.MapGet("/api/prompt-debug", () => Results.Json(new
+{
+    system = runtime.LastLlmSystemPrompt,
+    user = runtime.LastLlmUserPrompt,
+    systemChars = runtime.LastLlmSystemPrompt.Length,
+    userChars = runtime.LastLlmUserPrompt.Length,
+}));
+
 app.MapGet("/api/export-brain", () =>
 {
     string path = runtime.ExportPortableBrain();

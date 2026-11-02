@@ -1518,3 +1518,17 @@ Acting on two external recommendations:
   DescribeRitual + verb-first behavior strings). Also DiaryWriter's catch is no longer
   silent (it was the third silent-swallow found by this method).
 - 264/264 green.
+
+## 2026-11-02 (the seam round) — the LLM prompt, inspected for the first time
+
+- /api/prompt-debug: new endpoint returning the exact system/user prompt pair the language
+  cortex last received — the one surface keyless smoke tests can never exercise, now
+  permanently inspectable (also a demo asset: show the judges the actual seam).
+- THE AUDIT (captured live: system 3987 chars, user 1490): system = WHO YOU ARE -> NEVER DO
+  -> CATCH YOURSELF -> RELATIONSHIP -> FEELING -> relics (jokes/name/firsts/rituals/
+  lies/game) -> HOW TO SPEAK. user = stimulus -> conversation -> inner state -> inner
+  event -> "Remember: you KNOW this person" -> **[REMINDER: ...] as the final tokens** —
+  the character-lock sits closest to generation, even stronger than system-position (the
+  original design was right; an earlier reading of mine confused the two string builders).
+  No contradictions, no bloat, relics present. The seam is verified end-to-end.
+- 264/264 green.
