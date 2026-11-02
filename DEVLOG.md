@@ -1737,3 +1737,14 @@ The four tells, reworked:
 - app.js v25. The formant hum layer only stops its own (short) hums — words never kill
   hums, hums never kill words.
 - 266/266 green.
+
+## 2026-11-02 (the one-voice round) — "multiple voices talk at the same time"
+
+- ROOT CAUSE: two dashboard tabs open (the user's old cached one + a fresh one) — both
+  subscribe to the snapshot feed, both play every utterance, simultaneously. (The server
+  never speaks locally: --voice injects BrowserSpeech; verified.)
+- THE ONE-VOICE RULE: a localStorage heartbeat elects exactly one voice leader per origin
+  — most recent heartbeat owns the voice, a stale leader (>2.5s) is taken over, closed
+  leaders release instantly. Non-leader tabs ACK utterances but stay silent. Verified live
+  with two real tabs: exactly one leader, the other silent.
+- app.js v26. 266/266 green.

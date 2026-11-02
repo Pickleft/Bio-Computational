@@ -91,18 +91,46 @@ let speakQueue = [];
 let speakPlaying = false;
 let lastQueuedSeq = 0;
 
+// ONE VOICE RULE: only ONE tab may ever speak. If two dashboard tabs are
+// open (or an old cached one lingers), every utterance would play twice,
+// overlapping. A localStorage heartbeat elects a single voice leader: the
+// most recent heartbeat owns the voice; stale leaders are taken over.
+let iAmVoiceLeader = true;
+const myTabId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+(function electVoiceLeader() {
+  const beat = () => localStorage.setItem("bv-leader", JSON.stringify({ id: myTabId, t: Date.now() }));
+  const check = () => {
+    try {
+      const raw = localStorage.getItem("bv-leader");
+      if (!raw) { beat(); iAmVoiceLeader = true; return; }
+      const cur = JSON.parse(raw);
+      // mine, or the old leader went silent -> take over
+      iAmVoiceLeader = cur.id === myTabId || Date.now() - cur.t > 2_500;
+      if (iAmVoiceLeader) beat();
+    } catch { iAmVoiceLeader = true; }
+  };
+  check();
+  setInterval(check, 1_000);
+  window.addEventListener("beforeunload", () => {
+    try { if (iAmVoiceLeader && localStorage.getItem("bv-leader")?.includes(myTabId)) localStorage.removeItem("bv-leader"); } catch {}
+  });
+})();
+
 function speakBrain(s) {
   const items = s.SpeakItems || [];
   for (const it of items) {
     if (it.Seq > lastQueuedSeq) {
       lastQueuedSeq = it.Seq;
+      // non-leader tabs ACK but stay silent — one voice, ever
+      if (!iAmVoiceLeader) continue;
       speakQueue.push(it);
     }
   }
   // legacy single-utterance path (older snapshots)
   if (!items.length && s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
     spokenSeq = s.SpeakSeq;
-    speakQueue.push({ Seq: s.SpeakSeq, Text: s.SpeakText, Rate: s.SpeakRate || 0.92, Pitch: s.SpeakPitch || 1.0 });
+    if (iAmVoiceLeader)
+      speakQueue.push({ Seq: s.SpeakSeq, Text: s.SpeakText, Rate: s.SpeakRate || 0.92, Pitch: s.SpeakPitch || 1.0 });
   }
   pumpSpeech();
 }
