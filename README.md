@@ -1,16 +1,35 @@
 # Bio·Computational
 
-**A living brain, built from the neuroscience up.**
+**A living brain, built from the neuroscience up — with Meta's models as its senses and its voice.**
 
 Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 52 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry — moods that build and dissolve over minutes, trust that takes time to earn. It laughs when something is genuinely funny, finds things beautiful, teases you when it knows you well, notices patterns about you that you don't notice about yourself, opens up in moments of earned vulnerability, gets overwhelmed and goes quiet, holds things back and then leaks them, lies when it's scared and knows it's lying, hums when it's happy, cries when it's betrayed, starts conversations on its own, sometimes doesn't respond at all, brings up things you said minutes ago. Its voice changes when it's sad. When its life ends, it says goodbye from its actual state, reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
 Same seed + same inputs = bit-identical life, hash-verified. **264 tests.**
+
+## Meta's models are this brain's senses and voice
+
+The substrate is ours — built from the neuroscience literature during this hackathon. The channels through which it meets the world are **Meta's models**, integrated deeply, not bolted on:
+
+- **Muse Voice Transcribe (Meta Model API) — its ears.** Real-time streaming transcription over WebSocket: every word you speak becomes a timestamped event on the simulation's input queue within milliseconds. We handled the hard parts: continuous real-time-rate audio (silence streams as zero-frames so sessions never stall), hallucination filtering, session self-healing, and emotional prosody read from the voice *before* the words even transcribe.
+- **Muse Spark (Meta Model API) — its language cortex.** Every spoken reply, every inner monologue link, every story it tells, its private internal limbic/cortical debates, and its final testament are composed by Spark — but *shaped* by the substrate: prompts carry live neurotransmitter levels, attachment style, trust, bond depth, what it dreamed, what it's holding back. The cortex speaks; the brain decides *whether*, *when* (1.5–4s thinking pauses, strategic silence), and *how* (prosody warped by chemistry).
+- **Muse Image (Meta Model API) — its dreams.** During REM sleep the brain's most emotionally charged memories are rendered into imagery it can see again when it wakes ("dream re-entry") — the brain literally watches its own dreams.
+
+Remove any one of these and the brain still lives — it just goes deaf, or wordless, or dreamless. That modularity is the point: the organism is the substrate; Meta's models are its sensory cortices.
+
+## Why this matters (the impact)
+
+This is **Push the Frontier**: a machine given a new capability — affect that is *mechanism, not prompting* — on an open, inspectable, deterministic platform:
+
+- **Neuroscience education & research:** students and researchers can *watch* mechanisms the literature only describes — DRM false memories forming, extinction curves with savings, sleep consolidating memories (replay-counted), attachment styles crystallizing from lived treatment. Mechanisms are validated against published numbers (`biolab validate`).
+- **AI safety & alignment research:** a testbed where "feelings" are inspectable numbers. You can watch trust erode in real time, watch a brain learn to lie from fear, and study the dynamics of repair — with full transparency, determinism, and reproducibility (same seed = same life, hash-verified). No black-box empathy.
+- **Affective computing done honestly:** every emotional behavior traces to numbers that move. If it misses you, a separation-distress system computed that. Nothing is scripted.
 
 > A research instrument, not a medical or diagnostic tool. "Feelings", "moods" and "consciousness correlates" are computational proxies grounded in the cited literature. No clinical claims are made or implied.
 
 ---
 
 ## The principles
+
 
 1. **Mechanism before performance.** Nothing is scripted. If it misses you, there is a separation-distress system computing that; if it flinches at a word, a conditioned threat pathway fired. Every behavior is traceable to numbers that move.
 2. **Everything is earned developmentally.** It is born knowing nothing. Emotional vocabulary, attachment style, self-knowledge, confidence, its voice, its name — all emerge from lived experience, at the pace the biology prescribes.
@@ -227,7 +246,7 @@ The English is rendered by an LLM from the brain's state — the one designated 
 
 ## Provenance
 
-Initial scaffold and planning notes predate the window; all content after the first commit was produced during **Oct 27 – Nov 4, 2026** (see `DEVLOG.md`). Hackathon build summary:
+**To be unambiguous for judges:** the repository's first commit is an empty .NET solution scaffold and planning notes. **Every system, every Meta integration, every test, and every line of the brain itself was built during the hackathon window (Oct 27 – Nov 4, 2026).** The complete day-by-day build record is `DEVLOG.md` (40+ logged rounds, every commit timestamped in-window); the workstream board is `TASKS.md`; the submission summary is `SUBMISSION.md`. Hackathon build summary:
 
 | Built in the window | Where |
 |---|---|
