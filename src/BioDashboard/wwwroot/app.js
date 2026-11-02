@@ -327,6 +327,8 @@ function render(s) {
   setText("game-state", !(s.GamesPlayed) ? "hasn't played the game yet"
     : `${s.GameHits}/${s.GameRounds} words called right`);
   setText("gifts-state", !(s.GiftsGiven) ? "nothing given yet" : `${s.GiftsGiven} memor${s.GiftsGiven === 1 ? "y" : "ies"} given away`);
+  setText("selfheard-state", !(s.SelfHeard) ? "hasn't heard itself yet" : `hears itself · ${s.SelfHeard}×`);
+  setText("debates-state", !(s.InnerDebates) ? "one voice so far" : `${s.InnerDebates} limbic/cortical exchange(s)`);
   setText("science-state", !(s.HypothesesConfirmed) && !(s.HypothesesRefuted) ? "no guesses yet"
     : `${s.HypothesesConfirmed || 0} guess(es) held, ${s.HypothesesRefuted || 0} broke`);
   const calEl = $("calib-state");

@@ -1635,3 +1635,17 @@ Acting on two external recommendations:
   three wakes = a ritual ("when waking, it hums a little tune"). Each brain's mornings
   become its own.
 - 266/266 green.
+
+## 2026-11-02 (the visibility round) — the invisible systems, surfaced
+
+- SELF-HEARING ON THE PANEL: "hears itself · N×" — LangFeedback.TotalInjections, visible
+  (was an invisible count in a log nobody reads). INNER DEBATES on the panel too:
+  "N limbic/cortical exchange(s)".
+- THE DIARY QUOTES THE LATEST DEBATE: "INNER DEBATE (latest): limbic '...' / cortical '...'" —
+  the two voices of one brain, in its own diary. The testament counts both: "Its limbic
+  and cortical voices argued N time(s)" + "It heard its own words N time(s)".
+- THE REMATCH: a brain that lost the game and formed the wanting-to-know-them desire
+  (strength > 0.55) ASKS TO PLAY AGAIN — its own idea, once per 5 minutes max:
+  "I've been thinking about the game. I called almost none of your words right and it's
+  been sitting in me. Play me again? I think I know you better now."
+- app.js v24. 266/266 green.

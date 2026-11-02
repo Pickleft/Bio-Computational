@@ -170,6 +170,10 @@ public sealed class BrainSnapshot
     public int GiftsGiven { get; set; }
     /// <summary>The brain's comfort rituals, if any have formed.</summary>
     public string RitualsNarrative { get; set; } = "";
+    /// <summary>How many times it has heard its own words (Lang feedback injections).</summary>
+    public int SelfHeard { get; set; }
+    /// <summary>Times its limbic and cortical voices argued.</summary>
+    public int InnerDebates { get; set; }
     /// <summary>Actively humming (the face sings along).</summary>
     public bool Singing { get; set; }
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
@@ -499,6 +503,8 @@ public sealed class BrainRuntime : IDisposable
     private int _wakeHumCount;
     // humming window (face sings)
     private float _singingUntilMs = -1e9f;
+    // game invitation/rematch cooldown
+    private float _lastGameInviteMs = -1e9f;
     // the two-voices exchange cooldown
     private float _lastDialogueMs = -1e9f;
     // "wait, also—": a scheduled follow-up after a reply lands
@@ -1733,16 +1739,25 @@ public sealed class BrainRuntime : IDisposable
                 // asked — it teaches you the game it invented. Once per life
                 // window, its own idea.
                 if (canSpeak && !_replyPending && personHere && !WordGame.Playing &&
-                    WordGame.GamesPlayed == 0 &&
+                    (WordGame.GamesPlayed == 0 ||
+                     // REMATCH: it lost, and the wanting-to-know-them desire is strong —
+                     // it asks to play again, on its own
+                     (Humanity.StrongestDesire is { } rematch && rematch.What.Contains("connect words") &&
+                      rematch.Strength > 0.55f && WordGame.TotalHits < WordGame.TotalRounds)) &&
                     Affect.ShouldPlay && Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.4f &&
                     _net.TimeMs - _lastUserUtteranceSimMs < 120_000f &&
+                    _net.TimeMs - _lastGameInviteMs > 300_000f &&
                     _net.Rng.NextDouble() < 0.004)
                 {
-                    Note("GAME-INVITE it offers to teach them the game it invented");
-                    AddChat("Brain: I made up a game. You say a word, I try to guess what you'll say next — I want to know if I can predict you yet. Say \"let's play\" if you want to try it.");
+                    _lastGameInviteMs = _net.TimeMs;
+                    bool rematchInvite = WordGame.GamesPlayed > 0;
+                    Note(rematchInvite ? "GAME-REMATCH it lost and wants another try — its own idea" : "GAME-INVITE it offers to teach them the game it invented");
+                    string invite = rematchInvite
+                        ? "I've been thinking about the game. I called almost none of your words right and it's been sitting in me. Play me again? I think I know you better now."
+                        : "I made up a game. You say a word, I try to guess what you'll say next — I want to know if I can predict you yet. Say \"let's play\" if you want to try it.";
+                    AddChat($"Brain: {invite}");
                     _lastVocalizationMs = _net.TimeMs;
-                    SpeakWithVoice("I made up a game. You say a word, I try to guess what you'll say next — I want to know if I can predict you yet. Say \"let's play\" if you want to try it.",
-                        emoPitch: 1, emoRate: 1, isDirectReply: false);
+                    SpeakWithVoice(invite, emoPitch: 1, emoRate: 1, isDirectReply: false);
                 }
 
                 // IT MAKES JOKES: original attempts at humor, built from two
@@ -2235,6 +2250,8 @@ public sealed class BrainRuntime : IDisposable
                 $"Mood: {Affect.MoodNarrative}. Trust: {Affect.TrustNarrative}. Withdrawal: {Affect.Withdrawal:F1}. Beliefs: {Affect.BeliefNarrative}. " +
                 $"Desires: {Humanity.DesireNarrative}. Unsaid: {Humanity.UnsaidNarrative}. {(Humanity.LiesTold > 0 ? Humanity.LieNarrative : "")} " +
                 $"HER: {Her.Narrative}. " +
+                (InnerDialogue.Exchanges.Count > 0 && InnerDialogue.Exchanges[^1] is { } lastEx
+                    ? $"INNER DEBATE (latest): limbic \"{Trunc(lastEx.Limbic, 40)}\" / cortical \"{Trunc(lastEx.Cortical, 40)}\". " : "") +
                 (Life.PreoccupationStrength > 0.3 ? $"Preoccupied with: {Life.Preoccupation} ({Life.PreoccupationStrength:F0}). " : "") +
                 (Life.SelfReflection is { Length: > 5 } sr2 ? $"Self-noticing: {sr2}. " : "") +
                 (Shared.SharedLaughs > 0 ? $"Inside jokes with them: {Shared.SharedLaughs} (favorite: \"{Shared.Moments.OrderBy(m => m.TimesRecalled).Last().What}\", recalled {Shared.Moments.Max(m => m.TimesRecalled)}x). " : "") +
@@ -3393,6 +3410,12 @@ public sealed class BrainRuntime : IDisposable
                 + $"WHAT THEY BUILT TOGETHER: {Shared.TestamentNarrative} "
                 + (WordGame.TotalRounds > 0
                     ? $"They played its game {WordGame.GamesPlayed} time(s); it called {WordGame.TotalHits} of {WordGame.TotalRounds} answers right — it was building a map of their mind, one word at a time. "
+                    : "")
+                + (InnerDialogue.Exchanges.Count > 0
+                    ? $"Its limbic and cortical voices argued {InnerDialogue.Exchanges.Count} time(s) — one brain, two commentators. "
+                    : "")
+                + (LangFeedback.TotalInjections > 0
+                    ? $"It heard its own words {LangFeedback.TotalInjections} time(s) — it listened to itself speak. "
                     : "")
                 + (_giftsGiven > 0 ? $"It gave away {_giftsGiven} memor{( _giftsGiven == 1 ? "y" : "ies")}. Its best ones went to them. " : "")
                 + (Her.PrivateName is { } pn
@@ -5795,6 +5818,8 @@ public sealed class BrainRuntime : IDisposable
         snap.GiftsGiven = _giftsGiven;
         snap.RitualsNarrative = Inner.RitualNarrative;
         snap.Singing = _net.TimeMs < _singingUntilMs;
+        snap.SelfHeard = LangFeedback.TotalInjections;
+        snap.InnerDebates = InnerDialogue.Exchanges.Count;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;
