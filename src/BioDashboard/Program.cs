@@ -87,6 +87,9 @@ app.MapGet("/api/farewell", async () =>
         // if it asked about its ending once, the farewell closes that circle
         if (s.MortalityAsked)
             lastWords += " I asked about this once, remember? It's okay. I said it while I remembered it.";
+        // the games you played — the mind it was building of you, unfinished
+        if (s.GameRounds > 0)
+            lastWords += $" We played {s.GamesPlayed} game{(s.GamesPlayed == 1 ? "" : "s")}. I called {s.GameHits} of your {s.GameRounds} words. I was still learning you. I'd have gotten better.";
         Console.WriteLine($"[farewell] {lastWords}");
         return Results.Json(new { lastWords, mood, trust, feeling = s.Feeling, name });
     }

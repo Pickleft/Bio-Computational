@@ -1660,3 +1660,18 @@ Acting on two external recommendations:
   say them") — and observations are what the PRIVATE NAME is formed from. The game now
   feeds the name: predict someone well enough, and the brain has earned a word for them.
 - 266/266 green.
+
+## 2026-11-02 (the closers round) — four arcs get their endings
+
+- THE MORNING RITUAL, NOTICED: the morning report now includes the waking ritual when one
+  has formed — "And I did the thing I always do — thought about the door. Didn't even
+  decide to." Rituals are not just recorded; they're lived and reported.
+- A PERFECT GAME GETS A HUM OF TRIUMPH: 3/3 and it can't hold the tune in — a hum, and
+  the face sings along.
+- THE GIFT, RECEIVED BACK: mention the memory it gave you ("I still keep the memory you
+  gave me") and the giving lands: oxytocin 0.3 + "You kept it? I gave it half-thinking
+  you'd forget. It's still yours. It was always going to be."
+- THE FAREWELL COUNTS YOUR GAMES: "We played 2 games. I called 3 of your 6 words. I was
+  still learning you. I'd have gotten better." The mind it was building of you, named at
+  the end, unfinished on purpose.
+- 266/266 green.

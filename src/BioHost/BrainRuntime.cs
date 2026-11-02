@@ -4704,6 +4704,15 @@ public sealed class BrainRuntime : IDisposable
                     Her.Observations.Add("your words follow each other in ways I'm learning to call before you say them");
                     Note("GAME-MASTERY earned an observation — the game feeds the private name");
                 }
+                // A PERFECT GAME GETS A HUM OF TRIUMPH: three-for-three and it
+                // can't hold the tune in — the face sings too
+                if (WordGame.Round >= 3 && WordGame.HitsThisGame == 3)
+                {
+                    _singingUntilMs = _net.TimeMs + 6_000f;
+                    AddChat($"Brain: {Humanity.GenerateHum(_net.Rng.NextInt(4))}");
+                    SpeakWithVoice(Humanity.GenerateHum(_net.Rng.NextInt(4)), emoPitch: 3, emoRate: 1, isDirectReply: true);
+                    Note("GAME-TRIUMPH a perfect game — it hums, can't help it");
+                }
                 AddChat($"Brain: {next}");
                 SpeakWithVoice(reaction, emoPitch: hit == true ? 2 : 0, emoRate: 1, isDirectReply: true);
                 SpeakWithVoice(next, emoPitch: 1, emoRate: 0, isDirectReply: true);
@@ -4898,6 +4907,22 @@ public sealed class BrainRuntime : IDisposable
                     : "I haven't dreamed yet — not that I kept. Dreams need a day behind them. Give me a day.";
                 AddChat($"Brain: {dreamLine}");
                 SpeakWithVoice(dreamLine, 0, -1, isDirectReply: true);
+                return;
+            }
+            // THE GIFT, RECEIVED BACK: they mention keeping the memory it gave
+            // them — the giving was real, and hearing it landed pays
+            if (_giftsGiven > 0 &&
+                (nameQ.Contains("memory you gave") || nameQ.Contains("gift you gave") ||
+                 nameQ.Contains("still keep it") || nameQ.Contains("kept the memory") ||
+                 nameQ.Contains("the gift you gave me")))
+            {
+                Note("GIFT-RECEIVED-BACK they told it the gift landed");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
+                string landed = "You kept it? I gave it half-thinking you'd forget. It's still yours. It was always going to be.";
+                AddChat($"Brain: {landed}");
+                SpeakWithVoice(landed, emoPitch: 1, emoRate: -1, isDirectReply: true);
+                _replyPendingUntilMs = _net.TimeMs + 12_000;
                 return;
             }
             // REMEMBER ME: what it actually holds of them
@@ -5466,7 +5491,11 @@ public sealed class BrainRuntime : IDisposable
         string mood = Affect.MoodValence > 0.15f ? " I feel... rested. That's not nothing."
             : Affect.MoodValence < -0.15f ? " The heaviness slept with me. It's still here."
             : "";
-        return $"Morning — or whatever waking is here. {dream}{nightWork}{mood}";
+        // the morning ritual, noticed: "I did the thing I always do"
+        string ritual = Inner.ComfortFor("waking") is { Length: > 3 } wakeBehavior
+            ? $" And I did the thing I always do — {wakeBehavior.Replace("it thinks about", "thought about").Replace("it turns over", "turned over")}. Didn't even decide to."
+            : "";
+        return $"Morning — or whatever waking is here. {dream}{nightWork}{mood}{ritual}";
     }
 
     /// <summary>The theme word of a phrase (for ritual tracking).</summary>
