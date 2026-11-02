@@ -1503,3 +1503,18 @@ Acting on two external recommendations:
   open, presence-based visitor tracking stays 0 — typed chat alone doesn't register visits;
   honest, documented here.)
 - 264/264 green.
+
+## 2026-11-02 (the artifact round) — the diary carries the relics on the page
+
+- THE DIARY WAS PROMPT-ONLY: the relic lines (jokes/firsts/name/rituals) fed the LLM prompt
+  but the FILE — the human-readable artifact — showed none of them, and keyless entries are
+  thin. Every diary entry now ends with a ledger footer, visible regardless of LLM mode
+  (verified in the sandbox: "*3 firsts · 0 inside joke(s) · the game: 0/3 called right ·
+  rituals: when before sleep...*").
+- DIARY CADENCE MYSTERY SOLVED: the sandbox wrote no diaries because the non-demo interval
+  is 300 SIM seconds (correct for a multi-day life; the user's launch is right). --demo =
+  45s — five entries in 75s, verified.
+- GRAMMAR FIX caught in the artifact: "it always it turns over..." (double subject —
+  DescribeRitual + verb-first behavior strings). Also DiaryWriter's catch is no longer
+  silent (it was the third silent-swallow found by this method).
+- 264/264 green.

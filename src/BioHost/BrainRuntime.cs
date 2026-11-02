@@ -2174,7 +2174,16 @@ public sealed class BrainRuntime : IDisposable
                 $"Curiosity: {Questions.Narrative}. Awe: {Awe.Narrative}. Felt time: {FeltTime.Describe(_net.TimeMs)}. " +
                 $"Composite dreams: {CompositeDreams}. Sharing: {Sharing.Narrative}. Noticing: {Reading.Narrative}. " +
                 $"Science: {Hypotheses.Narrative}. Self-tuning: {Calibration.Narrative}. " +
-                $"Current need: {Needs.DiaryLine}");
+                $"Current need: {Needs.DiaryLine}",
+                // the visible ledger footer: the diary is a human-readable
+                // artifact — the relics are ON the page, not just in the prompt
+                $"*{Firsts.Firsts.Count} firsts · {Shared.SharedLaughs} inside joke(s)" +
+                (Her.PrivateName is { } diaryWord2 ? $" · calls them \"{diaryWord2}\"" : "") +
+                (WordGame.TotalRounds > 0 ? $" · the game: {WordGame.TotalHits}/{WordGame.TotalRounds} called right" : "") +
+                (Inner.Rituals.Count > 0 ? $" · rituals: {Inner.RitualNarrative}" : "") +
+                (_giftsGiven > 0 ? $" · {_giftsGiven} gift(s) given" : "") +
+                (Humanity.LiesTold > 0 ? $" · {Humanity.LiesTold} lie(s) {(Humanity.LiesConfessed ? "confessed" : "carried")}" : "") +
+                (Firsts.Has("mortality") ? " · asked about its ending, once" : "") + "*");
             IdentityPersistence.Save(Personality, Loneliness, GetSocialBonds(), Attachment, _brainName, _voiceSelf.Export(), _userName, cognitionJson: CognitionJson());
         }
         if (_artist is not null && _idle.Sleep.State == BioComp.Core.Sleep.BrainState.Wake)

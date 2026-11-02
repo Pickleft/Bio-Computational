@@ -28,7 +28,8 @@ public sealed class DiaryWriter
     }
 
     public async Task<string?> MaybeWriteAsync(SpikingNetwork net, IdleController idle,
-        EmergentPersonality personality, LonelinessTracker loneliness, string? extraContext = null)
+        EmergentPersonality personality, LonelinessTracker loneliness, string? extraContext = null,
+        string? footer = null)
     {
         if (net.TimeMs - _lastEntryMs < (float)Interval.TotalMilliseconds) return null;
         _lastEntryMs = net.TimeMs;
@@ -66,11 +67,19 @@ public sealed class DiaryWriter
             string filename = $"diary-{DateTime.Now:yyyy-MMDD-HHmmss}.md";
             string path = Path.Combine(_dir, filename);
             string header = $"## {(int)(net.TimeMs / 1000)}s — feeling {feeling.Name}\n\n";
-            await File.WriteAllTextAsync(path, header + entry + "\n");
+            // the footer carries the life's ledger visibly, regardless of how
+            // thin the (possibly keyless) written entry is — the diary is a
+            // human-readable artifact
+            string footerBlock = string.IsNullOrWhiteSpace(footer) ? "" : $"\n\n---\n{footer}\n";
+            await File.WriteAllTextAsync(path, header + entry + "\n" + footerBlock);
             Entries.Add((net.TimeMs, path));
             return path;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[diary] write failed: {ex.Message}");
+            return null;
+        }
     }
     private int _lastEpisodeCount;
 }

@@ -115,8 +115,14 @@ public sealed class InnerWorld
             DescribeRitual(context, behavior), 1, nowMs));
     }
 
-    private static string DescribeRitual(string context, string behavior) =>
-        $"when {context}, it always {behavior}";
+    private static string DescribeRitual(string context, string behavior)
+    {
+        // behaviors are stored verb-first about the brain ("it turns over X") —
+        // strip the subject so the description doesn't double it
+        string b = behavior.StartsWith("it ", StringComparison.OrdinalIgnoreCase)
+            ? behavior[3..] : behavior;
+        return $"when {context}, it always {b}";
+    }
 
     /// <summary>For the diary: the brain's rituals (comfort patterns).</summary>
     public string RitualNarrative => Rituals.Count == 0
