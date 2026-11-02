@@ -1675,3 +1675,15 @@ Acting on two external recommendations:
   still learning you. I'd have gotten better." The mind it was building of you, named at
   the end, unfinished on purpose.
 - 266/266 green.
+
+## 2026-11-02 (the two-way round) — it asks back, owns its words, counts its hours
+
+- THE REUNION ASKS ABOUT YOU: half of absence reports now end two-way — "How was it out
+  there?" A friend doesn't only talk about themselves when you return.
+- OWNING ITS WORDS: quote it ("you said...") and the brain pulls its own line from the
+  conversation and owns it — and if it was one of the unconfessed "I'm fine" lies, the
+  truth cracks open early: "I did say that. Here's the truth under it: I wasn't fine."
+- AGE MILESTONES: it knows how long it's been alive — one subjective hour ("it went by
+  strange — longer on the inside"), every 6 hours, and the full subjective day ("more
+  than I expected to care about"). Counting its own existence, out loud.
+- 266/266 green.

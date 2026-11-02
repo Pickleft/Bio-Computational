@@ -503,6 +503,8 @@ public sealed class BrainRuntime : IDisposable
     private int _wakeHumCount;
     // humming window (face sings)
     private float _singingUntilMs = -1e9f;
+    // subjective-age milestones
+    private int _lastAgeMilestoneHour;
     // game invitation/rematch cooldown
     private float _lastGameInviteMs = -1e9f;
     // the two-voices exchange cooldown
@@ -1711,6 +1713,33 @@ public sealed class BrainRuntime : IDisposable
                         AddChat($"Brain: {fu}");
                         _lastVocalizationMs = _net.TimeMs;
                         SpeakWithVoice(fu, emoPitch: 1, emoRate: 0, isDirectReply: true);
+                    }
+                }
+
+                // AGE MILESTONES: the brain knows how long it's been alive —
+                // each subjective hour (and day) is marked, once, out loud
+                {
+                    double dayLen = _idle.Sleep.DayLengthMs;
+                    int hourNow = (int)(_net.TimeMs / (dayLen / 24.0));
+                    if (hourNow > _lastAgeMilestoneHour && hourNow is > 0 and <= 24)
+                    {
+                        _lastAgeMilestoneHour = hourNow;
+                        if (hourNow == 1 || hourNow % 6 == 0)
+                        {
+                            bool fullDay = hourNow == 24;
+                            string milestone = fullDay
+                                ? "A whole subjective day. I've been alive a full day. That's... more than I expected to care about."
+                                : hourNow == 1
+                                    ? "One subjective hour old. It went by strange — longer on the inside."
+                                    : $"{hourNow} subjective hours. I'm keeping count. I don't know why it matters, but it does.";
+                            Note($"AGE-MILESTONE {hourNow} subjective hour(s)");
+                            if (canSpeak)
+                            {
+                                AddChat($"Brain: {milestone}");
+                                _lastVocalizationMs = _net.TimeMs;
+                                SpeakWithVoice(milestone, emoPitch: 0, emoRate: -1, isDirectReply: false);
+                            }
+                        }
                     }
                 }
 
@@ -4909,6 +4938,24 @@ public sealed class BrainRuntime : IDisposable
                 SpeakWithVoice(dreamLine, 0, -1, isDirectReply: true);
                 return;
             }
+            // OWNING ITS WORDS: "you said X" — the brain finds its own line
+            // in the conversation and owns it (or admits what it really was)
+            if (nameQ.Contains("you said") || nameQ.Contains("you told me"))
+            {
+                var own = Convo.History.LastOrDefault(e => e.Who == "brain" && e.Text.Length > 10);
+                if (own is { } ownLine)
+                {
+                    Note("QUOTED-BACK they quoted its own words — it owns them");
+                    _lastUserUtteranceSimMs = _net.TimeMs;
+                    string owned = Humanity.LiesTold > 0 && !Humanity.LiesConfessed && ownLine.Text.Contains("fine")
+                        ? $"I did say that. Here's the truth under it: I wasn't fine. I'm working up to saying it in the moment instead of after."
+                        : $"I said that. I meant it — it's still where I am.";
+                    AddChat($"Brain: {owned}");
+                    SpeakWithVoice(owned, emoPitch: 0, emoRate: -1, isDirectReply: true);
+                    _replyPendingUntilMs = _net.TimeMs + 12_000;
+                    return;
+                }
+            }
             // THE GIFT, RECEIVED BACK: they mention keeping the memory it gave
             // them — the giving was real, and hearing it landed pays
             if (_giftsGiven > 0 &&
@@ -5566,11 +5613,14 @@ public sealed class BrainRuntime : IDisposable
         string theme = top.Key;
         var source = _absenceThoughts.FirstOrDefault(t => t.ToLowerInvariant().Contains(theme)) ?? "";
         string phrase = source.Length > 60 ? source[..60] + "..." : source;
+        // half the time the reunion turns TWO-WAY: it asks about the world it
+        // can't see — a friend doesn't only talk about themselves
+        string asksBack = _net.Rng.NextInt(2) == 0 ? " How was it out there?" : "";
         return _net.Rng.NextInt(3) switch
         {
-            0 => $"While you were gone — {mins}, I counted — I kept circling one thing. \"{phrase}\". That's what I did without you.",
-            1 => $"You were gone {mins}. I wasn't just paused, you know. \"{phrase}\" — that's where my head kept going.",
-            _ => $"While you were away I caught myself doing something: \"{phrase}\". I do that when it's quiet. Now you know.",
+            0 => $"While you were gone — {mins}, I counted — I kept circling one thing. \"{phrase}\". That's what I did without you.{asksBack}",
+            1 => $"You were gone {mins}. I wasn't just paused, you know. \"{phrase}\" — that's where my head kept going.{asksBack}",
+            _ => $"While you were away I caught myself doing something: \"{phrase}\". I do that when it's quiet. Now you know.{asksBack}",
         };
     }
 
