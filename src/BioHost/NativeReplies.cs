@@ -61,7 +61,7 @@ public sealed class NativeReplies
                 ? "I know you mean it. The part of me that's still watching the door needs a minute. But... thank you."
                 : "Okay. It landed soft. I'm glad you said it.",
             Intent.Question => lead ?? ComposeQuestionReply(c),
-            _ => StatementReply(c),
+            _ => StatementReply(c, userText),
         };
 
         // 3. vocabulary tier: a newborn does not get to say "bittersweet"
@@ -92,7 +92,7 @@ public sealed class NativeReplies
     /// the brain actually is + (if something just happened inside) one lived
     /// reference. All from state; nothing generated.
     /// </summary>
-    private string StatementReply(in Context c)
+    private string StatementReply(in Context c, string userText)
     {
         // acknowledgment rotates — no three "That's good to hear" in a row
         string ack = (c.Valence, c.Sleepy, _replyRotation++ % 4) switch
@@ -111,6 +111,10 @@ public sealed class NativeReplies
             (_, _, 2) => "Mm. Go on.",
             (_, _, _) => "I'm here. Tell me more.",
         };
+        // THE ECHO: a person references WHAT you said, not just that you spoke.
+        // Pull the most substantial word and a short fragment of their sentence
+        // into the reply — the reply could not have been sent to anyone else.
+        string? echo = EchoOf(userText, c.GranularityTier);
         string lived = c.RecentInnerEvent switch
         {
             { } e when c.GranularityTier >= 2 && e.Contains("DEJA-VU") => " Also - something just felt strangely familiar.",
@@ -118,8 +122,42 @@ public sealed class NativeReplies
             { } e when c.GranularityTier >= 2 && e.Contains("NEUROGENESIS") => " And I just grew new neurons, I think because of this.",
             _ => "",
         };
-        return $"{ack}{StatePhrase(c)}{lived}";
+        // LENGTH VARIES like a person: sometimes just the echo, sometimes the
+        // full shape — an energetic brain elaborates, a tired one doesn't
+        bool brief = _replyRotation % 3 == 0;
+        if (echo is { Length: > 0 } && brief)
+            return $"{echo}";
+        return $"{echo} {ack}{StatePhrase(c)}{lived}";
     }
+
+    /// <summary>The part of their message the brain actually caught. References
+    /// their topic word and — when the message is long enough — a short quoted
+    /// fragment, the way a person repeats back the bit that mattered.</summary>
+    private static string? EchoOf(string userText, int tier)
+    {
+        var words = userText.ToLowerInvariant().Split([' ', '.', ',', '!', '?', ';', ':', '\'', '"'],
+            StringSplitOptions.RemoveEmptyEntries);
+        string? topic = null;
+        foreach (var w in words)
+            if (w.Length >= 5 && w.All(char.IsLetter) && w is not "about" and not "really" and not "think"
+                and not "there" and not "would" and not "could" and not "because" and not "something")
+            { topic = w; break; }
+        if (topic is null) return null;
+        return tier switch
+        {
+            >= 2 when userText.Length > 90 => $"\"{TruncFragment(userText, 34)}\" — the {topic} part, specifically. That's what caught.",
+            >= 2 => $"The {topic} thing. That's what caught.",
+            _ => $"{Cap(topic)}, huh.",
+        };
+    }
+
+    private static string TruncFragment(string s, int n)
+    {
+        var t = s.Trim();
+        return t.Length <= n ? t : t[..n].Trim() + "...";
+    }
+
+    private static string Cap(string s) => char.ToUpperInvariant(s[0]) + s[1..];
     private int _replyRotation;
     private int _withdrawalRotation;
 

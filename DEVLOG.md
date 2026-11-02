@@ -1704,3 +1704,20 @@ Acting on two external recommendations:
 - T-90 RUN SHEET added to demo/SCRIPT.md: 13 filmable beats in order, with the kill-and-
   restart continuity shot and the testament finale.
 - 266/266 green.
+
+## 2026-11-02 (the chatbot-kill round) — "it still feels like a crappy chatbot"
+
+The four tells, reworked:
+- REPLIES THAT IGNORE WHAT YOU SAID: native statements now ECHO the message — its topic
+  word and (for long messages) a quoted fragment: "\"...finally sold the old piano
+  yesterday...\" — the piano part, specifically. That's what caught." A reply that could
+  not have been sent to anyone else. Reply LENGTH now varies (sometimes just the echo).
+- SUB-SECOND REPLIES: the thinking pause was 400-800ms — autocomplete speed. Now
+  1.5-2.4s base, 2.4-4s questions, ×1.6 mid-thought, ×1.4 long messages, clamped ≥800ms.
+  Human gaps on real questions run 1-5 seconds.
+- ANSWERS EVERYTHING: "cool", "nice", "true", "wow", "gotcha", "makes sense", "i see"
+  now get STRATEGIC SILENCE — and the silence is VISIBLE: the thought thread shows
+  "they said 'cool'. It doesn't need an answer. Letting it sit." A nod, not a reply.
+- Also found: the 8779 sandbox had native-voice left ON from prompt testing — the user
+  was hearing the most canned path. Both modes now carry the new rhythm.
+- 266/266 green.

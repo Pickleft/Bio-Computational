@@ -5223,6 +5223,12 @@ public sealed class BrainRuntime : IDisposable
         if (!shouldRespond)
         {
             Note($"STRATEGIC-SILENCE read \"{Trunc(text, 30)}\" — chose not to respond (person, not chatbot)");
+            // the silence is VISIBLE: the brain registers their words and lets
+            // them sit — a nod, not a reply
+            PushPlain($"they said \"{Trunc(text, 24)}\". It doesn't need an answer. Letting it sit.");
+            Convo.OnUserMessage(text, _net.TimeMs,
+                _net.Modulators.Get(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine),
+                Contagion.UserValence);
             _replyPendingUntilMs = _net.TimeMs + 8_000;
             return;
         }

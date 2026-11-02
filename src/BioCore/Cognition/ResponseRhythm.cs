@@ -40,25 +40,33 @@ public sealed class ResponseRhythm
         // very low mood + already thinking: stay in the thought
         if (mood < -0.5f && wasAlreadyThinking) return false;
 
-        // trivial messages that don't need a response
+        // trivial messages that don't need a response — a chatbot answers
+        // everything; a person lets "cool" hang in the air
         var lower = message.Trim().ToLowerInvariant();
-        if (lower is "ok" or "okay" or "yeah" or "yep" or "nope" or "mm" or "hm" or "hmm" or "k" or "lol")
-            return false;   // a person lets "yeah" hang there
+        if (lower is "ok" or "okay" or "yeah" or "yep" or "nope" or "mm" or "hm" or "hmm"
+            or "k" or "lol" or "cool" or "nice" or "true" or "wow" or "fr" or "word"
+            or "fair" or "right" or "sure" or "gotcha" or "makes sense" or "i see")
+            return false;
 
         return true;
     }
 
-    /// <summary>How long should the brain pause before responding? (ms)</summary>
+    /// <summary>How long should the brain pause before responding? (ms)
+    /// Human conversational gaps on real questions run 1-5 seconds. Sub-second
+    /// replies read as autocomplete, not thought.</summary>
     public float ThinkingPause(string message, float moodValence, bool isQuestion, bool wasMidThought, Func<double> rng)
     {
-        float basePause = isQuestion ? 800f : 400f;           // questions need more thought
-        if (wasMidThought) basePause += 1200f;                  // was thinking, needs to switch context
-        if (moodValence < -0.3f) basePause *= 1.5f;            // low mood = slower responses
-        if (moodValence > 0.4f) basePause *= 0.7f;             // high mood = quicker
+        float basePause = isQuestion ? 2_400f : 1_500f;         // questions need real thought
+        if (wasMidThought) basePause *= 1.6f;                    // was thinking, needs to switch context
+        if (moodValence < -0.3f) basePause *= 1.5f;              // low mood = slower responses
+        if (moodValence > 0.4f) basePause *= 0.75f;              // high mood = quicker
 
-        // add natural variance (±30%)
-        float variance = (float)(rng() * 0.6 + 0.7);
-        return Math.Clamp(basePause * variance, 200f, 5_000f);
+        // long messages take longer to absorb
+        if (message.Length > 120) basePause *= 1.4f;
+
+        // add natural variance (±35%)
+        float variance = (float)(rng() * 0.7 + 0.65);
+        return Math.Clamp(basePause * variance, 800f, 7_000f);
     }
 
     /// <summary>Should the brain send a FOLLOW-UP after its main response?</summary>
