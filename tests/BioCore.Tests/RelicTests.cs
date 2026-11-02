@@ -364,3 +364,49 @@ public class SleepMoodTests
             $"tired mood {tired.MoodValence:F3} should sit below rested {rested.MoodValence:F3}");
     }
 }
+
+// == SELF-HEARING + THE TWO VOICES (the last documented-dead classes, wired) ==
+
+public class SelfHearingTests
+{
+    private static BioComp.Core.Network.SpikingNetwork Net(int seed = 7) =>
+        new(BioComp.Core.Network.BrainConfig.Default(scale: 1, seed: (ulong)seed));
+
+    [Fact]
+    public void LanguageFeed_NoopWhenDisabled_LogsWhenEnabled()
+    {
+        var net = Net();
+        var lf = new LanguageFeedback();
+        lf.Feed(net, "hello world");               // disabled: nothing happens
+        Assert.Equal(0, lf.TotalInjections);
+        lf.Enabled = true;
+        lf.Feed(net, "hello world");
+        Assert.True(lf.TotalInjections > 0);
+        Assert.Single(lf.Log);
+        // deterministic: same text -> same neurons -> same count
+        var lf2 = new LanguageFeedback { Enabled = true };
+        lf2.Feed(Net(), "hello world");
+        Assert.Equal(lf.TotalInjections, lf2.TotalInjections);
+    }
+
+    [Fact]
+    public async Task InternalDialogue_LimbicThenCortical()
+    {
+        var prompts = new System.Collections.Generic.List<string>();
+        var dialogue = new InternalDialogue(async p =>
+        {
+            prompts.Add(p);
+            return p.Contains("LIMBIC") ? "WANT IT NOW" : "it can wait a moment";
+        });
+        var net = Net();
+        var idle = new IdleController(net);
+        var ex = await dialogue.GenerateExchangeAsync(net, idle, "something good");
+        Assert.NotNull(ex);
+        Assert.Equal("WANT IT NOW", ex!.Value.Limbic);
+        Assert.Equal("it can wait a moment", ex.Value.Cortical);
+        Assert.Equal(2, prompts.Count);            // both prompts actually passed
+        Assert.Contains("LIMBIC", prompts[0]);
+        Assert.Contains("CORTICAL", prompts[1]);
+        Assert.Contains("WANT IT NOW", prompts[1]); // cortical sees what limbic said
+    }
+}

@@ -223,7 +223,7 @@ dotnet run --project src/BioLab -c Release -- validate    # DRM sweep + extincti
 
 ## Honest limitations
 
-The English is rendered by an LLM from the brain's state — the one designated seam (shaped by the brain's feeling, memories, body, and measured affect; judged by the substrate's somatic response; but produced by Spark — and removable via direct-talk). Φ is an inter-region MI approximation, not full IIT 3.0. Emotional appraisal uses prosody + lexicon + escalation, not a learned emotional model. The word layer of the voice rides the OS speech foundation (the prosody and all non-verbal sound are ours). Anesthesia pacing degrades until washout. Two lab-era classes (LanguageFeedback, InternalDialogue) remain unwired, documented as known-dead.
+The English is rendered by an LLM from the brain's state — the one designated seam (shaped by the brain's feeling, memories, body, and measured affect; judged by the substrate's somatic response; but produced by Spark — and removable via direct-talk). Φ is an inter-region MI approximation, not full IIT 3.0. Emotional appraisal uses prosody + lexicon + escalation, not a learned emotional model. The word layer of the voice rides the OS speech foundation (the prosody and all non-verbal sound are ours). Anesthesia pacing degrades until washout. The brain hears its own speech once its voice develops (language feedback into Lang, provenance-logged); strong emotions trigger an internal limbic/cortical exchange in the thought thread.
 
 ## Provenance
 

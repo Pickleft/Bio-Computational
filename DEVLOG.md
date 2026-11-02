@@ -1575,3 +1575,19 @@ Acting on two external recommendations:
   never played OFFERS it (once): "I made up a game... I want to know if I can predict you
   yet. Say 'let's play'." Its own idea, not a response.
 - 264/264 green.
+
+## 2026-11-02 (the last-dead round) — the two classes the README confessed were unwired
+
+- INTERNAL DIALOGUE, ALIVE (and fixed): the class was doubly dead — never called, AND its
+  generator delegate took no arguments, so the carefully composed limbic/cortical prompts
+  were never passed. Fixed the contract (Func<string, Task<string>>), wired: on strong
+  emotional moments (|mood|>0.55 or arousal>0.7, 3-min cooldown, 1%/tick), the limbic
+  reacts raw and the cortical contextualizes — same brain, two commentators — shown in the
+  thought thread as "[limbic] ... — [cortex] ...". Never spoken; it's inner.
+- LANGUAGE FEEDBACK / SELF-HEARING, ALIVE: once its own voice has developed (30+ syllables
+  learned), the brain's spoken words are hashed into spike injection in its Lang region —
+  it literally hears itself talk (the self-vocalization loop that grounds human speech
+  self-awareness). Provenance-logged separately per the architecture contract; auto-enables
+  at the syllable threshold (the moment its voice can carry the feedback).
+- README limitations line updated: no more known-dead classes.
+- 266/266 green (264 + 2: deterministic feed, limbic-sees-cortical ordering).

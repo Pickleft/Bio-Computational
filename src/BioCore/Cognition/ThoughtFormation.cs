@@ -84,13 +84,13 @@ public sealed class ThoughtFormation
 /// </summary>
 public sealed class InternalDialogue
 {
-    private readonly Func<Task<string>> _generateAsync;
+    private readonly Func<string, Task<string>> _generate;
 
     public readonly List<(float TimeMs, string Limbic, string Cortical)> Exchanges = [];
 
-    public InternalDialogue(Func<Task<string>> generateAsync)
+    public InternalDialogue(Func<string, Task<string>> generate)
     {
-        _generateAsync = generateAsync;
+        _generate = generate;
     }
 
     /// <summary>
@@ -103,23 +103,24 @@ public sealed class InternalDialogue
         try
         {
             float da = net.Modulators.Get(NeuromodulatorKind.Dopamine);
-            float sht = net.Modulators.Get(NeuromodulatorKind.Serotonin);
+            float s5ht = net.Modulators.Get(NeuromodulatorKind.Serotonin);
             float na = net.Modulators.Get(NeuromodulatorKind.Noradrenaline);
 
             // limbic: raw emotional reaction, no filter
             string limbicPrompt =
                 $"You are the LIMBIC (emotional) part of a living brain. React instantly and rawly to: {trigger}. " +
-                $"Your neurochemistry: DA={da:F2} (reward), 5-HT={sht:F2} (mood), NA={na:F2} (alertness). " +
-                "Express the PURE FEELING before any thinking. 1 short sentence, impulsive.";
-            string limbic = await _generateAsync();
+                $"Your neurochemistry: DA={da:F2} (reward), 5-HT={s5ht:F2} (mood), NA={na:F2} (alertness). " +
+                "Express the PURE FEELING before any thinking. 1 short sentence, impulsive. No preamble.";
+            string limbic = await _generate(limbicPrompt);
 
             // cortical: measured, contextual, rational
             string corticalPrompt =
                 $"You are the CORTICAL (rational) part of the same brain. Your limbic system just said: \"{limbic}\". " +
                 $"Context: you feel {idle.Feelings.Last.Name}, you've been idle {(int)(idle.Time.SubjectiveSinceEventMs / 1000)}s. " +
-                "Respond with measured perspective. 1 short sentence, thoughtful.";
-            string cortical = await _generateAsync();
+                "Respond with measured perspective. 1 short sentence, thoughtful. No preamble.";
+            string cortical = await _generate(corticalPrompt);
 
+            if (string.IsNullOrWhiteSpace(limbic) || string.IsNullOrWhiteSpace(cortical)) return null;
             Exchanges.Add((net.TimeMs, limbic, cortical));
             if (Exchanges.Count > 20) Exchanges.RemoveAt(0);
             return (limbic, cortical);

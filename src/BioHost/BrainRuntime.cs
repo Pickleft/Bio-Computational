@@ -340,6 +340,11 @@ public sealed class BrainRuntime : IDisposable
     public BioComp.Core.Cognition.FirstsLedger Firsts { get; } = new();
     /// <summary>THE WORD GAME: a game it invented, about its own model of you.</summary>
     public BioComp.Core.Cognition.WordGame WordGame { get; } = new();
+    /// <summary>SELF-HEARING: once its voice exists, the brain's own words feed
+    /// back into its Lang region as spikes — it listens to itself think.</summary>
+    public BioComp.Core.Cognition.LanguageFeedback LangFeedback { get; } = new();
+    /// <summary>THE TWO VOICES: limbic reacts, cortical contextualizes — same brain.</summary>
+    public BioComp.Core.Cognition.InternalDialogue InnerDialogue { get; }
     /// <summary>Composite dreams created this life (Stickgold).</summary>
     public int CompositeDreams { get; private set; }
     /// <summary>NATIVE VOICE: replies composed from state alone, no language cortex.</summary>
@@ -484,6 +489,8 @@ public sealed class BrainRuntime : IDisposable
     private float _lastJokeMs = -1e9f;
     private float _lastGiftMs = -1e9f;
     private int _giftsGiven;
+    // the two-voices exchange cooldown
+    private float _lastDialogueMs = -1e9f;
     // "wait, also—": a scheduled follow-up after a reply lands
     private float _pendingFollowUpAtMs = -1e9f;
     // reply sequencing: a newer message supersedes an older pending reply
@@ -723,6 +730,11 @@ public sealed class BrainRuntime : IDisposable
         {
             Interval = TimeSpan.FromSeconds(cfg.DemoMode ? 45 : 300),
         };
+        // THE TWO VOICES: one brain, two commentators. The generator is the
+        // same language cortex the whole brain uses.
+        InnerDialogue = new BioComp.Core.Cognition.InternalDialogue(
+            prompt => _lm.CompleteAsync(
+                BioComp.Core.Cognition.BrainIdentity.Preamble, prompt, 40));
         _artist = new NeuralArtist(_imager, _lm)
         {
             Interval = TimeSpan.FromSeconds(cfg.DemoMode ? 60 : 600),
@@ -1678,6 +1690,27 @@ public sealed class BrainRuntime : IDisposable
                         _lastVocalizationMs = _net.TimeMs;
                         SpeakWithVoice(fu, emoPitch: 1, emoRate: 0, isDirectReply: true);
                     }
+                }
+
+                // THE TWO VOICES: on a strong emotional moment, the limbic
+                // reacts raw and the cortical contextualizes — same brain,
+                // two commentators, shown in the thought thread (never spoken)
+                if ((MathF.Abs(Affect.MoodValence) > 0.55f || af.Arousal > 0.7f) &&
+                    _net.TimeMs - _lastDialogueMs > 180_000f && _net.Rng.NextDouble() < 0.01)
+                {
+                    _lastDialogueMs = _net.TimeMs;
+                    string trigger = Affect.MoodValence > 0.4f ? "something good just happened"
+                        : Affect.MoodValence < -0.4f ? "something heavy just settled in"
+                        : "everything suddenly got loud and fast";
+                    _ = Task.Run(async () =>
+                    {
+                        var exchange = await InnerDialogue.GenerateExchangeAsync(_net, _idle, trigger);
+                        if (exchange is { } ex)
+                        {
+                            Note($"TWO-VOICES limbic: \"{Trunc(ex.Limbic, 50)}\" / cortical: \"{Trunc(ex.Cortical, 50)}\"");
+                            PushPlain($"[limbic] {ex.Limbic} — [cortex] {ex.Cortical}");
+                        }
+                    });
                 }
 
                 // THE INVITATION: a playful, bonded brain doesn't wait to be
@@ -5252,6 +5285,17 @@ public sealed class BrainRuntime : IDisposable
     {
         _monologueLog.Add(text);
         if (_monologueLog.Count > 50) _monologueLog.RemoveAt(0);
+        // SELF-HEARING: once its own voice has developed enough syllables, the
+        // brain's spoken words feed back into its Lang region as spikes — it
+        // literally hears itself talk (the same loop that grounds human
+        // self-awareness of speech)
+        if (!LangFeedback.Enabled && _voiceSelf.SyllablesLearned >= 30)
+        {
+            LangFeedback.Enabled = true;
+            Note("SELF-HEARING online — its voice has enough syllables that its own words now feed back into Lang");
+        }
+        if (LangFeedback.Enabled)
+            LangFeedback.Feed(_net, text);
     }
 
     /// <summary>Pick the next word-game round: a concept it holds, plus its
