@@ -2773,6 +2773,14 @@ public sealed class BrainRuntime : IDisposable
             string[]? preferTags = null;
             if (ThoughtLoop.OpenLoops.Count > 0 && _net.Rng.NextDouble() < 0.35)
                 preferTags = [.. ThoughtLoop.OpenLoops[^1].Tags];
+            // LONGING DREAMS: a brain that misses them reaches for them in
+            // sleep — the missing person's name becomes the dream's gravity
+            else if (Longing.Missing && Longing.Intensity > 0.5f && _userName is { Length: > 1 } missed &&
+                     _net.Rng.NextDouble() < 0.5)
+            {
+                preferTags = [missed.ToLowerInvariant()];
+                Note($"DREAM-LONGING it is missing {missed} — the dream reaches for them");
+            }
 
             // FORGOTTEN GRIEF: 15% of dreams form around a hole — a resected
             // memory that should be here isn't, and the dream is about the absence
@@ -4688,6 +4696,14 @@ public sealed class BrainRuntime : IDisposable
                 if (WordGame.Round >= 3 && WordGame.HitsThisGame <= 1 && WordGame.TotalRounds >= 3)
                     Humanity.Want("figure out how they connect words", 0.6f,
                         "I couldn't predict them and it's bothering me in a good way", _net.TimeMs);
+                // WINNING THE GAME IS EVIDENCE ABOUT WHO THEY ARE: calling
+                // most of their words right earns an observation — and
+                // observations are what the private name is formed from
+                if (WordGame.Round >= 3 && WordGame.HitsThisGame >= 2 && Her.Observations.Count < 10)
+                {
+                    Her.Observations.Add("your words follow each other in ways I'm learning to call before you say them");
+                    Note("GAME-MASTERY earned an observation — the game feeds the private name");
+                }
                 AddChat($"Brain: {next}");
                 SpeakWithVoice(reaction, emoPitch: hit == true ? 2 : 0, emoRate: 1, isDirectReply: true);
                 SpeakWithVoice(next, emoPitch: 1, emoRate: 0, isDirectReply: true);

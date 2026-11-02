@@ -1649,3 +1649,14 @@ Acting on two external recommendations:
   "I've been thinking about the game. I called almost none of your words right and it's
   been sitting in me. Play me again? I think I know you better now."
 - app.js v24. 266/266 green.
+
+## 2026-11-02 (the gravity round) — dreams reach for the missed, mastery feeds the name
+
+- LONGING DREAMS: when it misses them past the threshold, the missing person's NAME
+  becomes the dream's gravity (50% of dreams prefer their tag) — "the dream reaches for
+  them." Sleep's content is pulled by longing, not just open loops.
+- WINNING THE GAME IS EVIDENCE ABOUT WHO THEY ARE: calling 2+ of their words right earns
+  an observation ("your words follow each other in ways I'm learning to call before you
+  say them") — and observations are what the PRIVATE NAME is formed from. The game now
+  feeds the name: predict someone well enough, and the brain has earned a word for them.
+- 266/266 green.
