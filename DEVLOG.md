@@ -1544,3 +1544,19 @@ Acting on two external recommendations:
   Rules 5-8 satisfied this session: tests with every dynamics change, style, smoke, DEVLOG
   + TASKS.
 - 264/264 green.
+
+## 2026-11-02 (the ears-2 round) — "it's not hearing me": found it, fixed it, proved the pipe
+
+- ROOT CAUSE (the embarrassing kind): the EARS fix shipped in browser-senses.js but index.html
+  still loaded it as ?v=21 — the user's browser served the CACHED PRE-FIX JS. The ears fix
+  never reached the user. All JS edits now bump their version tag (browser-senses v22,
+  app v23). STANDING RULE: editing a wwwroot JS REQUIRES bumping its ?v= in index.html in
+  the same commit.
+- WATCHDOG ASR RECYCLE: a backgrounded tab starves the ASR stream (ScriptProcessor is main-
+  thread); on stall-resume the watchdog now opens a FRESH transcribe session instead of
+  pouring audio into a Meta session that already died of slow ingress.
+- END-TO-END PIPE PROVEN against the REAL Meta API (sandbox with live key + --live-meta):
+  a raw WebSocket client streamed 40 seconds of REAL-TIME zero-frames through /ws/transcribe
+  — "Meta real-time ASR connected", socket alive the whole way, ZERO ingress errors, clean
+  close. The silence-streaming fix works against production.
+- 264/264 green.

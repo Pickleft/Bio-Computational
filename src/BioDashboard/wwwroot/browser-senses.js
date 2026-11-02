@@ -177,16 +177,24 @@ async function enableBrowserSenses() {
 
     // WATCHDOG: if onaudioprocess stops firing for 5 seconds (browser
     // throttling, tab background, Samsung power saving), disconnect and
-    // reconnect the processor to force it to resume
+    // reconnect the processor to force it to resume. A stalled tab also
+    // starved the ASR stream — force a FRESH transcribe session on resume,
+    // or the Meta side has already killed the old one for slow ingress.
     watchdogTimer = setInterval(() => {
       if (!senseActive || !audioProc || !audioCtx) return;
       if (Date.now() - lastProcessTime > 5000) {
-        console.log("[senses] audio processor stalled, reconnecting");
+        console.log("[senses] audio processor stalled, reconnecting + fresh ASR session");
         try {
           audioProc.disconnect();
           audioProc.connect(sink);
           lastProcessTime = Date.now();
         } catch (e) { console.log("[senses] reconnect failed:", e); }
+        // the old ASR session died of starvation while stalled — recycle it
+        if (transcribeWs) {
+          try { transcribeWs.onclose = null; transcribeWs.close(); } catch (e) {}
+          transcribeWs = null;
+        }
+        setTimeout(connectTranscribeWs, 500);
       }
     }, 5000);
 
