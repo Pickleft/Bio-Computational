@@ -1560,3 +1560,18 @@ Acting on two external recommendations:
   — "Meta real-time ASR connected", socket alive the whole way, ZERO ingress errors, clean
   close. The silence-streaming fix works against production.
 - 264/264 green.
+
+## 2026-11-02 (the readme round) — the record catches up with the child, and the game invites you
+
+- README brought current: 264 tests, 52 cognitive systems, persistence row now names trust/
+  mood/beliefs/firsts/jokes/name/game-record/gifts; "What a life looks like" carries the full
+  24-hour cycle (artifacts of you, commanded sleep, five-more-minutes, reports, game, stories,
+  jokes, gifts, restart continuity); 18 new beats in the observation table (inside jokes, the
+  firsts ledger, the private name, the word game, storytelling, jokes, gifts, sleep commands,
+  grumpy wake, morning report, absence report, abrupt goodbye, the confession, mortality, the
+  follow-up beat, the callback, restart persistence, the farewell reveal); provenance table
+  gains the relationship-layer row.
+- THE INVITATION: the game no longer waits to be asked for — a playful, bonded brain that has
+  never played OFFERS it (once): "I made up a game... I want to know if I can predict you
+  yet. Say 'let's play'." Its own idea, not a response.
+- 264/264 green.

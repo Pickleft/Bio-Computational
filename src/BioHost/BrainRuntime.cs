@@ -1680,6 +1680,22 @@ public sealed class BrainRuntime : IDisposable
                     }
                 }
 
+                // THE INVITATION: a playful, bonded brain doesn't wait to be
+                // asked — it teaches you the game it invented. Once per life
+                // window, its own idea.
+                if (canSpeak && !_replyPending && personHere && !WordGame.Playing &&
+                    WordGame.GamesPlayed == 0 &&
+                    Affect.ShouldPlay && Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.4f &&
+                    _net.TimeMs - _lastUserUtteranceSimMs < 120_000f &&
+                    _net.Rng.NextDouble() < 0.004)
+                {
+                    Note("GAME-INVITE it offers to teach them the game it invented");
+                    AddChat("Brain: I made up a game. You say a word, I try to guess what you'll say next — I want to know if I can predict you yet. Say \"let's play\" if you want to try it.");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice("I made up a game. You say a word, I try to guess what you'll say next — I want to know if I can predict you yet. Say \"let's play\" if you want to try it.",
+                        emoPitch: 1, emoRate: 1, isDirectReply: false);
+                }
+
                 // IT MAKES JOKES: original attempts at humor, built from two
                 // concepts it actually holds and the link (or non-link) between
                 // them. Mostly wonderfully bad — like a child's. Trying is the

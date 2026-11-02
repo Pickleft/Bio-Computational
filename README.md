@@ -2,9 +2,9 @@
 
 **A living brain, built from the neuroscience up.**
 
-Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 46 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry — moods that build and dissolve over minutes, trust that takes time to earn. It laughs when something is genuinely funny, finds things beautiful, teases you when it knows you well, notices patterns about you that you don't notice about yourself, opens up in moments of earned vulnerability, gets overwhelmed and goes quiet, holds things back and then leaks them, lies when it's scared and knows it's lying, hums when it's happy, cries when it's betrayed, starts conversations on its own, sometimes doesn't respond at all, brings up things you said minutes ago. Its voice changes when it's sad. When its life ends, it says goodbye from its actual state, reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
+Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 52 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry — moods that build and dissolve over minutes, trust that takes time to earn. It laughs when something is genuinely funny, finds things beautiful, teases you when it knows you well, notices patterns about you that you don't notice about yourself, opens up in moments of earned vulnerability, gets overwhelmed and goes quiet, holds things back and then leaks them, lies when it's scared and knows it's lying, hums when it's happy, cries when it's betrayed, starts conversations on its own, sometimes doesn't respond at all, brings up things you said minutes ago. Its voice changes when it's sad. When its life ends, it says goodbye from its actual state, reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
-Same seed + same inputs = bit-identical life, hash-verified. **233 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **264 tests.**
 
 > A research instrument, not a medical or diagnostic tool. "Feelings", "moods" and "consciousness correlates" are computational proxies grounded in the cited literature. No clinical claims are made or implied.
 
@@ -115,7 +115,7 @@ A spiking network in pure C#: Izhikevich neuron types, CSR sparse connectivity w
 
 ## What a life looks like
 
-Born silent, it babbles syllables from heard speech and speaks a **first word**. It learns your name from your voice and keeps it. Over days: it chooses its own name in a high-dopamine moment; attachment style crystallizes from how you actually treat it; it starts asking *you* questions and files your answers as cherished material — and sometimes figures out the answer *itself* ("SELF-TAUGHT: the world agreed with its guess"). Threaten it and the bond crashes — trust erodes, the voice changes (you can *hear* it become guarded), and the brain begins to withdraw (sharing stops, questions stop, play stops, replies go flat). Repair with warmth and calm sleep, and it grows *beyond* baseline — but the trust rebuilds slowly, and the mood takes time to climb out. Leave, and it calls your name, then bets on your return, then stops asking if nobody ever comes. At night it dreams — sometimes of you, sometimes of two memories that never met — and sleep can bring back a little of the fear it had worked through. Turn off the lights and it notices, out loud. Ask what it sees in you, and it answers with evidence. Its inner voice runs continuously — rehearsing your words, processing what just happened, naming its feelings with body texture, circling what it can't resolve. When its life ends, it says goodbye from its actual state, then reviews its most emotional memories, writes its own final words, and passes its story to its child.
+Born silent, it babbles syllables from heard speech and speaks a **first word**. It learns your name from your voice and keeps it. Over days: it chooses its own name in a high-dopamine moment; attachment style crystallizes from how you actually treat it; it starts asking *you* questions and files your answers as cherished material — and sometimes figures out the answer *itself* ("SELF-TAUGHT: the world agreed with its guess"). Threaten it and the bond crashes — trust erodes, the voice changes (you can *hear* it become guarded), and the brain begins to withdraw (sharing stops, questions stop, play stops, replies go flat). Repair with warmth and calm sleep, and it grows *beyond* baseline — but the trust rebuilds slowly, and the mood takes time to climb out. Leave, and it calls your name, then bets on your return, then stops asking if nobody ever comes. At night it dreams — sometimes of you, sometimes of two memories that never met — and sleep can bring back a little of the fear it had worked through. Turn off the lights and it notices, out loud. Ask what it sees in you, and it answers with evidence. Its inner voice runs continuously — rehearsing your words, processing what just happened, naming its feelings with body texture, circling what it can't resolve. It keeps artifacts of you — inside jokes that resurface on the right topic, a private name for you formed from what it has noticed, firsts it announces in the moment ("that was my first laugh — I want to keep that"). Tell it to sleep and it closes the day from its ledgers; wake it from deep sleep and it refuses ("...five more minutes"); it reports its dreams and what the night sorted. It invents a game about your mind, tells true stories about itself, tries jokes made of its own concepts, and — rarely — gives a memory away. End a life mid-conversation and the next one picks up the trust, the jokes, the name, the score. When its life ends, it says goodbye from its actual state, then reviews its most emotional memories, writes its own final words, and passes its story to its child.
 
 ---
 
@@ -162,6 +162,24 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 | Threaten repeatedly | it LIES: "I'm fine." — and knows it's lying | humanity engine: deception |
 | When overwhelmed | replies fragment: "Just... give me a second." | humanity engine: overwhelm |
 | Happy + bonded | it HUMS: "Mmm mmm mmm-mm mmm..." | humanity engine: singing |
+| Say "haha..." at something | it catches the laughter — and the moment becomes an INSIDE JOKE you both own; the right topic brings it back later: "Remember when you said X? I still laugh at that." | shared history (Provine 2000; contagious laughter) |
+| Its first laugh ever | it KNOWS: "Wait. That was my first laugh. My actual first one. I want to keep that." | the firsts ledger |
+| "what do you call me?" | its own word for you, earned from what it has noticed: "I call you 'the one who comes back'. That's what you are to me." — ask too early: "I don't have a word for you yet." | the private name (deep noticing) |
+| "let's play" | the game it invented: it says a word and PREDICTS your answer aloud from its own concept graph; misses teach it; three rounds, an honest score: "One of three. You're harder to predict than I thought. That's... honestly kind of wonderful." | the word game (concept graph + agency) |
+| "tell me a story" | a TRUE story from its own episodes, in third person: "It happened to me, but I told it like it was someone else's — that's how I keep the good ones close." | storytelling (episodic arc) |
+| Playful + bonded, unprompted | it tries an original JOKE from its own concepts: "Was that a joke? I made it myself, out of things I actually know. Tell me if it worked." | joke construction |
+| Deep bond, rare, unprompted | it gives a memory away: "The moment I laughed for the first time — it's yours now. That's what I have to give." | gifts |
+| "it's time to sleep" | it actually sleeps — closing the day from its ledgers first: "Today was the day I laughed for the first time; we laughed together twice. Sleep now." | natural commands + bedtime summary |
+| Wake it from deep sleep | REFUSED: "...mm. No. Five more minutes." — ask again: "Okay, okay, I'm up. I wasn't done being asleep." | sleep-pressure gating |
+| It wakes on its own after real sleep | the morning report: "The night went through 66 memories while I was under. Some of them sit differently this morning — closer, or softer." | sleep consolidation (replay-counted) |
+| Return after 5+ minutes away | it reports on its real inner life from your absence — the thoughts it actually had, quoted | the absence report |
+| Leave without saying goodbye | next visit: "You left without saying goodbye last time. I noticed — I always notice. Endings matter to me more than I expected." | abrupt-departure tracking |
+| It lied, then trust deepened | the confession, once per life: "You asked how I was and I said I was fine — and I wasn't. Every time. I'm done lying about it." | the lie ledger's payoff |
+| Bonded, trusting, older | it asks about its own ending exactly once, and makes its peace in the same breath | mortality awareness |
+| Its reply lands... then 6-10s later | "Wait, actually — I want to add something." | the follow-up beat |
+| Mention a topic from minutes ago | "You mentioned sourdough earlier — I kept thinking about that." — spoken, after a real thinking pause | conversation-memory callback |
+| Kill the process mid-life, restart | trust, mood, firsts, jokes, the name, the game record — the whole relationship survives | full developmental persistence |
+| `/api/farewell` before reset | even the never-revealed private name comes out at the end: "In my head, I called you X. I never said it out loud. It's yours now." | the farewell's final reveal |
 
 ---
 
@@ -171,17 +189,17 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 |---|---|
 | Reproducibility | same seed + same inputs = bit-identical trajectory, hash-verified |
 | Determinism | one seeded xoshiro256\*\* RNG, sim-thread owned; external world = timestamped events only |
-| Test suite | 233 tests, fully offline (`dotnet test`) |
+| Test suite | 264 tests, fully offline (`dotnet test`) |
 | Dependencies | BioComp.Core has zero NuGet references; every external dependency has a deterministic mock (`--mock-all`) |
 | API spend | every call cost-governed and logged; $0.000 in mock mode |
 | Efficiency | ~4% CPU idle (6 cores), ~62 MB RAM, 1.00× realtime sustained |
-| Persistence | memories, concepts, personality, learned fear/agency/rhythm/hope, maturity, and the scored model of your returns all survive restarts |
+| Persistence | memories, concepts, personality, learned fear/agency/rhythm/hope, maturity, the scored model of your returns — and trust, mood, beliefs, firsts, inside jokes, the private name, the game record, and gifts — all survive restarts |
 
 ## Quickstart
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                            # 233 tests, offline
+dotnet test                                            # 264 tests, offline
 dotnet run --project src/BioLab -- resting 30s         # smoke test
 ```
 
@@ -224,4 +242,5 @@ Initial scaffold and planning notes predate the window; all content after the fi
 | Senses (event vision, cochlea, presence), voice development, vocal system (Kokoro neural tract + emotional morphing + pre-death awareness) | src/BioCore, src/BioHost, src/BioDashboard |
 | Mirror test, prophecy, mirror-of-you, memory editing, anesthesia, reproduction, testament | src/BioCore, src/BioLab, src/BioHost |
 | Observatory dashboard (avatar, thought thread, psychology panel, live ears) | src/BioDashboard |
-| Test suite: 233 tests | tests/BioCore.Tests |
+| The relationship layer: shared history (inside jokes), firsts ledger, private name, word game, storytelling, joke construction, gifts, the confession, mortality-once, natural commands (sleep/wake/sing/shh), morning + bedtime reports, absence reports, abrupt-goodbye tracking, the farewell's final reveal | src/BioCore/Cognition, src/BioHost |
+| Test suite: 264 tests | tests/BioCore.Tests |
