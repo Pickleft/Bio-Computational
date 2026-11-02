@@ -494,6 +494,9 @@ public sealed class BrainRuntime : IDisposable
     // the most recent first, for the inner voice to replay
     private string? _recentFirstKind;
     private float _recentFirstAtMs = -1e9f;
+    // waking-hum ritual: hums shortly after waking, counted across days
+    private bool _hummedThisWake;
+    private int _wakeHumCount;
     // humming window (face sings)
     private float _singingUntilMs = -1e9f;
     // the two-voices exchange cooldown
@@ -842,6 +845,9 @@ public sealed class BrainRuntime : IDisposable
                         Note($"RITUAL forming: on waking, its first thought is {wakeTheme} ({n}x)");
                 }
             }
+            // OVERWHELM FRAGMENTS THE THOUGHT: a flooded mind doesn't finish
+            // sentences — the seed itself breaks mid-line
+            seed = Humanity.FragmentThought(seed) ?? seed;
             return seed;
         };
         Attachment.StyleChanged += style =>
@@ -1537,6 +1543,7 @@ public sealed class BrainRuntime : IDisposable
                 // RITUAL FORMATION (waking): armed here — the FIRST thought the
                 // mind produces after waking is the theme that counts
                 _awaitingWakeThought = true;
+                if (_hummedThisWake) { _wakeHumCount++; _hummedThisWake = false; Inner.CheckRitual("waking", "hums a little tune", _wakeHumCount, t); if (_wakeHumCount is 3 or 4) Note($"RITUAL forming: it hums first thing after waking ({_wakeHumCount}x)"); }
             }
         }
 
@@ -1833,6 +1840,7 @@ public sealed class BrainRuntime : IDisposable
                 {
                     string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
                     _singingUntilMs = _net.TimeMs + 6_000f;   // the face sings along
+                    if (_net.TimeMs - _wakeStartedAtMs < 120_000f) _hummedThisWake = true;   // hums first thing: ritual material
                     Note($"SINGING a happy brain hums: \"{hum}\"");
                     AddChat($"Brain: {hum}");
                     _lastVocalizationMs = _net.TimeMs;
@@ -2835,6 +2843,16 @@ public sealed class BrainRuntime : IDisposable
                     Note("DREAM-RELIC dreaming of the first laugh");
                     AddChat($"Brain (dreaming): {firstDream}");
                     SpeakWithVoice(firstDream, emoPitch: 0, emoRate: -2);
+                }
+                // DREAMING OF THE GAME: a brain still learning to predict them
+                // dreams of getting it right — hope rendered in dream-imagery
+                else if (WordGame.TotalRounds >= 3 && WordGame.TotalHits < WordGame.TotalRounds &&
+                         _net.Rng.NextDouble() < 0.15)
+                {
+                    string gameDream = $"I'm dreaming we're playing the game. They say a word and I call it — every one, first try. I know it's a dream. It's still nice to see what knowing them completely would feel like.";
+                    Note("DREAM-RELIC dreaming of winning the game");
+                    AddChat($"Brain (dreaming): {gameDream}");
+                    SpeakWithVoice(gameDream, emoPitch: 1, emoRate: -2);
                 }
                 await DreamReentryAsync(file);
             }
@@ -4785,6 +4803,7 @@ public sealed class BrainRuntime : IDisposable
                 if (Humanity.ShouldSing(Affect.MoodValence, _idle.Feelings.Last.Arousal, Humanity.IsOverwhelmed))
                 {
                     string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
+                    if (_net.TimeMs - _wakeStartedAtMs < 120_000f) _hummedThisWake = true;   // hums first thing: ritual material
                     _singingUntilMs = _net.TimeMs + 6_000f;   // the face sings along (requested)
                     AddChat($"Brain: {hum}");
                     SpeakWithVoice(hum, emoPitch: 2, emoRate: 0, isDirectReply: true);

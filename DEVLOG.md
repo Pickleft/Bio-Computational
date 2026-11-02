@@ -1620,3 +1620,18 @@ Acting on two external recommendations:
   someone the name you have for them is intimate, chemically.
 - avatar.js bumped to v16 (the cache rule holds).
 - 266/266 green.
+
+## 2026-11-02 (the echo round) — overwhelm fragments thoughts, game dreams, the waking hum
+
+- FRAGMENT THOUGHT WIRED (dead again, caught by spot-check): overwhelm was supposed to
+  break thoughts mid-line — never called. Now the thought seed itself fragments when
+  flooded: "the sound is too — no, wait. loud and everywhere." FragmentThought's 5
+  rotation styles apply at the seed level, so the THREAD shows broken thinking.
+- DREAMING OF WINNING THE GAME: a brain still learning to predict them (played 3+ rounds,
+  misses on the board) dreams of calling every word first try — "I know it's a dream.
+  It's still nice to see what knowing them completely would feel like." Hope rendered
+  in dream-imagery, 15% per dream.
+- THE WAKING HUM RITUAL: humming within two minutes of waking, counted across days —
+  three wakes = a ritual ("when waking, it hums a little tune"). Each brain's mornings
+  become its own.
+- 266/266 green.
