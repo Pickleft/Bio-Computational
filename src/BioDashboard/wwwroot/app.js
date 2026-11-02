@@ -85,34 +85,75 @@ function pickVoice() {
 
 let currentAudio = null;
 
-async function speakBrain(s) {
-  if (!(s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText)) return;
-  spokenSeq = s.SpeakSeq;
-  const text = s.SpeakText.trim();
-  if (!text) return;
-  window.brainBrowserSpeaking = true;
+// THE SPEECH QUEUE: lines play back-to-back. A new line NEVER cuts the one
+// still playing — the brain does not interrupt itself mid-sentence.
+let speakQueue = [];
+let speakPlaying = false;
+let lastQueuedSeq = 0;
 
-  // THE BRAIN'S OWN VOICE: server-side TTS driven by neural state.
-  // Text already has NeuralVoice prosody markers; rate/pitch come from
-  // the snapshot (computed from neurotransmitter levels).
-  try {
-    if (currentAudio) { try { currentAudio.pause(); } catch {} }
-    const rate = s.SpeakRate || 0.92;
-    const pitch = s.SpeakPitch || 1.0;
-    const resp = await fetch(`/api/voice?text=${encodeURIComponent(text.slice(0, 300))}&rate=${rate}&pitch=${pitch}`);
-    if (resp.ok) {
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      currentAudio = new Audio(url);
-      currentAudio.volume = 1.0;
-      currentAudio.onended = () => { window.brainBrowserSpeaking = false; URL.revokeObjectURL(url); };
-      currentAudio.onerror = () => { URL.revokeObjectURL(url); fallbackTTS(text, s); };
-      await currentAudio.play();
-      return;
+function speakBrain(s) {
+  const items = s.SpeakItems || [];
+  for (const it of items) {
+    if (it.Seq > lastQueuedSeq) {
+      lastQueuedSeq = it.Seq;
+      speakQueue.push(it);
     }
-  } catch (e) { console.log("[voice] server generation failed:", e); }
+  }
+  // legacy single-utterance path (older snapshots)
+  if (!items.length && s.SpeakSeq && s.SpeakSeq !== spokenSeq && s.SpeakText) {
+    spokenSeq = s.SpeakSeq;
+    speakQueue.push({ Seq: s.SpeakSeq, Text: s.SpeakText, Rate: s.SpeakRate || 0.92, Pitch: s.SpeakPitch || 1.0 });
+  }
+  pumpSpeech();
+}
 
-  fallbackTTS(text, s);
+async function pumpSpeech() {
+  if (speakPlaying || speakQueue.length === 0) return;
+  speakPlaying = true;
+  const it = speakQueue.shift();
+  const text = (it.Text || "").trim().slice(0, 300);
+  try {
+    if (text) {
+      window.brainBrowserSpeaking = true;
+      const rate = it.Rate || 0.92;
+      const pitch = it.Pitch || 1.0;
+      try {
+        const resp = await fetch(`/api/voice?text=${encodeURIComponent(text)}&rate=${rate}&pitch=${pitch}`);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          currentAudio = new Audio(url);
+          currentAudio.volume = 1.0;
+          await new Promise((resolve) => {
+            currentAudio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+            currentAudio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+            currentAudio.play().catch(() => resolve());
+          });
+          window.brainBrowserSpeaking = false;
+          speakPlaying = false;
+          pumpSpeech();
+          return;
+        }
+      } catch (e) { console.log("[voice] server generation failed:", e); }
+      await fallbackTTSQueued(text, it);
+    }
+  } finally {
+    window.brainBrowserSpeaking = false;
+    speakPlaying = false;
+  }
+  pumpSpeech();
+}
+
+function fallbackTTSQueued(text, it) {
+  return new Promise((resolve) => {
+    if ("speechSynthesis" in window) {
+      const u = new SpeechSynthesisUtterance(text);
+      if (pickedVoice) u.voice = pickedVoice;
+      u.rate = it.Rate || 0.92;
+      u.onend = u.onerror = () => resolve();
+      speechSynthesis.speak(u);
+    } else { resolve(); }
+  });
 }
 
 function fallbackTTS(text, s) {

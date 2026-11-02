@@ -80,6 +80,9 @@ public sealed class BrainSnapshot
     public bool IsSpeaking { get; set; }
     public string SpeakText { get; set; } = "";  // utterance published for browser voices
     public int SpeakSeq { get; set; }            // increments per utterance; browser speaks on change
+    /// <summary>Recent utterances — the browser queues and plays them in order;
+    /// a new line never cuts the one still playing.</summary>
+    public List<BioComp.Host.BrowserSpeech.Utterance> SpeakItems { get; set; } = [];
     public float SpeakRate { get; set; } = 1f;
     public float SpeakPitch { get; set; } = 1f;
     public List<string> ThoughtThread { get; set; } = []; // "depth|valence|salience|text" links of the live chain
@@ -5829,6 +5832,7 @@ public sealed class BrainRuntime : IDisposable
         if (_speech is BrowserSpeech bs)
         {
             snap.SpeakText = bs.CurrentText;
+            snap.SpeakItems = [.. bs.Recent()];
             snap.SpeakSeq = bs.Seq;
             snap.SpeakRate = bs.Rate;
             snap.SpeakPitch = bs.Pitch;

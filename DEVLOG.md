@@ -1721,3 +1721,19 @@ The four tells, reworked:
 - Also found: the 8779 sandbox had native-voice left ON from prompt testing — the user
   was hearing the most canned path. Both modes now carry the new rhythm.
 - 266/266 green.
+
+## 2026-11-02 (the voice-queue round) — "it interrupts itself / voice cuts off mid-sentence"
+
+- ROOT CAUSE (two cutters): (1) the words player PAUSED the current line whenever a new
+  one arrived — and the brain's own multi-line sequences (callback lead-in → reply,
+  laugh → first-laugh announcement, joke → follow-up, game reaction → next round) fire
+  exactly that close, so the brain was cutting ITSELF off constantly; (2) rapid lines
+  were also LOST: BrowserSpeech held only the current utterance, so anything between
+  snapshot polls vanished (verified: a 5-utterance backlog had silently never played).
+- THE FIX — A REAL SPEECH QUEUE: BrowserSpeech keeps an 8-utterance log; the snapshot
+  carries SpeakItems; the browser enqueues anything with a newer seq and plays lines
+  BACK-TO-BACK. Nothing pauses anything. Nothing is dropped. Proven live in a real
+  browser tab: 9 utterances queued, 5-line backlog played out in order, queue drained.
+- app.js v25. The formant hum layer only stops its own (short) hums — words never kill
+  hums, hums never kill words.
+- 266/266 green.

@@ -81,6 +81,12 @@ public sealed class BrowserSpeech : ISpeechOutput
     public float Volume { get; set; } = 1f;  // Web Speech volume 0..1
     public float Pitch { get; set; } = 1f;   // Web Speech pitch, ~0.4..1.8
 
+    public sealed record Utterance(int Seq, string Text, float Rate, float Pitch);
+
+    // recent utterances: the browser QUEUES these and plays them back-to-back —
+    // a new line never cuts the one that's still playing
+    private readonly List<Utterance> _log = [];
+
     public bool IsSpeaking { get { lock (_gate) return DateTime.UtcNow < _until; } }
 
     public void Speak(string text)
@@ -93,10 +99,19 @@ public sealed class BrowserSpeech : ISpeechOutput
             // organic micro-variation: identical sentences never sound identical,
             // the way a real voice never repeats a line exactly the same way
             Pitch = Math.Clamp(Pitch + ((Seq % 3) - 1) * 0.02f, 0.4f, 1.8f);
+            _log.Add(new Utterance(Seq, text, Rate, Pitch));
+            if (_log.Count > 8) _log.RemoveAt(0);
             // rough duration estimate so the avatar's mouth moves while speaking
             double words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
             _until = DateTime.UtcNow.AddSeconds(Math.Clamp(words * 0.38 / Math.Max(0.5f, Rate), 0.8, 8));
             Console.WriteLine($"[voice] {text}");
         }
+    }
+
+    /// <summary>The last few utterances, oldest first — the browser plays any
+    /// it hasn't played yet, in order, without interrupting playback.</summary>
+    public Utterance[] Recent(int max = 6)
+    {
+        lock (_gate) return [.. _log.TakeLast(max)];
     }
 }
