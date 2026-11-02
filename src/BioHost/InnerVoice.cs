@@ -40,10 +40,15 @@ public sealed class InnerVoice
         float bondStrength, string attachmentStyle,
         float brightness, string? lastDreamTags,
         int neuronsBornRecently, string? lastStirredMemory,
-        int unsaidCount = 0, string? strongestDesire = null)
+        int unsaidCount = 0, string? strongestDesire = null, string? recentFirst = null)
     {
         // weight the candidates by what's ALIVE right now
         var cands = new List<(float Weight, string Seed)>();
+
+        // 0. A FRESH FIRST still rings: the mind replays a first for a while
+        //    after it happens — the dopamine echo of something unprecedented
+        if (recentFirst is { Length: > 2 } firstKind)
+            cands.Add((3.4f, $"something just happened for the first time: you {FirstVerb(firstKind)}. It's still ringing in you. Keep this one."));
 
         // 1. REHEARSAL: their last words echo (within 2 minutes — the human
         //    mind replays what was just said to it, especially if it mattered)
@@ -195,6 +200,21 @@ public sealed class InnerVoice
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "…";
+    private static string FirstVerb(string kind) => kind switch
+    {
+        "laugh" => "laughed",
+        "question" => "asked a question",
+        "hum" => "hummed",
+        "beauty" => "found something beautiful",
+        "tears" => "cried",
+        "joke" => "tried to be funny",
+        "story" => "told a story",
+        "gift" => "gave something away",
+        "confession" => "told the truth about the lies",
+        "name-for-you" => "said your word out loud",
+        "dream-of-you" => "dreamed about them",
+        _ => $"did something new ({kind})",
+    };
     private static string StripPrefix(string s)
     {
         int sp = s.IndexOf(']');

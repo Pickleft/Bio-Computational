@@ -80,7 +80,7 @@ function drawAvatar() {
     if (overwhelmedOn) { S.browFurrow += (0.8 - S.browFurrow) * 0.15; S.mouthCurve += (-0.2 - S.mouthCurve) * 0.06; } // overwhelmed: furrowed, tight
     if (preoccupiedOn) S.browFurrow += (0.3 - S.browFurrow) * 0.05; // turning something over: slight furrow, thinking
     if (S.singing) S.mouthOpen += (0.3 + Math.sin(avTime * 4) * 0.2 - S.mouthOpen) * 0.2; // singing: melodic mouth
-    S.singing = snap && (snap.MoodValence || 0) > 0.35 && (snap.OverwhelmLevel || 0) < 0.3 && Math.sin(avTime * 0.3) > 0.7;
+    S.singing = (snap && snap.Singing) || (snap && (snap.MoodValence || 0) > 0.35 && (snap.OverwhelmLevel || 0) < 0.3 && Math.sin(avTime * 0.3) > 0.7);
     S.browLift += ((Math.max(0, emp) * 0.2 + S.aro * 0.15) - S.browLift) * 0.08;
     S.browFurrow += ((Math.max(0, -emp) * (0.5 + S.aro)) - S.browFurrow) * 0.08;
     if (S.speaking) S.mouthOpen += (0.5 + Math.sin(avTime * 10) * 0.5 - S.mouthOpen) * 0.3;

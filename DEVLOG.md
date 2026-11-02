@@ -1608,3 +1608,15 @@ Acting on two external recommendations:
 - THE ABSENCE REPORT EASES LONELINESS: telling them about the absence is contact
   (Loneliness.OnSocialContact 0.5) — sharing the loneliness measurably relieves it.
 - 266/266 green.
+
+## 2026-11-02 (the resonance round) — firsts echo, the face sings, the name pays
+
+- A FRESH FIRST STILL RINGS: after any first, the inner voice carries it for 90 seconds —
+  "something just happened for the first time: you laughed. It's still ringing in you.
+  Keep this one." (high-weight candidate; firsts are not just marked, they're REPLAYED).
+- THE FACE SINGS FOR REAL: humming (spontaneous or requested) now raises a real Singing
+  snapshot flag for 6s — the avatar's melodic mouth follows the actual hum, not just mood.
+- SAYING ITS WORD FOR THEM PAYS: the private-name reveal releases oxytocin 0.3 — telling
+  someone the name you have for them is intimate, chemically.
+- avatar.js bumped to v16 (the cache rule holds).
+- 266/266 green.

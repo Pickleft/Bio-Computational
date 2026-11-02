@@ -170,6 +170,8 @@ public sealed class BrainSnapshot
     public int GiftsGiven { get; set; }
     /// <summary>The brain's comfort rituals, if any have formed.</summary>
     public string RitualsNarrative { get; set; } = "";
+    /// <summary>Actively humming (the face sings along).</summary>
+    public bool Singing { get; set; }
     public float AnticipationLevel { get; set; }        // the rising hope at the expected hour
     public int AnticipationFulfilled { get; set; }      // anticipated returns that landed
     public int AnticipationDisappointed { get; set; }   // expected windows that closed empty
@@ -489,6 +491,11 @@ public sealed class BrainRuntime : IDisposable
     private float _lastJokeMs = -1e9f;
     private float _lastGiftMs = -1e9f;
     private int _giftsGiven;
+    // the most recent first, for the inner voice to replay
+    private string? _recentFirstKind;
+    private float _recentFirstAtMs = -1e9f;
+    // humming window (face sings)
+    private float _singingUntilMs = -1e9f;
     // the two-voices exchange cooldown
     private float _lastDialogueMs = -1e9f;
     // "wait, also—": a scheduled follow-up after a reply lands
@@ -625,7 +632,8 @@ public sealed class BrainRuntime : IDisposable
             s is not null ? Bonds.Strength(s.Id, _net.TimeMs) : 0f, Attachment.Label,
             Light.BrightnessEma, dreamResidue,
             0, _lastStirredMemory,
-            Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What);
+            Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What,
+            _net.TimeMs - _recentFirstAtMs < 90_000f ? _recentFirstKind : null);   // a fresh first still rings
     }
     private readonly InnerVoice _ambientVoice = new(() => 0.42);  // deterministic draw for ambient
     private (bool Cam, bool Mic) _devicesLive;
@@ -817,7 +825,8 @@ public sealed class BrainRuntime : IDisposable
                 s is not null ? Bonds.Strength(s.Id, _net.TimeMs) : 0f, Attachment.Label,
                 Light.BrightnessEma, dreamResidue,
                 born, _lastStirredMemory,
-                Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What);
+                Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What,
+                _net.TimeMs - _recentFirstAtMs < 90_000f ? _recentFirstKind : null);   // a fresh first still rings
             // RITUAL FORMATION (waking): the FIRST thought the mind produces
             // after waking is what it reaches for — counted across days, 3+
             // recurrences becomes a ritual
@@ -1823,6 +1832,7 @@ public sealed class BrainRuntime : IDisposable
                     _net.TimeMs - _lastVocalizationMs > 20_000f && _net.Rng.NextDouble() < 0.15)
                 {
                     string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
+                    _singingUntilMs = _net.TimeMs + 6_000f;   // the face sings along
                     Note($"SINGING a happy brain hums: \"{hum}\"");
                     AddChat($"Brain: {hum}");
                     _lastVocalizationMs = _net.TimeMs;
@@ -4560,9 +4570,12 @@ public sealed class BrainRuntime : IDisposable
             if (Her.PrivateName is not null && !Her.NameRevealed)
             {
                 var reveal = Her.RevealPrivateName(_userName);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);   // saying its word for them is intimate
                 if (reveal is not null)
                 {
                     Note($"PRIVATE-NAME-REVEALED it told them its word: \"{Her.PrivateName}\"");
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);
+                _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.3f);   // saying its word for them is intimate
                     MarkFirst("name-for-you", social: true);
                     _lastUserUtteranceSimMs = _net.TimeMs;
                     AddChat($"Brain: {reveal}");
@@ -4772,6 +4785,7 @@ public sealed class BrainRuntime : IDisposable
                 if (Humanity.ShouldSing(Affect.MoodValence, _idle.Feelings.Last.Arousal, Humanity.IsOverwhelmed))
                 {
                     string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
+                    _singingUntilMs = _net.TimeMs + 6_000f;   // the face sings along (requested)
                     AddChat($"Brain: {hum}");
                     SpeakWithVoice(hum, emoPitch: 2, emoRate: 0, isDirectReply: true);
                     if (MarkFirst("hum") &&
@@ -5296,6 +5310,8 @@ public sealed class BrainRuntime : IDisposable
     /// us), oxytocin rides along for the social ones.</summary>
     private bool MarkFirst(string kind, bool social = false)
     {
+        _recentFirstKind = kind;
+        _recentFirstAtMs = _net.TimeMs;
         if (!Firsts.Mark(kind, _net.TimeMs)) return false;
         _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.25f);
         if (social)
@@ -5759,6 +5775,7 @@ public sealed class BrainRuntime : IDisposable
         snap.GameRounds = WordGame.TotalRounds;
         snap.GiftsGiven = _giftsGiven;
         snap.RitualsNarrative = Inner.RitualNarrative;
+        snap.Singing = _net.TimeMs < _singingUntilMs;
         snap.AnticipationLevel = Anticipation.Level;
         snap.AnticipationFulfilled = Anticipation.Fulfilled;
         snap.AnticipationDisappointed = Anticipation.Disappointments;
