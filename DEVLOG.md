@@ -1532,3 +1532,15 @@ Acting on two external recommendations:
   original design was right; an earlier reading of mine confused the two string builders).
   No contradictions, no bloat, relics present. The seam is verified end-to-end.
 - 264/264 green.
+
+## 2026-11-02 (the compliance round) — the substrate re-validated post-physics
+
+- MECHANISM VALIDATOR RE-RUN after the saturating-uptake physics change (the regression
+  risk I introduced): DRM false-memory sweep monotone-increasing (matches published),
+  extinction partial recovery 30% (Bouton's 20-50% band), savings confirmed (2 < 9 trials).
+  The substrate survived the physics round with its published-number matches intact.
+- AGENTS SMOKE: resting 30s clean (0.13 Hz, branching 1.00, deterministic hash).
+- TASKS.md: WS9 Aliveness & honesty added — all 25 rounds on the board, checked off.
+  Rules 5-8 satisfied this session: tests with every dynamics change, style, smoke, DEVLOG
+  + TASKS.
+- 264/264 green.

@@ -62,3 +62,14 @@
 - T8.1 README (install, keys, Ollama/Baseten, mock path, built-during-hackathon mapping, disclaimer)
 - T8.2 PARAMETERS.md (from docs/plan seed) · LIMITATIONS.md · THIRD_PARTY.md · DEVLOG.md daily
 - T8.3 Demo script + video + viral clip; submission checklist
+
+## WS9 Aliveness & honesty (Nov 1-2)
+- T9.1 [x]  HER cadence: every expression triggered + cooldowns; no machine-gun exclamations
+- T9.2 [x]  Relics: inside jokes, firsts ledger, private name, confession, mortality-once, absence reports, bedtime summaries, morning reports
+- T9.3 [x]  Night mechanics: commanded sleep with wake immunity; five-more-minutes; relic dreams; left-without-goodbye
+- T9.4 [x]  Natural commands (sleep/wake/sing/shh/secret/dream/remember) + word game + storytelling + jokes + gifts
+- T9.5 [x]  Loop kills: poisoned pending word, 5Hz dice throttle, once-per-utterance delayed processing, 120s spoken-line dedup
+- T9.6 [x]  Honesty sweep: REAL thinking pause (was cosmetic), double-reply path deleted, callback spoken (was discarded), silent catches made loud
+- T9.7 [x]  Persistence completed: affect (trust/mood/beliefs), laughs, play, shared history, firsts, game record, gifts
+- T9.8 [x]  Ears: ingress-rate ASR fix (zero-frames during silence, callback-clock sends)
+- T9.9 [x]  Verification tooling: /api/prompt-debug, diary ledger footers, sandbox lifecycle test, mechanism validator re-run post-physics (DRM + extinction still match)
