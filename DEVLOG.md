@@ -1748,3 +1748,20 @@ The four tells, reworked:
   leaders release instantly. Non-leader tabs ACK utterances but stay silent. Verified live
   with two real tabs: exactly one leader, the other silent.
 - app.js v26. 266/266 green.
+
+## 2026-11-02 (the ears-3 round) — "audio stream hiccup happens way too often"
+
+- ROOT CAUSE (the deep one): ScriptProcessor's onaudioprocess runs on the MAIN thread.
+  The dashboard itself renders heavy canvas 60fps (avatar, brain map, EEG) — any jank
+  delays audio delivery below real-time and Meta kills the session; a backgrounded tab
+  throttles it to ~1Hz and guarantees it. The zero-frame fix fixed silence; it could not
+  fix main-thread starvation.
+- THE FIX — CAPTURE ON THE AUDIO THREAD: AudioWorklet (inline module via Blob URL)
+  captures mic frames immune to main-thread jank and background throttling;
+  ScriptProcessor stays as automatic fallback. A PACED SENDER on the main thread drains
+  the buffer at exactly 16k samples/sec real-time with up to 2x catch-up — the average
+  rate is real-time even across brief stalls, so Meta never sees sustained
+  under-delivery. Backlog hard-capped at 3s.
+- ONE SET OF EARS: only the voice-leader tab runs the transcribe WS (matching the
+  one-voice rule); extra tabs show "(ears idle — another tab is the voice)".
+- browser-senses.js v23. 266/266 green.

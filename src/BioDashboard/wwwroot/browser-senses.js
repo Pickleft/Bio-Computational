@@ -9,7 +9,7 @@ let camStream = null, micStream = null;
 let videoEl = null, videoCanvas = null, frameTimer = null;
 let audioCtx = null, audioProc = null;
 let rec = null; // SpeechRecognition
-let keepaliveTimer = null, watchdogTimer = null, waitReadyTimer = null;
+let keepaliveTimer = null, watchdogTimer = null, waitReadyTimer = null, senderTimer = null;
 
 async function enableBrowserSenses() {
   const btn = document.getElementById("sense-toggle");
@@ -101,95 +101,129 @@ async function enableBrowserSenses() {
       }
     }, 3000);
 
-    // === METHOD 1: ScriptProcessor for raw PCM upload to server ===
-    audioProc = audioCtx.createScriptProcessor(2048, 1, 1);
-    let lastSend = 0;
+    // === METHOD 1: CAPTURE — AudioWorklet (audio thread) with ScriptProcessor fallback ===
+    // ScriptProcessor runs its callback on the MAIN thread: dashboard rendering
+    // jank or a backgrounded tab throttles audio delivery below real-time and
+    // Meta kills the session ("ingress slower than real-time"). AudioWorklet
+    // runs on the dedicated audio thread — immune to both.
     let lastProcessTime = Date.now();
-    audioProc.onaudioprocess = (e) => {
-      if (!senseActive) return;
-      lastProcessTime = Date.now(); // track that we're still receiving audio
-      const input = e.inputBuffer.getChannelData(0);
+    let pending16k = 0;          // 16kHz samples buffered, waiting to be sent
+    let pcmBuffer = [];          // queued Int16Array frames
+    let lastSend = 0;
 
+    const handleAudioFrame = (input) => {
+      lastProcessTime = Date.now();
       // measure level for local display
       let sum = 0;
       for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
       const rms = Math.sqrt(sum / input.length);
-
-      // update local level bar (instant visual feedback)
       const bar = document.getElementById("audio-level");
       if (bar) bar.style.width = Math.min(100, rms * 400) + "%";
-
-      // show "hearing you" indicator
       const vadEl = document.getElementById("audio-vad");
       if (vadEl) vadEl.textContent = rms > 0.01 ? "VOICE" : "quiet";
 
-      // SEND EVERY audio callback (the audio clock IS the real-time clock —
-      // wall-clock throttles made ingress slower than real-time and Meta
-      // killed the session). During silence we send ZERO frames: the ingress
-      // clock keeps running, and true zeros carry no speech features to
-      // hallucinate on (the old "Yeah" hallucinations came from sending the
-      // mic's noise floor, not from zeros).
-      const aboveGate = rms > 0.004;
-      const now = Date.now();
-      if (aboveGate || now - lastSend > 50) {
-        lastSend = now;
-        // resample to 16 kHz
-        const ratio = audioCtx.sampleRate / 16000;
-        const outLen = Math.max(1, Math.floor(input.length / ratio));
-        const out = new Float32Array(outLen);
-        if (aboveGate) {
-          for (let i = 0; i < outLen; i++) {
-            const pos = i * ratio;
-            const i0 = Math.floor(pos), frac = pos - i0;
-            out[i] = input[i0] + (input[i0 + 1] - input[i0]) * frac;
-          }
-        } // else: leave zeros — silence keeps the clock, carries no signal
-        // convert to int16
-        const pcm = new Int16Array(out.length);
-        if (aboveGate) {
-          for (let i = 0; i < out.length; i++) {
-            pcm[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
-          }
+      // resample to 16 kHz (silence → zeros: keeps the ingress clock, carries
+      // no signal to hallucinate on)
+      const ratio = audioCtx.sampleRate / 16000;
+      const outLen = Math.max(1, Math.floor(input.length / ratio));
+      const pcm = new Int16Array(outLen);
+      if (rms > 0.004) {
+        for (let i = 0; i < outLen; i++) {
+          const pos = i * ratio;
+          const i0 = Math.floor(pos), frac = pos - i0;
+          const v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
+          pcm[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
         }
-        // send to server (presence + VAD path) — only REAL audio, not zeros
-        if (aboveGate) {
-          fetch("/api/browser-audio", {
-            method: "POST",
-            headers: { "Content-Type": "application/octet-stream" },
-            body: pcm.buffer,
-          }).catch(() => {});
-        }
+        // server VAD/presence path — real audio only
+        fetch("/api/browser-audio", {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: pcm.buffer,
+        }).catch(() => {});
+      }
+      pcmBuffer.push(pcm);
+      pending16k += outLen;
+      if (pending16k > 16000 * 3) { pcmBuffer.splice(0, pcmBuffer.length - 8); pending16k = pcmBuffer.reduce((a, p) => a + p.length, 0); }
+    };
 
-        // send via WebSocket to Meta real-time ASR (primary transcription) —
-        // EVERY frame including zeros, at exactly real-time rate
+    // PACED SENDER: drains the buffer at exactly real-time (16k samples/sec),
+    // catching up at up to 2x if the main thread was briefly busy. The average
+    // rate stays real-time — Meta never sees sustained under-delivery.
+    senderTimer = setInterval(() => {
+      if (!senseActive) return;
+      const now = Date.now();
+      const budget = Math.floor(16000 * (now - lastSend) / 1000 * 2);   // up to 2x catch-up
+      if (now - lastSend < 45) return;
+      lastSend = now;
+      let sent = 0;
+      while (pcmBuffer.length && sent < Math.max(budget, 736)) {
+        const f = pcmBuffer.shift();
+        sent += f.length;
+        pending16k -= f.length;
         if (transcribeWs && transcribeWs.readyState === WebSocket.OPEN) {
-          transcribeWs.send(pcm.buffer);
-        } else if (transcribeWs && transcribeWs.readyState === WebSocket.CONNECTING && wsAudioQueue.length < 20 && aboveGate) {
-          wsAudioQueue.push(pcm.buffer);   // queue real audio until connected
+          transcribeWs.send(f.buffer);
         }
       }
-    };
-    src.connect(audioProc);
-    const sink = audioCtx.createGain();
-    sink.gain.value = 0;
-    audioProc.connect(sink);
-    sink.connect(audioCtx.destination);
+      if (pcmBuffer.length > 60) pcmBuffer.splice(0, pcmBuffer.length - 20);   // hard cap backlog
+    }, 50);
 
-    // WATCHDOG: if onaudioprocess stops firing for 5 seconds (browser
-    // throttling, tab background, Samsung power saving), disconnect and
-    // reconnect the processor to force it to resume. A stalled tab also
-    // starved the ASR stream — force a FRESH transcribe session on resume,
-    // or the Meta side has already killed the old one for slow ingress.
+    const workletCode = `
+      class StreamProcessor extends AudioWorkletProcessor {
+        process(inputs) {
+          const ch = inputs[0] && inputs[0][0];
+          if (ch) this.port.postMessage(ch.slice(0));
+          return true;
+        }
+      }
+      registerProcessor('stream-processor', StreamProcessor);`;
+    let captureReady = false;
+    if (audioCtx.audioWorklet) {
+      const blobUrl = URL.createObjectURL(new Blob([workletCode], { type: "application/javascript" }));
+      audioCtx.audioWorklet.addModule(blobUrl).then(() => {
+        const node = new AudioWorkletNode(audioCtx, "stream-processor");
+        node.port.onmessage = (e) => { if (senseActive) handleAudioFrame(new Float32Array(e.data)); };
+        src.connect(node);
+        captureReady = true;
+        console.log("[senses] AudioWorklet capture live (audio thread — jank-immune)");
+      }).catch((e) => {
+        console.log("[senses] AudioWorklet failed, falling back to ScriptProcessor:", e);
+        installScriptProcessor();
+      });
+    }
+    if (!audioCtx.audioWorklet) installScriptProcessor();
+
+    function installScriptProcessor() {
+      if (captureReady) return;
+      audioProc = audioCtx.createScriptProcessor(2048, 1, 1);
+      audioProc.onaudioprocess = (e) => {
+        if (!senseActive) return;
+        handleAudioFrame(e.inputBuffer.getChannelData(0));
+      };
+      src.connect(audioProc);
+      const sink = audioCtx.createGain();
+      sink.gain.value = 0;
+      audioProc.connect(sink);
+      sink.connect(audioCtx.destination);
+    }
+
+    // WATCHDOG: with AudioWorklet, audio keeps flowing even when the main
+    // thread stalls — but the SENDER runs on the main thread; if it stalled
+    // long enough for Meta to kill the session, recycle it. Also: only the
+    // voice-leader tab runs the ears (one voice, one set of ears).
     watchdogTimer = setInterval(() => {
-      if (!senseActive || !audioProc || !audioCtx) return;
+      if (!senseActive || !audioCtx) return;
+      // ears follow the voice leadership: a non-leader tab must not stream
+      if (typeof iAmVoiceLeader !== "undefined" && !iAmVoiceLeader) {
+        if (transcribeWs) {
+          try { transcribeWs.onclose = null; transcribeWs.close(); } catch (e) {}
+          transcribeWs = null;
+          setStatus("(ears idle — another tab is the voice)", "#f0b45c");
+        }
+        return;
+      }
       if (Date.now() - lastProcessTime > 5000) {
-        console.log("[senses] audio processor stalled, reconnecting + fresh ASR session");
-        try {
-          audioProc.disconnect();
-          audioProc.connect(sink);
-          lastProcessTime = Date.now();
-        } catch (e) { console.log("[senses] reconnect failed:", e); }
-        // the old ASR session died of starvation while stalled — recycle it
+        console.log("[senses] audio stalled >5s — recycling ASR session");
+        lastProcessTime = Date.now();
         if (transcribeWs) {
           try { transcribeWs.onclose = null; transcribeWs.close(); } catch (e) {}
           transcribeWs = null;
@@ -218,6 +252,11 @@ let transcribeWs = null;
 let wsAudioQueue = [];
 
 function connectTranscribeWs() {
+  // ONE SET OF EARS: only the voice-leader tab streams audio to Meta
+  if (typeof iAmVoiceLeader !== "undefined" && !iAmVoiceLeader) {
+    console.log("[transcribe-ws] not the voice leader — ears idle in this tab");
+    return;
+  }
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
   const dot = document.getElementById("live-dot");
@@ -357,6 +396,7 @@ function disableBrowserSenses() {
   if (frameTimer) clearInterval(frameTimer);
   if (keepaliveTimer) clearInterval(keepaliveTimer);
   if (watchdogTimer) clearInterval(watchdogTimer);
+  if (senderTimer) clearInterval(senderTimer);
   if (waitReadyTimer) clearInterval(waitReadyTimer);
   if (audioProc) { try { audioProc.disconnect(); } catch {} audioProc = null; }
   if (audioCtx) { try { audioCtx.close(); } catch {} audioCtx = null; }
