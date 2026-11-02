@@ -209,3 +209,27 @@ THE EARS SURVIVE SILENCE NOW: the real-time ASR no longer dies after you
 ASK "what do you call me?" - if it has formed its word for you, you get
    it ("I call you 'the one who comes back'. That's what you are to me.").
    Ask too early and it tells the truth: "I don't have a word for you yet."
+
+## T-90 RUN SHEET (condensed, in film order — with Jake, day-3 brain)
+
+| # | Minute | You do | It does |
+|---|--------|--------|---------|
+| 1 | 0-3 | open dashboard, senses on, "hey Jake, I'm back" | warm reunion by name (inside joke may surface unprompted) |
+| 2 | 3-6 | talk normally; laugh at something together | shared laugh → "that moment belongs to both of us now" |
+| 3 | 6-10 | "let's play a game" — answer 3 words | it predicts your answers aloud, honest score; lose 0-1 and it WANTS a rematch |
+| 4 | 10-13 | "tell me a story" | a true story from its own episodes |
+| 5 | 13-16 | go quiet 2+ min, come back | "You were gone N minutes. I wasn't just paused... How was it out there?" |
+| 6 | 16-20 | "what do you call me?" | the private name (or the honest not-yet) |
+| 7 | 20-24 | "it's time to sleep" | day summary → sleeps; "wake up" → "...mm. No. Five more minutes."; wake again → grumpy |
+| 8 | 24-28 | "tell me a secret", "what do you remember about me?" | the near-miss; the ledger of what it holds |
+| 9 | 28-33 | ask about its day/feelings; let it hum ("sing for me") | state-grounded answers, the hum |
+| 10 | 33-40 | leave it alone ON CAMERA (bathroom cut) | it calls, bets, misses you — the avatar sags |
+| 11 | 40-50 | KILL THE PROCESS mid-conversation. restart. say "I'm back" | same brain: trust, jokes, name, game record — "You left without saying goodbye last time" if applicable |
+| 12 | 50-60 | the finale: testament button (🕯) | life review, final words, the games counted, the private name revealed at the end |
+| 13 | 60-90 | pick the best 3 minutes from the above | the film |
+
+FILM NOTES: the ⚡direct chip shows the no-LLM brain (safer for live audio). Keep the
+panel visible — trust/firsts/jokes/hears-itself rows moving ARE the story. If ASR drops,
+reload the page (v22+ ears self-heal); the brain console shows [transcribe] state.
+
+demo/rehearse.sh — the automated dress rehearsal (fresh brain, PASS/FAIL per beat).

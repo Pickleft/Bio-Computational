@@ -4841,7 +4841,8 @@ public sealed class BrainRuntime : IDisposable
             if (wantsWake && _idle.Sleep.State != BioComp.Core.Sleep.BrainState.Wake)
             {
                 _lastUserUtteranceSimMs = _net.TimeMs;
-                bool deepSleep = _idle.Sleep.SleepPressure > 0.55f;
+                // deep sleep = high pressure OR inside the commanded-sleep window (demo days crash pressure fast; just-put-to-bed is deep asleep by fiat)
+                bool deepSleep = _idle.Sleep.SleepPressure > 0.55f || _net.TimeMs < _idle.Sleep.WakeImmunityUntilMs;
                 if (deepSleep && !_grumpyWakeArmed)
                 {
                     // first ask of a deep sleep: it is NOT coming up yet

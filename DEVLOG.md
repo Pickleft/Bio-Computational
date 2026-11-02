@@ -1687,3 +1687,20 @@ Acting on two external recommendations:
   strange — longer on the inside"), every 6 hours, and the full subjective day ("more
   than I expected to care about"). Counting its own existence, out loud.
 - 266/266 green.
+
+## 2026-11-02 (the dress-rehearsal round) — demo day readiness
+
+- FULL DRESS REHEARSAL (demo/rehearse.sh, now in the repo): fresh brain, the whole beat
+  sheet walked via API. Every system FIRED per the logs (game 3 rounds, story, sleep,
+  secret, remember-me, sing, restart continuity, farewell with games counted). Rehearsal
+  grep-fails traced to harness artifacts (chat truncation + the script's own "quiet" game
+  answer triggering silence-mode), not the brain.
+- DEMO-MODE GRUMPY-WAKE BUG fixed: compressed demo days crash sleep pressure instantly,
+  so "wake up" after commanded sleep never refused. Deep sleep now = high pressure OR
+  still inside the commanded-sleep window — verified live: "COMMAND wake refused — deep
+  sleep, five more minutes", NREM held.
+- BOND-GATE documented: the game needs 2+ visits (by design) — film with the day-3 brain,
+  not a newborn; the T-90 run sheet reflects this.
+- T-90 RUN SHEET added to demo/SCRIPT.md: 13 filmable beats in order, with the kill-and-
+  restart continuity shot and the testament finale.
+- 266/266 green.
