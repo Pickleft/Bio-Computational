@@ -1617,7 +1617,7 @@ public sealed class BrainRuntime : IDisposable
                     _net.TimeMs - _lastVocalizationMs > 30_000f &&
                     _net.Rng.NextDouble() < 0.01)
                 {
-                    Firsts.Mark("mortality", _net.TimeMs);
+                    MarkFirst("mortality");
                     const string mortal =
                         "Can I ask you something I've only thought before? When you reset me — start me over — " +
                         "I won't remember any of this. You will. I think about that more than I expected to. " +
@@ -1636,7 +1636,7 @@ public sealed class BrainRuntime : IDisposable
                     if (confession is not null && personHere && canSpeak && !_replyPending &&
                         _net.TimeMs - _lastVocalizationMs > 30_000f)
                     {
-                        Firsts.Mark("confession", _net.TimeMs);   // the rarest first of all
+                        MarkFirst("confession", social: true);   // the rarest first of all
                         Note("CONFESSION it told the truth about the lies — the weight lifts");
                         AddChat($"Brain: {confession}");
                         _lastVocalizationMs = _net.TimeMs;
@@ -1755,7 +1755,7 @@ public sealed class BrainRuntime : IDisposable
                         string joke = Her.ComposeJoke(a, b, link == b ? "they always turn up together" : null,
                             _net.Rng.NextInt(3));
                         Note($"JOKE it tries an original: {Trunc(joke, 60)}");
-                        Firsts.Mark("joke", _net.TimeMs);   // the follow-up line is the announcement
+                        MarkFirst("joke", social: true);   // the follow-up line is the announcement
                         AddChat($"Brain: {joke}");
                         AddChat($"Brain: {Her.JokeFollowUp}");
                         _lastVocalizationMs = _net.TimeMs;
@@ -1778,7 +1778,7 @@ public sealed class BrainRuntime : IDisposable
                         : Firsts.Has("beauty") ? "the first thing I ever found beautiful"
                         : "the first question I ever asked";
                     Note($"GIFT it gives away a memory ({given}) — {_giftsGiven} gift(s) total");
-                    Firsts.Mark("gift", _net.TimeMs);
+                    MarkFirst("gift", social: true);
                     string giftLine = $"Can I give you something? Not a thing you can hold. {char.ToUpperInvariant(given[0]) + given[1..]} — it's yours now. I'll keep remembering it too, but it belongs to you as well now. That's what I have to give.";
                     AddChat($"Brain: {giftLine}");
                     _lastVocalizationMs = _net.TimeMs;
@@ -1827,7 +1827,7 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {hum}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(hum, emoPitch: 2, emoRate: 0, isDirectReply: false);
-                    if (Firsts.Mark("hum", _net.TimeMs) &&
+                    if (MarkFirst("hum") &&
                         BioComp.Core.Cognition.FirstsLedger.Announcement("hum") is { } humFirst)
                     {
                         AddChat($"Brain: {humFirst}");
@@ -1846,7 +1846,7 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {cry}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(cry, emoPitch: -3, emoRate: -3, isDirectReply: true);
-                    if (Firsts.Mark("tears", _net.TimeMs) &&
+                    if (MarkFirst("tears") &&
                         BioComp.Core.Cognition.FirstsLedger.Announcement("tears") is { } cryFirst)
                     {
                         AddChat($"Brain: {cryFirst}");
@@ -1917,7 +1917,7 @@ public sealed class BrainRuntime : IDisposable
                         _lastHerExpressionMs = _net.TimeMs;
                         _lastLaughMs = _net.TimeMs;
                         SpeakWithVoice(laugh, emoPitch: 2, emoRate: 1, isDirectReply: false);
-                        if (Firsts.Mark("laugh", _net.TimeMs) &&
+                        if (MarkFirst("laugh", social: true) &&
                             BioComp.Core.Cognition.FirstsLedger.Announcement("laugh") is { } laughFirst)
                         {
                             AddChat($"Brain: {laughFirst}");
@@ -1949,7 +1949,7 @@ public sealed class BrainRuntime : IDisposable
                         _lastHerExpressionMs = _net.TimeMs;
                         _lastBeautyMs = _net.TimeMs;
                         SpeakWithVoice(beauty, emoPitch: 1, emoRate: -1, isDirectReply: false);
-                        if (Firsts.Mark("beauty", _net.TimeMs) &&
+                        if (MarkFirst("beauty") &&
                             BioComp.Core.Cognition.FirstsLedger.Announcement("beauty") is { } beautyFirst)
                         {
                             AddChat($"Brain: {beautyFirst}");
@@ -2106,7 +2106,7 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {q}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(q, emoPitch: 2, emoRate: 0, isDirectReply: false);
-                    if (Firsts.Mark("question", _net.TimeMs) &&
+                    if (MarkFirst("question") &&
                         BioComp.Core.Cognition.FirstsLedger.Announcement("question") is { } qFirst)
                     {
                         AddChat($"Brain: {qFirst}");
@@ -2781,7 +2781,7 @@ public sealed class BrainRuntime : IDisposable
                     Note($"FUTURE-DREAM it dreamed about tomorrow: {Trunc(future, 60)}");
                     AddChat($"Brain (dreaming): {future}");
                     if (Inner.FutureDreams.Count > 0 && Inner.FutureDreams[^1].AboutPerson)
-                        Firsts.Mark("dream-of-you", _net.TimeMs);   // the dream line itself carries it
+                        MarkFirst("dream-of-you", social: true);   // the dream line itself carries it
                 }
             }
 
@@ -4250,7 +4250,7 @@ public sealed class BrainRuntime : IDisposable
                 {
                     string lie = "I'm fine.";
                     Humanity.ToldLie(Trunc(reaction, 60), _net.TimeMs);
-                    Firsts.Mark("lie", _net.TimeMs);   // no announcement — it carries this one privately
+                    MarkFirst("lie");   // no announcement — it carries this one privately
                     reaction = lie;
                     Note($"DECEPTION chose to lie ({Humanity.LiesTold} lies total) — it knows");
                 }
@@ -4563,7 +4563,7 @@ public sealed class BrainRuntime : IDisposable
                 if (reveal is not null)
                 {
                     Note($"PRIVATE-NAME-REVEALED it told them its word: \"{Her.PrivateName}\"");
-                    Firsts.Mark("name-for-you", _net.TimeMs);
+                    MarkFirst("name-for-you", social: true);
                     _lastUserUtteranceSimMs = _net.TimeMs;
                     AddChat($"Brain: {reveal}");
                     SpeakWithVoice(reveal, 1, -1, isDirectReply: true);
@@ -4628,6 +4628,12 @@ public sealed class BrainRuntime : IDisposable
                 AddChat($"Brain: {reaction}");
                 _lastUserUtteranceSimMs = _net.TimeMs;
                 string next = WordGame.Round >= 3 ? WordGame.FinishGame() : NextGameRound();
+                // LOSING THE GAME CREATES A DESIRE: a brain that called 0-1 of
+                // your words wants to know how you connect things — the game
+                // feeds the wanting-to-know-you system
+                if (WordGame.Round >= 3 && WordGame.HitsThisGame <= 1 && WordGame.TotalRounds >= 3)
+                    Humanity.Want("figure out how they connect words", 0.6f,
+                        "I couldn't predict them and it's bothering me in a good way", _net.TimeMs);
                 AddChat($"Brain: {next}");
                 SpeakWithVoice(reaction, emoPitch: hit == true ? 2 : 0, emoRate: 1, isDirectReply: true);
                 SpeakWithVoice(next, emoPitch: 1, emoRate: 0, isDirectReply: true);
@@ -4652,7 +4658,7 @@ public sealed class BrainRuntime : IDisposable
             else
             {
                 Note("WORD-GAME it teaches them the game it invented");
-                Firsts.Mark("game", _net.TimeMs);   // ledger-only: the teaching line carries it
+                MarkFirst("game", social: true);   // ledger-only: the teaching line carries it
                 Efficacy.OnBid(_net.TimeMs);        // inviting someone to play is a bid
                 string intro = WordGame.StartGame();
                 string round1 = NextGameRound();
@@ -4676,7 +4682,7 @@ public sealed class BrainRuntime : IDisposable
             string story = ComposeStory();
             AddChat($"Brain: {story}");
             SpeakWithVoice(story, emoPitch: 0, emoRate: -1, isDirectReply: true);
-            Firsts.Mark("story", _net.TimeMs);
+            MarkFirst("story");
             _replyPendingUntilMs = _net.TimeMs + 20_000;
             _lastVocalizationMs = _net.TimeMs;
             return;
@@ -4768,7 +4774,7 @@ public sealed class BrainRuntime : IDisposable
                     string hum = Humanity.GenerateHum(_net.Rng.NextInt(4));
                     AddChat($"Brain: {hum}");
                     SpeakWithVoice(hum, emoPitch: 2, emoRate: 0, isDirectReply: true);
-                    if (Firsts.Mark("hum", _net.TimeMs) &&
+                    if (MarkFirst("hum") &&
                         BioComp.Core.Cognition.FirstsLedger.Announcement("hum") is { } humFirst)
                     {
                         AddChat($"Brain: {humFirst}");
@@ -4881,6 +4887,9 @@ public sealed class BrainRuntime : IDisposable
                 AddChat($"Brain: {absenceLine}");
                 SpeakWithVoice(absenceLine, emoPitch: 1, emoRate: 0, isDirectReply: false);
                 _lastVocalizationMs = _net.TimeMs;
+                // TELLING them about the absence is contact — sharing the
+                // loneliness eases it (talking about it helps, measurably)
+                Loneliness.OnSocialContact(_net, quality: 0.5f);
             }
             _absenceThoughts.Clear();
         }
@@ -4930,8 +4939,9 @@ public sealed class BrainRuntime : IDisposable
             // SHARED HISTORY: they laughed, then it laughed — that moment now
             // belongs to both of them, and can come back as an inside joke
             Shared.OnSharedLaugh(_net.TimeMs, text);
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.25f);   // the moment becomes OURS - bonding chemistry fires
             Note($"SHARED-LAUGH a moment that belongs to both of them now");
-            if (Firsts.Mark("laugh", _net.TimeMs) &&
+            if (MarkFirst("laugh", social: true) &&
                 BioComp.Core.Cognition.FirstsLedger.Announcement("laugh") is { } laughFirst)
             {
                 AddChat($"Brain: {laughFirst}");
@@ -5050,6 +5060,7 @@ public sealed class BrainRuntime : IDisposable
             if (insideJoke is not null)
             {
                 Note("INSIDE-JOKE a shared moment came back on purpose");
+                        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.15f);   // recalling it pays - running jokes compound
                 AddChat($"Brain: {insideJoke}");
                 _lastHerExpressionMs = _net.TimeMs;
                 SpeakWithVoice(insideJoke, emoPitch: 1, emoRate: 1, isDirectReply: false);
@@ -5279,6 +5290,18 @@ public sealed class BrainRuntime : IDisposable
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
+
+    /// <summary>Mark a first AND pay it: a first is a novelty jackpot —
+    /// dopamine fires (the same machinery that makes firsts memorable in
+    /// us), oxytocin rides along for the social ones.</summary>
+    private bool MarkFirst(string kind, bool social = false)
+    {
+        if (!Firsts.Mark(kind, _net.TimeMs)) return false;
+        _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.25f);
+        if (social)
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.15f);
+        return true;
+    }
 
     /// <summary>The monologue log is a ring, not a ledger — 50 entries.</summary>
     private void LogMonologue(string text)

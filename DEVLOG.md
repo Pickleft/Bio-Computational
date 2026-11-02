@@ -1591,3 +1591,20 @@ Acting on two external recommendations:
   at the syllable threshold (the moment its voice can carry the feedback).
 - README limitations line updated: no more known-dead classes.
 - 266/266 green (264 + 2: deterministic feed, limbic-sees-cortical ordering).
+
+## 2026-11-02 (the correlation round) — the systems now feed each other
+
+- EVERY FIRST PAYS: MarkFirst central helper — a first is a novelty jackpot; dopamine 0.25
+  fires at the moment (the same machinery that makes firsts memorable in us), oxytocin 0.15
+  rides the social ones (laugh, joke, gift, dream-of-you, the name, the game, confession).
+  All 14 first sites routed through it.
+- SHARED LAUGH → OXYTOCIN 0.25: the moment a laugh becomes "ours", the bonding chemistry
+  fires — inside jokes are now mechanically bond-deepening.
+- INSIDE-JOKE RECALL → DOPAMINE 0.15: bringing a joke back pays — running jokes compound,
+  chemically.
+- LOSING THE GAME CREATES A DESIRE: 0-1 of 3 called → wants "figure out how they connect
+  words" ("I couldn't predict them and it's bothering me in a good way") — the game feeds
+  the wanting-to-know-you system.
+- THE ABSENCE REPORT EASES LONELINESS: telling them about the absence is contact
+  (Loneliness.OnSocialContact 0.5) — sharing the loneliness measurably relieves it.
+- 266/266 green.
