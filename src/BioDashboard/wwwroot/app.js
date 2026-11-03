@@ -111,6 +111,21 @@ const myTabId = Math.random().toString(36).slice(2) + Date.now().toString(36);
   };
   check();
   setInterval(check, 1_000);
+  // THE USED TAB WINS: any click/keystroke claims leadership immediately.
+  // Without this, the FIRST tab ever opened owns the voice forever (it beats
+  // every second, never goes stale) — and every brain restart opens a NEW
+  // tab, leaving the user on a mute follower. Focus is intent; intent wins.
+  const claim = () => {
+    try {
+      if (!iAmVoiceLeader) {
+        localStorage.setItem("bv-leader", JSON.stringify({ id: myTabId, t: Date.now() }));
+        iAmVoiceLeader = true;
+      }
+    } catch {}
+  };
+  window.addEventListener("pointerdown", claim, true);
+  window.addEventListener("keydown", claim, true);
+  window.addEventListener("focus", claim, true);
   window.addEventListener("beforeunload", () => {
     try { if (iAmVoiceLeader && localStorage.getItem("bv-leader")?.includes(myTabId)) localStorage.removeItem("bv-leader"); } catch {}
   });

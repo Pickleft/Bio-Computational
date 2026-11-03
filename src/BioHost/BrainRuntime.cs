@@ -3234,6 +3234,14 @@ public sealed class BrainRuntime : IDisposable
                 return;
             }
             var tr = await _transcriber.TranscribeAsync(clip);
+            if (string.IsNullOrWhiteSpace(tr.Transcript))
+            {
+                // silence must be VISIBLE: an empty result is a pipeline
+                // failure mode, not "nothing happened"
+                Note($"VOICE-CLIP {(clip.Length / 16)}ms rms {rms:F3} transcribed EMPTY — no words came back");
+                return;
+            }
+            Note($"VOICE-CLIP {(clip.Length / 16)}ms rms {rms:F3} -> \"{Trunc(tr.Transcript, 40)}\"");
             // ...and reject a lone filler word unless the voice was clearly real
             string trimmed = tr.Transcript?.Trim().TrimEnd('.', '!', '?', ',', ' ') ?? "";
             // BATCH DEDUP: don't process the SAME short transcript repeatedly

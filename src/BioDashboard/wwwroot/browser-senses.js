@@ -274,21 +274,13 @@ async function enableBrowserSenses() {
 
     // WATCHDOG: with AudioWorklet, audio keeps flowing even when the main
     // thread stalls — but the SENDER runs on the main thread; if it stalled
-    // long enough for Meta to kill the session, recycle it. Also: only the
-    // voice-leader tab runs the ears (one voice, one set of ears).
+    // long enough for Meta to kill the session, recycle it.
+    // NOTE: the ears are NOT leader-gated. Leadership gates the VOICE (one
+    // tab speaks); a follower tab with dead ears was the "not being
+    // transcribed" bug — each tab streams its OWN mic, and the server
+    // dedups duplicate transcripts.
     watchdogTimer = setInterval(() => {
       if (!senseActive || !audioCtx) return;
-      // ears follow the voice leadership: a non-leader tab must not stream
-      if (typeof iAmVoiceLeader !== "undefined" && !iAmVoiceLeader) {
-        if (transcribeWs) {
-          try { transcribeWs.onclose = null; transcribeWs.close(); } catch (e) {}
-          transcribeWs = null;
-          const fin2 = document.getElementById("live-final");
-          if (fin2) { fin2.textContent = "(ears idle — another tab is the voice)"; fin2.style.color = "#f0b45c"; }
-          console.log("[senses] ears idle — another tab is the voice leader");
-        }
-        return;
-      }
       if (Date.now() - lastProcessTime > 5000) {
         console.log("[senses] audio stalled >5s — recycling ASR session");
         lastProcessTime = Date.now();
@@ -316,15 +308,12 @@ async function enableBrowserSenses() {
 // === LIVE TRANSCRIPTION (Meta real-time ASR via WebSocket — PRIMARY) ===
 // Audio flows: browser mic → ScriptProcessor → /ws/transcribe WebSocket → Meta ASR → transcript → /api/say → brain
 // No browser SpeechRecognition. No server VAD. Meta handles everything.
+// ANY tab with senses ON streams — the ears are never leader-gated (each tab
+// has its own mic; the server dedups duplicate transcripts).
 let transcribeWs = null;
 let wsAudioQueue = [];
 
 function connectTranscribeWs() {
-  // ONE SET OF EARS: only the voice-leader tab streams audio to Meta
-  if (typeof iAmVoiceLeader !== "undefined" && !iAmVoiceLeader) {
-    console.log("[transcribe-ws] not the voice leader — ears idle in this tab");
-    return;
-  }
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
   const dot = document.getElementById("live-dot");

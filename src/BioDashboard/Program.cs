@@ -201,18 +201,38 @@ app.MapPost("/api/native-voice", async (HttpContext ctx) =>
 // ---- REAL-TIME SPEECH TRANSCRIPTION (WebSocket to Meta Muse Voice) ----
 app.Map("/ws/transcribe", async (HttpContext ctx) =>
 {
-    if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
+    // NO SILENT BRANCHES: every path through this endpoint logs. A dead
+    // transcription pipeline that fails quietly is undebuggable from the
+    // browser side — the console must always say where words die.
+    Console.WriteLine("[transcribe] ears endpoint hit");
+    if (!ctx.WebSockets.IsWebSocketRequest)
+    {
+        Console.WriteLine("[transcribe] REJECTED: not a websocket request");
+        ctx.Response.StatusCode = 400;
+        return;
+    }
     var browserWs = await ctx.WebSockets.AcceptWebSocketAsync();
 
     var opts = BioComp.Meta.MetaOptions.Load();
+    // immediate status frame: the browser shows the real state, never a lie
+    var sendInfo = async (string text) =>
+    {
+        try
+        {
+            var b = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "info", text, isFinal = false }));
+            if (browserWs.State == WebSocketState.Open)
+                await browserWs.SendAsync(new ArraySegment<byte>(b), WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+        catch { }
+    };
+
     if (!opts.HasKey)
     {
         // No API key — the server-side batch path (via /api/browser-audio →
         // VAD → Meta batch transcription) still works. Don't close: tell the
         // browser so it knows, then let the batch path handle everything.
-        var msg = JsonSerializer.Serialize(new { type = "info", text = "no API key — using server batch transcription", isFinal = false });
-        var msgBytes = System.Text.Encoding.UTF8.GetBytes(msg);
-        await browserWs.SendAsync(new ArraySegment<byte>(msgBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        Console.WriteLine("[transcribe] NO API KEY — real-time ears off, batch-only mode");
+        await sendInfo("no API key — using server batch transcription");
         // keep the WebSocket open: audio goes to /api/browser-audio (batch path works)
         // just drain incoming (audio) and discard
         var drainBuf = new byte[16384];
@@ -229,17 +249,23 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     }
 
     using var proxy = new BioComp.Host.MuseTranscribeProxy();
-    bool connected = await proxy.ConnectAsync(opts.ApiKey);
+    await sendInfo("connecting to Meta ASR...");
+    // HARD 15s TIMEOUT: a hanging handshake must never wedge the endpoint
+    // silently — cancel it, log, and fall back to the batch path.
+    bool connected;
+    using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted))
+    {
+        connectCts.CancelAfter(TimeSpan.FromSeconds(15));
+        try { connected = await proxy.ConnectAsync(opts.ApiKey, ct: connectCts.Token); }
+        catch (OperationCanceledException) { connected = false; }
+    }
     if (!connected)
     {
         // Real-time failed — DON'T CLOSE: tell the browser, then let the
         // server batch path handle transcription. The audio still goes to
         // /api/browser-audio which triggers server VAD + batch Meta transcription.
         Console.WriteLine("[transcribe] real-time failed — falling back to batch (server VAD + Meta batch API)");
-        var msg = JsonSerializer.Serialize(new { type = "info", text = "real-time unavailable — using batch (slower but works)", isFinal = false });
-        var msgBytes = System.Text.Encoding.UTF8.GetBytes(msg);
-        if (browserWs.State == WebSocketState.Open)
-            await browserWs.SendAsync(new ArraySegment<byte>(msgBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+        await sendInfo("real-time unavailable — using batch (slower but works)");
         // drain incoming audio (the batch path handles it via /api/browser-audio)
         var buf = new byte[16384];
         while (browserWs.State == WebSocketState.Open && !ctx.RequestAborted.IsCancellationRequested)
