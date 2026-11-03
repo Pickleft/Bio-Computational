@@ -5859,9 +5859,13 @@ public sealed class BrainRuntime : IDisposable
             // == TAUGHT COMMANDS: "when I say X, do Y" ==
             // Teaching is a conversation move, not a command: Spark extracts the
             // trigger + action, the brain stores it and confirms in its own words.
-            if ((nameQ.Contains("when i say") || nameQ.Contains("if i say") || nameQ.Contains("from now on") ||
+            // Works in direct-talk mode too — teaching is an EXPLICIT request,
+            // the one LLM call it costs is the whole point (a user in direct
+            // mode lost the ability to teach entirely otherwise).
+            if (nameQ.Contains("when i say") || nameQ.Contains("if i say") || nameQ.Contains("from now on") ||
+                 nameQ.Contains("when i tell you") || nameQ.Contains("if i tell you") ||
                  nameQ.Contains("teach you a command") || nameQ.Contains("new command") ||
-                 nameQ.Contains("remember this command")) && !_nativeVoiceMode)
+                 nameQ.Contains("remember this command"))
             {
                 _lastUserUtteranceSimMs = _net.TimeMs;
                 _ = Task.Run(async () =>

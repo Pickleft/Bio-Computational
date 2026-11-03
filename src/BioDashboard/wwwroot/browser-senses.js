@@ -11,6 +11,45 @@ let _lastRms = 0;
 // level — streaming ASR mishears quiet audio far more than loud audio.
 let _dcEma = 0;
 let _agcGain = 1;
+// PUSH-TO-TALK: audio is SENT only while held (button or SPACE). The level
+// bar always shows the live mic; only sending is gated. talkDown revives the
+// session on demand — dead idle sessions cost nothing.
+let _talkReleasedAt = 0;
+window.__talkHeld = false;
+function talkDown() {
+  if (window.__talkHeld || !senseActive) return;
+  window.__talkHeld = true;
+  const b = document.getElementById("holdtalk");
+  if (b) { b.style.background = "rgba(61,219,184,.35)"; b.textContent = "LISTENING — SPEAK"; }
+  // session may have died while idle: revive it now so the first word lands
+  if (!transcribeWs || transcribeWs.readyState !== WebSocket.OPEN) {
+    try { connectTranscribeWs(); } catch (e) {}
+  }
+}
+function talkUp() {
+  if (!window.__talkHeld) return;
+  window.__talkHeld = false;
+  _talkReleasedAt = Date.now();
+  const b = document.getElementById("holdtalk");
+  if (b) { b.style.background = "rgba(61,219,184,.08)"; b.textContent = "HOLD TO TALK \u00a0(or hold SPACE)"; }
+}
+window.addEventListener("DOMContentLoaded", () => {
+  const b = document.getElementById("holdtalk");
+  if (!b) return;
+  b.addEventListener("pointerdown", (e) => { e.preventDefault(); talkDown(); });
+  b.addEventListener("pointerup", talkUp);
+  b.addEventListener("pointerleave", talkUp);
+  b.addEventListener("pointercancel", talkUp);
+});
+window.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || e.repeat) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  e.preventDefault();
+  talkDown();
+});
+window.addEventListener("keyup", (e) => { if (e.code === "Space") talkUp(); });
+window.addEventListener("blur", talkUp);
 let _levelRafStarted = false;
 function _renderLevelBar() {
   if (!_levelRafStarted) {
@@ -185,32 +224,42 @@ async function enableBrowserSenses() {
         return out;
       };
       const pcm = makePcm(24000);
-      if (rms > 0.004) {
-        // BATCH: collect voiced PCM, POST every 100ms (not per-frame) — this
-        // feeds the brain's audition (16 kHz); silence buys nothing there
-        _lastVoicedAt = Date.now();
-        _batchPcm.push(makePcm(16000));
-      } else if (_lastVoicedAt > 0 && Date.now() - _lastVoicedAt < 1200) {
-        // TRAILING SILENCE FLUSH: the server's VAD can only END an utterance
-        // when silence ARRIVES. Without these zero frames after speech stops,
-        // the capture never closes and the batch path never transcribes.
-        _batchPcm.push(new Int16Array(160));   // 10ms of true silence
+      // PUSH-TO-TALK: audio is SENT only while the button (or spacebar) is
+      // held, plus a 1.2s trailing window so end-of-speech can fire. The
+      // level bar stays live (you can see the mic hearing you) — only the
+      // sending is gated. Idle sessions die and that's fine: talkDown
+      // reconnects on demand.
+      const sending = window.__talkHeld === true || Date.now() - _talkReleasedAt < 1200;
+      if (sending) {
+        if (rms > 0.004) {
+          // BATCH: collect voiced PCM, POST every 100ms (not per-frame) — this
+          // feeds the brain's audition (16 kHz); silence buys nothing there
+          _lastVoicedAt = Date.now();
+          _batchPcm.push(makePcm(16000));
+        } else if (_lastVoicedAt > 0 && Date.now() - _lastVoicedAt < 1200) {
+          // TRAILING SILENCE FLUSH: the server's VAD can only END an utterance
+          // when silence ARRIVES. Without these zero frames after speech stops,
+          // the capture never closes and the batch path never transcribes.
+          _batchPcm.push(new Int16Array(160));   // 10ms of true silence
+        }
+        if (_batchPcm.length > 0 && Date.now() - _lastBatchPost > 100) {
+          _lastBatchPost = Date.now();
+          const total = _batchPcm.reduce((a, p) => a + p.length, 0);
+          const merged = new Int16Array(total);
+          let off = 0;
+          for (const p of _batchPcm) { merged.set(p, off); off += p.length; }
+          _batchPcm = [];
+          fetch("/api/browser-audio", {
+            method: "POST",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: merged.buffer,
+          }).catch(() => {});
+        }
+        pcmBuffer.push(pcm);
+        pendingSmp += pcm.length;
+      } else {
+        pcmBuffer = []; pendingSmp = 0;   // not holding: nothing to send
       }
-      if (_batchPcm.length > 0 && Date.now() - _lastBatchPost > 100) {
-        _lastBatchPost = Date.now();
-        const total = _batchPcm.reduce((a, p) => a + p.length, 0);
-        const merged = new Int16Array(total);
-        let off = 0;
-        for (const p of _batchPcm) { merged.set(p, off); off += p.length; }
-        _batchPcm = [];
-        fetch("/api/browser-audio", {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: merged.buffer,
-        }).catch(() => {});
-      }
-      pcmBuffer.push(pcm);
-      pendingSmp += pcm.length;
       if (pendingSmp > 24000 * 3) { pcmBuffer.splice(0, pcmBuffer.length - 8); pendingSmp = pcmBuffer.reduce((a, p) => a + p.length, 0); }
     };
 
