@@ -1965,3 +1965,15 @@ The four tells, reworked:
   checking consecutive pairs. Fixed to consecutive-pair overlap.
 - Removed dead code: lastPcmBuffer, old fallbackTTS.
 - app.js v29, senses v28. 278/278 green.
+
+## 2026-11-03 (the chunk-size round) — Meta can't hear 2.6ms fragments
+
+- ROOT CAUSE: the AudioWorklet rework changed frame size from ~683 samples (ScriptProcessor,
+  2048/48k×16k/3) to ~42 samples (AudioWorklet, 128/48k×16k). Meta's real-time ASR was
+  receiving 2.6ms micro-fragments — too small to produce transcripts. The audio was being
+  SENT (the WS was open, frames were flowing) but Meta couldn't process fragments that small.
+- FIX: the sender now MERGES all pending frames into ONE contiguous chunk before sending,
+  instead of sending each 2.6ms fragment individually. Typical chunk: 50ms of accumulated
+  audio (~800 samples). This matches the original working chunk size (~43ms from ScriptProcessor).
+- Also: the WS-not-open path now CLEARS the buffer instead of silently dropping frames.
+- senses v29. 278/278 green.

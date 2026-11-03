@@ -174,20 +174,18 @@ async function enableBrowserSenses() {
       if (pending16k > 16000 * 3) { pcmBuffer.splice(0, pcmBuffer.length - 8); pending16k = pcmBuffer.reduce((a, p) => a + p.length, 0); }
     };
 
-    // PACED SENDER: drains the buffer at real-time+ (16k samples/sec base, 4x
-    // catch-up after main-thread stalls). When the backlog grows too large
-    // (sustained lag), it SKIPS to live audio — stale frames are useless for
-    // real-time ASR and Meta kills the session on backlog ("Audio processing
-    // backlog too large"). Live > complete.
+    // PACED SENDER: merges small AudioWorklet frames (~2.6ms each) into
+    // ~100ms chunks (1600 samples) before sending to Meta. Meta can't handle
+    // micro-fragments — it needs substantial chunks. Skips stale audio when
+    // the backlog exceeds 2s (live > complete).
     senderTimer = setInterval(() => {
       if (!senseActive) return;
-      if (Date.now() - lastProcessTime > 500) _lastRms *= 0.8;   // bar decays when audio stops
+      if (Date.now() - lastProcessTime > 500) _lastRms *= 0.8;
       const now = Date.now();
       if (now - lastSend < 45) return;
-      const elapsed = (now - lastSend) / 1000;
       lastSend = now;
-      // if the backlog exceeds ~2 seconds of audio, skip to the last 1.5s —
-      // deliver NOW rather than a growing history
+
+      // skip stale audio if backlog is huge
       if (pending16k > 32000) {
         let drop = 0;
         while (pcmBuffer.length > 1 && drop < pending16k - 24000) {
@@ -195,19 +193,23 @@ async function enableBrowserSenses() {
           drop += f.length;
           pending16k -= f.length;
         }
-        if (drop > 0) console.log("[senses] backlog trim: skipped " + (drop / 16).toFixed(0) + "ms of stale audio");
+        if (drop > 0) console.log("[senses] backlog trim: skipped " + (drop / 16).toFixed(0) + "ms");
       }
-      const budget = Math.floor(16000 * elapsed * 4 + 736);   // 4x catch-up
-      let sent = 0;
-      while (pcmBuffer.length && sent < budget) {
-        const f = pcmBuffer.shift();
-        sent += f.length;
-        pending16k -= f.length;
-        if (transcribeWs && transcribeWs.readyState === WebSocket.OPEN) {
-          transcribeWs.send(f.buffer);
-        }
+
+      // merge ALL pending frames into ONE chunk and send it
+      if (pcmBuffer.length > 0 && transcribeWs && transcribeWs.readyState === WebSocket.OPEN) {
+        const total = pcmBuffer.reduce((a, p) => a + p.length, 0);
+        const merged = new Int16Array(total);
+        let off = 0;
+        for (const p of pcmBuffer) { merged.set(p, off); off += p.length; }
+        pcmBuffer = [];
+        pending16k = 0;
+        transcribeWs.send(merged.buffer);
+      } else if (pcmBuffer.length > 0) {
+        // WS not open — clear the buffer (stale audio is useless)
+        pcmBuffer = [];
+        pending16k = 0;
       }
-      if (pcmBuffer.length > 60) pcmBuffer.splice(0, pcmBuffer.length - 20);   // absolute cap
     }, 50);
 
     const workletCode = `
