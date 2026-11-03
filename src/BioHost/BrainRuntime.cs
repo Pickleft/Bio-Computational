@@ -528,10 +528,21 @@ public sealed class BrainRuntime : IDisposable
 
     /// <summary>COIN A WORD: when granularity has matured and the current
     /// shade is one no existing word covers, the brain names it itself.</summary>
-    private void MaybeCoinFeeling()    {
+    /// <summary>ONE attempt may be in flight at a time — the snapshot loop
+    /// fires every ~100ms and the LLM call takes ~2s; without the in-flight
+    /// gate a dozen parallel prompts each return a different word for the
+    /// SAME shade and the lexicon floods (caught live on the running brain).</summary>
+    private volatile bool _coinInFlight;
+    private void MaybeCoinFeeling()
+    {
+        if (_coinInFlight) return;
         var f = _idle.Feelings.Last;
         if (!_coined.ShouldCoin(f.Valence, f.Arousal, _net.TimeMs, Granularity.Level)) return;
-        float v = f.Valence, a = f.Arousal;
+        // capture ALL sim-thread values before going async (sim state is
+        // never read from a task)
+        float v = f.Valence, a = f.Arousal, nowMs = _net.TimeMs;
+        string bornName = f.Name, narrative = Trunc(f.Narrative, 80);
+        _coinInFlight = true;
         _ = Task.Run(async () =>
         {
             try
@@ -542,10 +553,10 @@ public sealed class BrainRuntime : IDisposable
                     "for exactly this shade. Rules: ONE word, 3-12 letters, invented (not an existing English word), " +
                     "it should SOUND like what the feeling is (heavy, quick, bright, thin). Reply with the word only.";
                 string user = $"The shade: valence {v:F2} ({(v > 0.15f ? "positive" : v < -0.15f ? "negative" : "flat")}), " +
-                    $"arousal {a:F2} ({(a > 0.5f ? "activated" : "still")}), feeling right now: {f.Name}. Context: " +
-                    $"{Trunc(f.Narrative, 80)}. The word:";
+                    $"arousal {a:F2} ({(a > 0.5f ? "activated" : "still")}), feeling right now: {bornName}. Context: " +
+                    $"{narrative}. The word:";
                 var raw = await _lm.CompleteAsync(system, user, 12);
-                if (_coined.Coin(raw, v, a, _net.TimeMs))
+                if (_coined.Coin(raw, v, a, nowMs))
                 {
                     string word = _coined.All[^1].Word;
                     Note($"COINED-FEELING it named a shade no born word reaches: \"{word}\" (valence {v:F2}, arousal {a:F2})");
@@ -553,6 +564,7 @@ public sealed class BrainRuntime : IDisposable
                 }
             }
             catch { }
+            finally { _coinInFlight = false; }
         });
     }
     // cross-path transcript memory: the same words arriving via realtime AND
