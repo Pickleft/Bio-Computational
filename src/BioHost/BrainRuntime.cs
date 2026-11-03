@@ -42,6 +42,7 @@ public sealed class BrainSnapshot
     public string SleepState { get; set; } = "";
     public float SleepPressure { get; set; }
     public string Feeling { get; set; } = "";
+    public string? FeelingMeaning { get; set; }        // when the feeling is a coined word, its plain meaning
     public string[] CoinedWords { get; set; } = [];   // feeling words it invented itself
     public string FeelingNarrative { get; set; } = "";
     public float Valence { get; set; }
@@ -524,10 +525,18 @@ public sealed class BrainRuntime : IDisposable
         if (_coined.Nearest(f.Valence, f.Arousal) is { } w)
         {
             _coined.Bump(w.Word);
+            _feelingMeaningNow = $"its own word for: {ShadeDescriptor(w.Valence, w.Arousal)}";
             return w.Word;
         }
+        _feelingMeaningNow = null;
         return f.Name;
     }
+    private string? _feelingMeaningNow;
+    /// <summary>Plain-language shade from circumplex coordinates — a coined
+    /// word means nothing to a viewer unless its meaning sits beside it.</summary>
+    private static string ShadeDescriptor(float v, float a) =>
+        (v > 0.15f ? "warm" : v < -0.15f ? "heavy" : "flat") + " + " +
+        (a > 0.55f ? "wired" : a > 0.3f ? "stirring" : "still");
 
     /// <summary>COIN A WORD: when granularity has matured and the current
     /// shade is one no existing word covers, the brain names it itself.</summary>
@@ -6913,7 +6922,8 @@ public sealed class BrainRuntime : IDisposable
             SleepState = _idle.Sleep.State.ToString(),
             SleepPressure = _idle.Sleep.SleepPressure,
             Feeling = FeelingNameNow(),
-            CoinedWords = _coined.All.Select(w => w.Word).ToArray(),
+            FeelingMeaning = _feelingMeaningNow,
+            CoinedWords = _coined.All.Select(w => $"{w.Word} ({ShadeDescriptor(w.Valence, w.Arousal)})").ToArray(),
             FeelingNarrative = _idle.Feelings.Last.Narrative,
             Valence = _idle.Feelings.Last.Valence,
             Arousal = _idle.Feelings.Last.Arousal,

@@ -306,7 +306,7 @@ function render(s) {
   tick++;
   setText("clock", s.SimSeconds.toFixed(0) + "s");
   setText("state", s.SleepState);
-  setText("feeling", s.Feeling || "-");
+  setText("feeling", s.FeelingMeaning ? `${s.Feeling} (${s.FeelingMeaning})` : (s.Feeling || "-"));
   setText("rate", s.MeanRateHz.toFixed(2) + " Hz");
   setText("cost", "$" + s.SpentUsd.toFixed(3));
   setText("senses", (s.CameraLive ? "cam" : "-") + " " + (s.MicLive ? "mic" : "-") + " " + (s.MetaLive ? "api" : "mock"));
