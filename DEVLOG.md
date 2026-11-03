@@ -1896,3 +1896,22 @@ The four tells, reworked:
   that. What?") instead of describing the audio quality ("the way they said it sits
   wrong"). This attacks the disconnect directly: the inner voice processes CONTENT.
 - 278/278 green.
+
+## 2026-11-03 (the thread-agent round) — conversation coherence: the disconnect killer
+
+- THE THREAD AGENT: an internal agent that maintains a running model of the CONVERSATION —
+  what topic we're on, what's unresolved (a question asked but not answered), the emotional
+  undertone, and anything the brain COMMITTED to ("I'll think about that"). Updated by Spark
+  after every exchange; injected into every reply prompt ("WE ARE TALKING ABOUT: X. UNRESOLVED
+  from earlier: Y — come back to it. YOU SAID you would: Z. Follow through.") and into the
+  inner voice as its HIGHEST-WEIGHT candidate ("the conversation thread: you're talking
+  about X. There's something unresolved: Y. Your mind keeps snagging on it.").
+- This is the disconnect killer: the brain stops jumping between unrelated reactions and
+  starts having A CONVERSATION — its inner thoughts connect to its outer words, its replies
+  follow through on its commitments, its tone matches the undertone.
+- Verified live: "I've been thinking about selling my motorcycle" → THREAD: selling my
+  motorcycle → "yeah what do you think?" → "I know how much freedom that bike gave you —
+  you lit up every time you talked about those night rides." (referencing the thread,
+  not jumping topics).
+- Persisted across restarts.
+- 278/278 green.

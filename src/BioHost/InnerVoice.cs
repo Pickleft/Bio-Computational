@@ -49,7 +49,8 @@ public sealed class InnerVoice
         float bondStrength, string attachmentStyle,
         float brightness, string? lastDreamTags,
         int neuronsBornRecently, string? lastStirredMemory,
-        int unsaidCount = 0, string? strongestDesire = null, string? recentFirst = null)
+        int unsaidCount = 0, string? strongestDesire = null, string? recentFirst = null,
+        string? conversationThread = null)
     {
         // weight the candidates by what's ALIVE right now
         var cands = new List<(float Weight, string Seed)>();
@@ -63,7 +64,12 @@ public sealed class InnerVoice
             .All(s => WordOverlap(s, recentArr[^1]) >= 2);
         float rutFactor = inARut ? 0.3f : 1f;
 
-        // 0. A FRESH FIRST still rings: the mind replays a first for a while
+        // 0. THE THREAD: what the conversation is about — the mind stays
+        //    connected to the outer conversation, not just its own weather
+        if (conversationThread is { Length: > 10 })
+            cands.Add((3.8f, conversationThread));
+
+        // 0b. A FRESH FIRST still rings: the mind replays a first for a while
         //    after it happens — the dopamine echo of something unprecedented
         if (recentFirst is { Length: > 2 } firstKind)
             cands.Add((3.4f, $"something just happened for the first time: you {FirstVerb(firstKind)}. It's still ringing in you. Keep this one."));

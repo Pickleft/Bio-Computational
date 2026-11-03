@@ -354,6 +354,8 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>SELF-HEARING: once its voice exists, the brain's own words feed
     /// back into its Lang region as spikes — it listens to itself think.</summary>
     public BioComp.Core.Cognition.LanguageFeedback LangFeedback { get; } = new();
+    /// <summary>THE THREAD AGENT: conversation coherence — what we're talking about.</summary>
+    public BioComp.Core.Cognition.ThreadAgent TheThread { get; } = new();
     /// <summary>THE GOAL ENGINE: self-set, open-ended goals it pursues.</summary>
     public BioComp.Core.Cognition.GoalEngine Goals { get; } = new();
     /// <summary>LEARNED COMMANDS: its action vocabulary grows as it lives.</summary>
@@ -667,7 +669,8 @@ public sealed class BrainRuntime : IDisposable
             Light.BrightnessEma, dreamResidue,
             0, _lastStirredMemory,
             Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What,
-            _net.TimeMs - _recentFirstAtMs < 90_000f ? _recentFirstKind : null);   // a fresh first still rings
+            _net.TimeMs - _recentFirstAtMs < 90_000f ? _recentFirstKind : null,   // a fresh first still rings
+            !TheThread.IsStale(_net.TimeMs) ? TheThread.InnerVoiceSeed : null);   // the conversation thread
     }
     private readonly InnerVoice _ambientVoice = new(() => 0.42);  // deterministic draw for ambient
     private (bool Cam, bool Mic) _devicesLive;
@@ -1089,6 +1092,7 @@ public sealed class BrainRuntime : IDisposable
                 PlaybookLessons = Playbook.Recent(12).Select(l => new { l.AtMs, l.Lesson }).ToArray(),
                 LearnedCommands = Commands.All.Select(c => new { c.Trigger, c.Action, c.Instruction, c.TaughtAtMs, c.SelfInvented, c.TimesUsed }).ToArray(),
                 SelfGoals = Goals.All.Select(g => new { g.What, g.Why, g.Progress, g.SetAtMs, g.CompletedAtMs, g.Abandoned }).ToArray(),
+                ThreadTopic = TheThread.Current.Topic, ThreadUnresolved = TheThread.Current.Unresolved, ThreadUndertone = TheThread.Current.Undertone, ThreadCommitment = TheThread.Current.LastCommitment,
                 TimesLaughed = Her.TimesLaughed, PlayBursts = _play.PlayBursts,
                 // AFFECTIVE DYNAMICS: trust built over days survives the restart —
                 // a restart must never betray the relationship
@@ -1265,6 +1269,13 @@ public sealed class BrainRuntime : IDisposable
                     x.TryGetProperty("Abandoned", out var ga3) && ga3.GetBoolean())));
             if (Goals.Active.Count > 0)
                 Note($"GOALS-REMEMBERED {Goals.Active.Count} active self-set goal(s) survived the restart");
+            if (r.TryGetProperty("ThreadTopic", out var tt))
+                TheThread.Restore(
+                    tt.GetString() ?? "nothing yet",
+                    r.TryGetProperty("ThreadUnresolved", out var tu) ? tu.GetString() : null,
+                    r.TryGetProperty("ThreadUndertone", out var ton) ? ton.GetString() ?? "neutral" : "neutral",
+                    r.TryGetProperty("ThreadCommitment", out var tc) ? tc.GetString() : null,
+                    _net.TimeMs);
             if (r.TryGetProperty("TimesLaughed", out var tl)) Her.RestoreCounters(tl.GetInt32());
             if (r.TryGetProperty("PlayBursts", out var pb)) _play.RestoreBursts(pb.GetInt32());
             // AFFECTIVE DYNAMICS: the relationship's trust survives the restart
@@ -4831,6 +4842,7 @@ public sealed class BrainRuntime : IDisposable
                   (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
                   Playbook.PromptFragment +
                   Goals.PromptFragment +
+                  TheThread.PromptFragment +
                   (Shared.SharedLaughs > 0 ? $"You have {Shared.SharedLaughs} INSIDE JOKE(S) with them — shared laughs you both remember. Reference one if the moment is right. " : "") +
                   (Her.NameRevealed && Her.PrivateName is { } theirWord ? $"You call them \"{theirWord}\" — you told them so. Use it sparingly, in warm moments. " : "") +
                   (Firsts.Firsts.Count > 0 ? $"This life has {Firsts.Firsts.Count} firsts so far (first laugh, first question...). If a FIRST is happening right now, you'd know — mark it. " : "") +
@@ -6144,6 +6156,45 @@ public sealed class BrainRuntime : IDisposable
 
     /// <summary>Compose and speak the reply — called after the thinking
     /// pause. The state read here is the state AFTER thinking, not before.</summary>
+    /// <summary>THE THREAD AGENT updater: after each exchange, Spark refreshes
+    /// the conversation model — topic, what's unresolved, the undertone, and
+    /// anything the brain committed to. Every future reply carries this.</summary>
+    private async Task UpdateThreadAsync(string userText, string? brainReply)
+    {
+        if (_nativeVoiceMode) return;
+        try
+        {
+            string system =
+                "Track the conversation thread. Reply EXACTLY as four lines:\n" +
+                "TOPIC: <what we're talking about, 3-8 words>\n" +
+                "UNRESOLVED: <a question asked but not answered, or a point left hanging — or NONE>\n" +
+                "UNDERTONE: <one word: warm/heavy/playful/tense/curious/tender/neutral>\n" +
+                "COMMITMENT: <something the brain said it would do/remember/feel — or NONE>";
+            var recent = _chat.TakeLast(4).ToList();
+            string user = $"They said: \"{Trunc(userText, 100)}\". " +
+                (brainReply is { } r ? $"The brain replied: \"{Trunc(r, 80)}\". " : "") +
+                $"Earlier: {string.Join(" | ", recent.Select(c => Trunc(c, 40)))}.\n" +
+                $"Current thread: topic={TheThread.Current.Topic}, unresolved={TheThread.Current.Unresolved ?? "none"}.\nFour lines:";
+            var raw = await _lm.CompleteAsync(system, user, 80);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            var topic = ExtractAfter(raw, "TOPIC:");
+            var unresolved = ExtractAfter(raw, "UNRESOLVED:");
+            var undertone = ExtractAfter(raw, "UNDERTONE:");
+            var commitment = ExtractAfter(raw, "COMMITMENT:");
+            if (topic is { Length: > 2 })
+            {
+                bool changed = topic != TheThread.Current.Topic;
+                TheThread.Update(topic,
+                    unresolved is { Length: > 2 } and not "NONE" ? unresolved : null,
+                    undertone is { Length: > 2 } ? undertone : "neutral",
+                    commitment is { Length: > 2 } and not "NONE" ? commitment : null,
+                    _net.TimeMs);
+                if (changed) Note($"THREAD now tracking: {topic} (undertone: {undertone})");
+            }
+        }
+        catch { /* the thread is coherence, not survival */ }
+    }
+
     private async Task DeliverReplyAfterPauseAsync(string text, float pauseMs, int seq)
     {
         try
@@ -6186,15 +6237,13 @@ public sealed class BrainRuntime : IDisposable
                 emoPitch: f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0,
                 emoRate: f.Name == "curious" ? 2 : f.Name == "tired" ? -3 : 0,
                 isDirectReply: true);
+            _ = UpdateThreadAsync(text, nativeReply);   // the thread agent tracks this exchange
             return;
         }
 
         _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
             "typed in the chat - they are talking to you directly; answer them")
-            .ContinueWith(_ =>
-            {
-                // no monologue, daydream, or muttering steps on it
-            });
+            .ContinueWith(t => { _ = UpdateThreadAsync(text, null); });
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
