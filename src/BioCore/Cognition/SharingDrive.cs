@@ -30,6 +30,9 @@ public sealed class SharingDrive
     public int SharesMade { get; private set; }
     /// <summary>Restore the disclosure ledger after a restart.</summary>
     public void Restore(int sharesMade) => SharesMade = sharesMade;
+    /// <summary>Count a share that happened outside Pick (e.g. opening up
+    /// about the running preoccupation when they lean in and ask).</summary>
+    public void NoteShare() => SharesMade++;
     public string? LastKind { get; private set; }
     private float _lastShareMs = -1e9f;
     private readonly HashSet<string> _usedBodies = new();   // no repeats

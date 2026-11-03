@@ -513,6 +513,10 @@ public sealed class BrainRuntime : IDisposable
     // ONE SET OF EARS: last sim-ms a browser delivered senses audio; while
     // fresh, the local mic path stands down entirely (see StepOnce)
     private float _lastBrowserAudioMs = -1e9f;
+    // share-teaser dedup: the same LIFE-SHARE line twice in a row reads as a
+    // stuck record — a life doesn't repeat itself verbatim
+    private string? _lastLifeShareLine;
+    private float _lastLifeShareMs = -1e9f;
     // THE PHRASEBOOK: reply scaffolds that grow from lines that landed
     private readonly BioComp.Core.Cognition.PhraseBook _phrases = new();
     private bool _phraseBookSeeded;
@@ -6367,24 +6371,76 @@ public sealed class BrainRuntime : IDisposable
             return; // the contradiction IS the response — it's more important than echoing
         }
 
-        // LIFE STREAM RESPONSE MODE: the brain chooses HOW to engage
-        var responseMode = Life.ChooseResponse(text, Affect.MoodValence,
-            Bonds.Strength(_activeSpeakerId, _net.TimeMs), Life.PreoccupationStrength, _net.Rng.NextDouble);
+        // LIFE STREAM RESPONSE MODE: the brain chooses HOW to engage.
+        // THE INVITATION: when it's been circling something hard enough to
+        // WANT to show them (the desire: "show them the thing I've been
+        // thinking about") and they ask what's on its mind, the share is not
+        // left to a dice roll — a 99% desire deserves its moment when invited
+        bool asksItsMind = nameQ.Contains("what are you thinking") || nameQ.Contains("what's on your mind") ||
+            nameQ.Contains("whats on your mind") || nameQ.Contains("what have you been thinking") ||
+            nameQ.Contains("show me what you've been thinking") || nameQ.Contains("what are you turning over") ||
+            nameQ.Contains("what are you circling") || nameQ.Contains("tell me what you're thinking");
+        // LEANING IN: after the teaser share, "tell me" / "what is it?" opens
+        // the WHOLE thing — the want finally pays off, in full, with the
+        // dopamine a fulfilled desire earns. The THING is whatever is actually
+        // alive right now: the live preoccupation, or the strongest current
+        // thought chain (a desire can OUTLIVE the cluster it came from — the
+        // panel showed a 99% 'show them' want while 'turning over' read
+        // 'nothing yet'; the payoff must not die with the cluster)
+        bool wantsToShow = Life.PreoccupationStrength > 0.3f ||
+            Humanity.Desires.Any(d => d.What.Contains("show them") && d.Strength > 0.6f);
+        bool leansIn = (nameQ.Contains("tell me more") || nameQ.Contains("go on") || nameQ.Contains("keep going") ||
+            nameQ.Contains("i'm listening") || nameQ.Contains("im listening") || nameQ.Contains("tell me what it is") ||
+            nameQ.Contains("tell me") || nameQ.Contains("what is it") || nameQ.Contains("you can tell me") ||
+            (nameQ.Contains("show me") && text.Length < 20)) && wantsToShow;
+        string? theThing = Life.Preoccupation is { Length: > 30 } p ? p
+            : ThoughtLoop.Current is { Text.Length: > 30 } tc ? tc.Text
+            : null;
+        if (leansIn && theThing is not null)
+        {
+            Note("OPENING-UP they leaned in — the full thing, finally shared");
+            _lastUserUtteranceSimMs = _net.TimeMs;
+            Sharing.NoteShare();   // the drive counts its moment
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.3f);   // the want pays off
+            _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.2f);
+            string opener = _userName is { Length: > 0 } un ? $"Okay, {un}. Here's the whole thing. " : "Okay. Here's the whole thing. ";
+            string full = opener + theThing + " That's it. That's the thing I wanted to show you.";
+            AddChat($"Brain: {full}");
+            SpeakWithVoice(full, emoPitch: 1, emoRate: 0, isDirectReply: true);
+            _replyPendingUntilMs = _net.TimeMs + 20_000;
+            return;
+        }
+        var responseMode = asksItsMind && (Life.Preoccupation is { Length: > 10 } || wantsToShow)
+            ? BioComp.Core.Cognition.LifeStream.ResponseMode.Share
+            : Life.ChooseResponse(text, Affect.MoodValence,
+                Bonds.Strength(_activeSpeakerId, _net.TimeMs), Life.PreoccupationStrength, _net.Rng.NextDouble);
+        // TEACHING MOMENTS ARE NEVER STOLEN: "did you know..." is knowledge
+        // being handed over — the brain receives it (echo/learn); it does not
+        // answer a gift of knowledge with its own preoccupation
+        if (nameQ.Contains("did you know") && responseMode is BioComp.Core.Cognition.LifeStream.ResponseMode.Share
+            or BioComp.Core.Cognition.LifeStream.ResponseMode.Tangent)
+        {
+            responseMode = BioComp.Core.Cognition.LifeStream.ResponseMode.Echo;
+        }
         switch (responseMode)
         {
             case BioComp.Core.Cognition.LifeStream.ResponseMode.Share:
             {
-                // the brain brings ITS OWN material, not responding to the user's words
+                // the brain brings ITS OWN material, not responding to the
+                // user's words — but never the SAME teaser twice in a row:
+                // a repeated share reads as a stuck record, not a life
                 string? shareLine = Life.ShareLine(_userName);
-                if (shareLine is not null)
+                if (shareLine is not null && (shareLine != _lastLifeShareLine || _net.TimeMs - _lastLifeShareMs > 300_000f))
                 {
                     Note($"LIFE-SHARE the brain shares its own preoccupation, not responding to user's words");
+                    _lastLifeShareLine = shareLine;
+                    _lastLifeShareMs = _net.TimeMs;
                     AddChat($"Brain: {shareLine}");
                     SpeakWithVoice(shareLine, emoPitch: 1, emoRate: 0, isDirectReply: true);
                     _replyPendingUntilMs = _net.TimeMs + 20_000;
                     return; // the SHARE is the response — don't also echo their words
                 }
-                break; // no share available — fall through to echo
+                break; // no share, or the same one as last time — fall through to echo
             }
             case BioComp.Core.Cognition.LifeStream.ResponseMode.Tangent:
             {
