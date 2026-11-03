@@ -198,7 +198,11 @@ async function pumpSpeech() {
     });
   }
 
-  window.brainBrowserSpeaking = false;
+  // hold the echo-duck a beat longer than the sound: the mic still carries
+  // the last syllable's echo and Meta's endpointing lags ~400ms — without
+  // the tail, the brain's own final words ghost-transcribe as the person's
+  window.brainBrowserSpeaking = true;
+  setTimeout(() => { if (!speakPlaying) window.brainBrowserSpeaking = false; }, 450);
   speakPlaying = false;
   pumpSpeech();
 }

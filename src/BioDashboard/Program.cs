@@ -280,6 +280,7 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
         return;
     }
     Console.WriteLine("[transcribe] Meta real-time ASR connected");
+    runtime.RealtimeEarsUp();   // batch path stands down while these ears live
 
     var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
     var buffer = new byte[16384];
@@ -355,9 +356,20 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
                 if (evt.IsFinal && !string.IsNullOrWhiteSpace(evt.Text) && evt.Text.Length > 1)
                 {
                     string trimmed = evt.Text.Trim().TrimEnd('.', '!', '?', ',', ' ');
+                    // ECHO DROP: the brain's own voice is playing through
+                    // speakers — a mic pointed at them "hears" the brain's
+                    // words. Those are not the person speaking.
+                    if (runtime.EarsDucked)
+                    {
+                        Console.WriteLine($"[transcribe] ECHO-DROPPED (brain speaking): \"{trimmed}\"");
+                    }
+                    else if (IsGhostPhrase(trimmed))
+                    {
+                        Console.WriteLine($"[transcribe] GHOST-PHRASE filtered: \"{trimmed}\"");
+                    }
                     // lone filler words from the ASR are hallucinations — only
                     // accept them if they're part of a longer phrase
-                    bool isLoneFiller = trimmed.Length <= 5 &&
+                    else if (trimmed.Length <= 5 &&
                         (trimmed.Equals("yeah", StringComparison.OrdinalIgnoreCase) ||
                          trimmed.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
                          trimmed.Equals("yeah.", StringComparison.OrdinalIgnoreCase) ||
@@ -368,15 +380,17 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
                          trimmed.Equals("hmm", StringComparison.OrdinalIgnoreCase) ||
                          trimmed.Equals("oh", StringComparison.OrdinalIgnoreCase) ||
                          trimmed.Equals("okay", StringComparison.OrdinalIgnoreCase) ||
-                         trimmed.Equals("ok", StringComparison.OrdinalIgnoreCase));
-
-                    if (isLoneFiller)
+                         trimmed.Equals("ok", StringComparison.OrdinalIgnoreCase)))
                     {
                         Console.WriteLine($"[transcribe] FILTERED hallucinated filler: \"{trimmed}\"");
                     }
                     else if (trimmed == lastSent && (DateTime.UtcNow - lastSentAt).TotalSeconds < 10)
                     {
                         Console.WriteLine($"[transcribe] DEDUPED repeated: \"{trimmed}\"");
+                    }
+                    else if (!runtime.FinalTranscriptIsNew(evt.Text))
+                    {
+                        Console.WriteLine($"[transcribe] CROSS-PATH duplicate dropped: \"{trimmed}\"");
                     }
                     else
                     {
@@ -397,6 +411,7 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     }, cts.Token);
 
     await Task.WhenAll(audioLoop, transcriptLoop);
+    runtime.RealtimeEarsDown();   // batch path resumes as the fallback ears
     try { await browserWs.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None); } catch { }
     Console.WriteLine("[transcribe] session closed");
 });
@@ -475,6 +490,25 @@ app.Map("/ws", async context =>
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+
+// ASR hallucination artifacts: streaming models trained on subtitles invent
+// these from silence, fans, and room noise. A lone occurrence is a ghost —
+// a person mid-conversation says none of them as a complete utterance.
+static bool IsGhostPhrase(string s)
+{
+    if (s.Length > 28) return false;
+    return s.ToLowerInvariant().Trim() switch
+    {
+        "thank you for watching" or "thanks for watching" or "thank you for watching." or
+        "thank you" or "thanks" or "thank you." or "thanks." or
+        "subscribe" or "please subscribe" or
+        "bye bye" or "bye." or
+        "you" or "yeah yeah"
+            => true,
+        _ => false,
+    };
+}
+
 try
 {
     await app.RunAsync();

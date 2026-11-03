@@ -457,6 +457,47 @@ public sealed class BrainRuntime : IDisposable
     private float[] _stimulusPos = [0.5f, 0.5f];
     private float _lastNoveltyMs = -1e9f;
     private float _lastVocalizationMs = -1e9f;
+    // EARS PLUMBING: realtime ASR sessions (WebSocket) register here so the
+    // batch VAD path can stand down — one set of words, one path, ever.
+    private int _realtimeEarsSessions;
+    /// <summary>True while at least one realtime ASR session is streaming.</summary>
+    public bool RealtimeEarsActive => _realtimeEarsSessions > 0;
+    /// <summary>Register a live realtime ASR session (batch path stands down).</summary>
+    public void RealtimeEarsUp() => _realtimeEarsSessions++;
+    /// <summary>Unregister a realtime ASR session (batch path resumes as fallback).</summary>
+    public void RealtimeEarsDown() => _realtimeEarsSessions = Math.Max(0, _realtimeEarsSessions - 1);
+    /// <summary>The brain's voice is playing right now (echo window): a mic
+    /// pointed at the speakers would transcribe the brain's OWN words — the
+    /// realtime path drops finals during this window.</summary>
+    public bool EarsDucked => _speech.IsSpeaking;
+    // cross-path transcript memory: the same words arriving via realtime AND
+    // batch must reach HumanSaid exactly once
+    private readonly List<(string Text, double AtMs)> _recentFinalTexts = [];
+    /// <summary>True if this exact transcript (or one containing it) hasn't
+    /// been handled in the last 12s — the single entry gate both ASR paths
+    /// consult before the words reach the mind.</summary>
+    public bool FinalTranscriptIsNew(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        string norm = NormalizeTranscript(text);
+        lock (_recentFinalTexts)
+        {
+            _recentFinalTexts.RemoveAll(t => _net.TimeMs - t.AtMs > 12_000);
+            foreach (var (prev, _) in _recentFinalTexts)
+            {
+                if (prev == norm) return false;
+                // containment: the batch clip often repeats realtime words
+                // with a little extra pre/post roll around them
+                if (norm.Length >= 8 && prev.Contains(norm, StringComparison.Ordinal)) return false;
+                if (prev.Length >= 8 && norm.Contains(prev, StringComparison.Ordinal)) return false;
+            }
+            _recentFinalTexts.Add((norm, _net.TimeMs));
+            if (_recentFinalTexts.Count > 12) _recentFinalTexts.RemoveAt(0);
+        }
+        return true;
+    }
+    private static string NormalizeTranscript(string s) =>
+        new(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
     private bool _lonelyExpressedOnce; // avoidant longing stays silent: note it once per missing episode
     private int _helplessNotedEpisode;
     private float _lastLonelyCallMs = -1e9f;
@@ -3242,6 +3283,14 @@ public sealed class BrainRuntime : IDisposable
                 return;
             }
             Note($"VOICE-CLIP {(clip.Length / 16)}ms rms {rms:F3} -> \"{Trunc(tr.Transcript, 40)}\"");
+            // CROSS-PATH DEDUP: if the realtime ears already delivered these
+            // words (they usually win — they're faster), this batch clip is a
+            // duplicate and must not reach the mind a second time
+            if (!FinalTranscriptIsNew(tr.Transcript))
+            {
+                Note($"BATCH superseded — realtime already delivered \"{Trunc(tr.Transcript, 30)}\"");
+                return;
+            }
             // ...and reject a lone filler word unless the voice was clearly real
             string trimmed = tr.Transcript?.Trim().TrimEnd('.', '!', '?', ',', ' ') ?? "";
             // BATCH DEDUP: don't process the SAME short transcript repeatedly
@@ -3954,7 +4003,10 @@ public sealed class BrainRuntime : IDisposable
             // transcription
             int startIdx = Math.Max(0, _audioBuffer.Count - (int)((_net.TimeMs - _speechStartMs + 500f + 300f) * 16));
             var clip = _audioBuffer.Skip(startIdx).ToArray();
-            if (clip.Length > 4800) _ = HandleSpeechClipAsync(clip);  // 0.3s minimum
+            // ONE PATH, EVER: while the realtime ears are streaming, the batch
+            // path stands down — double transcription made the brain hear the
+            // same words twice (and hallucinate ghosts from clip pre-roll).
+            if (clip.Length > 4800 && !RealtimeEarsActive) _ = HandleSpeechClipAsync(clip);  // 0.3s minimum
         }
     }
 

@@ -6,6 +6,11 @@
 
 let senseActive = false;
 let _lastRms = 0;
+// CLEAN AUDIO FOR THE ASR: a slow DC-bias tracker (some mics sit off zero and
+// waste headroom) and a gentle AGC that lifts quiet speech to a healthy
+// level — streaming ASR mishears quiet audio far more than loud audio.
+let _dcEma = 0;
+let _agcGain = 1;
 let _levelRafStarted = false;
 function _renderLevelBar() {
   if (!_levelRafStarted) {
@@ -134,14 +139,28 @@ async function enableBrowserSenses() {
 
     const handleAudioFrame = (input) => {
       lastProcessTime = Date.now();
-      // measure level for local display — cached, rendered by rAF
-      let sum = 0;
-      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      // measure level for local display — cached, rendered by rAF (raw level,
+      // before any gain: the bar shows what the MIC hears, not what we send)
+      let sum = 0, mean = 0;
+      for (let i = 0; i < input.length; i++) { sum += input[i] * input[i]; mean += input[i]; }
+      mean /= input.length;
       const rms = Math.sqrt(sum / input.length);
       _lastRms = rms;
       _renderLevelBar();
 
-      // resample to 16 kHz
+      // DC bias: track slowly (time constant ~seconds — a fast tracker would
+      // eat the speech fundamental, which lives at 80-250 Hz)
+      _dcEma = _dcEma * 0.9995 + mean * 0.0005;
+
+      // AGC: adapt gain ONLY on voiced frames (silence must not crank the
+      // gain to max), target rms ~0.07, never below 1 (we lift, not squash),
+      // cap at 6x (lifting noise 20x would just amplify ghosts)
+      if (rms > 0.004) {
+        const desired = Math.min(6, Math.max(1, 0.07 / rms));
+        _agcGain = _agcGain * 0.9 + desired * 0.1;
+      }
+
+      // resample to 16 kHz (DC-removed and gain-lifted)
       const ratio = audioCtx.sampleRate / 16000;
       const outLen = Math.max(1, Math.floor(input.length / ratio));
       const pcm = new Int16Array(outLen);
@@ -149,8 +168,10 @@ async function enableBrowserSenses() {
         for (let i = 0; i < outLen; i++) {
           const pos = i * ratio;
           const i0 = Math.floor(pos), frac = pos - i0;
-          const v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
-          pcm[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
+          let v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
+          v = (v - _dcEma) * _agcGain;
+          if (v > 1) v = 1; else if (v < -1) v = -1;
+          pcm[i] = Math.round(v * 32767);
         }
         // BATCH: collect voiced PCM, POST every 100ms (not per-frame)
         _batchPcm.push(pcm);
@@ -175,14 +196,17 @@ async function enableBrowserSenses() {
     };
 
     // PACED SENDER: merges small AudioWorklet frames (~2.6ms each) into
-    // ~100ms chunks (1600 samples) before sending to Meta. Meta can't handle
-    // micro-fragments — it needs substantial chunks. Skips stale audio when
-    // the backlog exceeds 2s (live > complete).
+    // ~100ms chunks before sending to Meta. Micro-fragments can't be
+    // transcribed; 100ms is the sweet spot for streaming ASR (steady ingress,
+    // clean endpointing). Skips stale audio when the backlog exceeds 2s
+    // (live > complete). While the BRAIN is speaking, sends zeros instead —
+    // the mic would otherwise pick the brain's own voice off the speakers and
+    // Meta would transcribe it (echo ghosts). Zeros keep the session clock.
     senderTimer = setInterval(() => {
       if (!senseActive) return;
       if (Date.now() - lastProcessTime > 500) _lastRms *= 0.8;
       const now = Date.now();
-      if (now - lastSend < 45) return;
+      if (now - lastSend < 95) return;
       lastSend = now;
 
       // skip stale audio if backlog is huge
@@ -204,7 +228,12 @@ async function enableBrowserSenses() {
         for (const p of pcmBuffer) { merged.set(p, off); off += p.length; }
         pcmBuffer = [];
         pending16k = 0;
-        transcribeWs.send(merged.buffer);
+        if (window.brainBrowserSpeaking === true) {
+          // ECHO DUCK: the brain is talking — send silence, not its own voice
+          transcribeWs.send(new Int16Array(total).buffer);
+        } else {
+          transcribeWs.send(merged.buffer);
+        }
       } else if (pcmBuffer.length > 0) {
         // WS not open — clear the buffer (stale audio is useless)
         pcmBuffer = [];
