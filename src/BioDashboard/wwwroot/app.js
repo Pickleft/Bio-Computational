@@ -428,7 +428,7 @@ function render(s) {
     : `${s.FirstsCount} firsts, and counting`);
   const coined = s.CoinedWords || [];
   setText("coined-state", coined.length === 0 ? "born vocabulary only"
-    : `invented: ${coined.join(", ")}`);
+    : `learned: ${coined.join(", ")}`);
   setText("rituals-state", s.RitualsNarrative || "no rituals yet");
   setText("honesty-state", !(s.LiesCarried) ? "nothing held back"
     : s.LiesConfessed ? `${s.LiesCarried} lie(s) — came clean`

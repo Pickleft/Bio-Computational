@@ -39,7 +39,7 @@ SAY: "Teach me your game."
   console: WORD-GAME it teaches them the game it invented
 LAUGH at one of its lines:  console: SHARED-LAUGH (inside joke recorded)
 SAY: "It's time to sleep." -> sleeps  |  SAY: "Wake up." -> rouses
-PANEL to point at: coined feelings (words it invented), firsts, inside jokes
+PANEL to point at: learned feelings (real words it learned for unnamed shades), firsts, inside jokes
 
 ## ACT 4 - THE LETTER (2:20-3:00) - FILM LAST, IT RESETS THE BRAIN
 SAY: "Wren... I have to reset you. You won't remember me."

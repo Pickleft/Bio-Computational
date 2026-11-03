@@ -42,7 +42,9 @@ public sealed class CoinedLexicon
         // ONE word — the prompt asks for one, the lexicon enforces it
         if (raw.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Length != 1) return false;
         string word = new(raw.Trim().ToLowerInvariant().Where(char.IsLetter).ToArray());
-        if (word.Length is < 3 or > 12) return false;
+        if (word.Length is < 3 or > 14) return false;
+        // learning a word it was born with teaches nothing
+        if (word is "tired" or "bored" or "curious" or "stressed" or "calm" or "restless") return false;
         lock (_gate)
         {
             if (_words.Any(w => w.Word == word)) return false;

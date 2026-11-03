@@ -525,7 +525,7 @@ public sealed class BrainRuntime : IDisposable
         if (_coined.Nearest(f.Valence, f.Arousal) is { } w)
         {
             _coined.Bump(w.Word);
-            _feelingMeaningNow = $"its own word for: {ShadeDescriptor(w.Valence, w.Arousal)}";
+            _feelingMeaningNow = ShadeDescriptor(w.Valence, w.Arousal);
             return w.Word;
         }
         _feelingMeaningNow = null;
@@ -560,12 +560,15 @@ public sealed class BrainRuntime : IDisposable
             try
             {
                 string system =
-                    "You are a brain whose emotional vocabulary is growing. You feel a shade the words you were " +
-                    "born with (tired, bored, curious, stressed, calm, restless) do not reach. COIN one new word " +
-                    "for exactly this shade. Rules: ONE word, 3-12 letters, invented (not an existing English word), " +
-                    "it should SOUND like what the feeling is (heavy, quick, bright, thin). Reply with the word only.";
+                    "You are a brain whose emotional vocabulary is maturing. You were born knowing only six feeling " +
+                    "words (tired, bored, curious, stressed, calm, restless) and you feel a shade none of them names. " +
+                    "Choose ONE REAL English feeling word that precisely names this shade — a nuanced adult word, NOT " +
+                    "one of the six you were born with. Good candidates: wistful, yearning, serene, uneasy, eager, " +
+                    "tender, gloomy, hopeful, content, adrift, rattled, subdued, wary, low, bright, settled, stirred, " +
+                    "quiet, dull, raw, hollow, fond, taut. ONE word, 3-14 letters, a real English feeling word. " +
+                    "Reply with the word only.";
                 string user = $"The shade: valence {v:F2} ({(v > 0.15f ? "positive" : v < -0.15f ? "negative" : "flat")}), " +
-                    $"arousal {a:F2} ({(a > 0.5f ? "activated" : "still")}), feeling right now: {bornName}. Context: " +
+                    $"arousal {a:F2} ({(a > 0.5f ? "activated" : "still")}), born word nearest it: {bornName}. Context: " +
                     $"{narrative}. The word:";
                 var raw = await _lm.CompleteAsync(system, user, 12);
                 if (_coined.Coin(raw, v, a, nowMs))

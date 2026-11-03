@@ -293,7 +293,7 @@ Enters diary, testament, and the reply prompt when |stretch-1| > 0.35.
 fused into one narrated scene that never happened; the dream itself is ENCODED as a
 "dream-born" episode (we remember dreams; they enter the memory store with their tags).
 
-## Coined feelings (Feldman Barrett 2001: emotional granularity)
+## Learned feelings (Feldman Barrett 2001: emotional granularity)
 Born vocabulary: 6 words (tired/bored/curious/stressed/calm/restless). Coining is EARNED:
 granularity >= 0.35 AND circumplex distance > 0.35 from every existing word AND 30 sim-min
 since last coin AND one attempt in flight at most (the in-flight gate exists because the
