@@ -1056,10 +1056,15 @@ if (nativeBtn) {
       nativeBtn.textContent = on ? "\u26A1 direct: ON" : "\u26A1 direct";
     } catch (e) { console.warn(e); }
   });
-  // reflect server state on load
+  // reflect server state on load — CLASS AND TEXT both, or the button can
+  // read "direct" while the runtime is IN direct mode (it boots native
+  // unless launched with --llm-cortex; the UI must never lie about the mode)
   setInterval(() => {
-    if (lastSnap && lastSnap.NativeVoice !== undefined)
-      nativeBtn.classList.toggle("on", !!lastSnap.NativeVoice);
+    if (lastSnap && lastSnap.NativeVoice !== undefined) {
+      const on = !!lastSnap.NativeVoice;
+      nativeBtn.classList.toggle("on", on);
+      nativeBtn.textContent = on ? "\u26A1 direct: ON (no LLM replies)" : "\u26A1 cortex replies";
+    }
   }, 4000);
 }
 document.querySelectorAll("#quick-chips [data-fill]").forEach((btn) => {
