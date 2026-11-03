@@ -277,8 +277,10 @@ dotnet run --project src/BioLab -c Release -- validate    # DRM sweep + extincti
 
 - `docs/ARCHITECTURE-AUDIT.md` — integrated architecture vs orchestration, answered at the source level (the 20 closed parametric loops, and the EVOCOG section-by-section alignment)
 - `docs/plan/PARAMETERS-SEED.md` — every parameter with its citation
+- `RESEARCH.md` — what the platform demonstrates, what is computed vs authored, honest limitations
 - `DEVLOG.md` — the day-by-day build log
 - `demo/SCRIPT.md` — the lived-experience script
+- `demo/CAMERA-SHEET.md` — the one-page filming sheet with console receipts per beat
 
 ## Honest limitations
 
