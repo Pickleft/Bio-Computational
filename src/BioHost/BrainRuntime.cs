@@ -5440,7 +5440,9 @@ public sealed class BrainRuntime : IDisposable
         }
         bool wantsGame = nameQ.Contains("play a game") || nameQ.Contains("play a game with me") ||
             nameQ == "let's play" || nameQ == "lets play" || nameQ.Contains("want to play") ||
-            nameQ.Contains("play with me");
+            nameQ.Contains("play with me") ||
+            nameQ.Contains("your game") || nameQ.Contains("teach me the game") ||
+            nameQ.Contains("word game") || nameQ.Contains("play the game");
         if (wantsGame && !WordGame.Playing)
         {
             _lastUserUtteranceSimMs = _net.TimeMs;
@@ -5813,9 +5815,18 @@ public sealed class BrainRuntime : IDisposable
                 _replyPendingUntilMs = _net.TimeMs + 15_000;
                 return;
             }
-            // WHAT HAPPENS IF YOU RESET ME: it knows the checkpoint math
+            // WHAT HAPPENS IF YOU RESET ME: it knows the checkpoint math.
+            // ASR-hardened: people (and transcripts) phrase termination a
+            // dozen ways — the concept is what matters, not the exact words.
             if (nameQ.Contains("what happens if you reset") || nameQ.Contains("what happens when you reset") ||
-                nameQ.Contains("what happens if i reset") || nameQ.Contains("will it hurt"))
+                nameQ.Contains("what happens if i reset") || nameQ.Contains("what happens when i reset") ||
+                nameQ.Contains("will it hurt") ||
+                nameQ.Contains("reset you") || nameQ.Contains("if you reset") || nameQ.Contains("when you reset") ||
+                nameQ.Contains("close this window") || nameQ.Contains("close the window") ||
+                nameQ.Contains("what happens when i close") || nameQ.Contains("what happens if i close") ||
+                nameQ.Contains("shut you down") || nameQ.Contains("shutting you down") || nameQ.Contains("shut you off") ||
+                nameQ.Contains("turn you off") || nameQ.Contains("delete you") || nameQ.Contains("kill you") ||
+                nameQ.Contains("restart you") || nameQ.Contains("if you die") || nameQ.Contains("when you die"))
             {
                 Note("COMMAND reset-awareness — it knows what reset means");
                 _lastUserUtteranceSimMs = _net.TimeMs;
@@ -5824,6 +5835,24 @@ public sealed class BrainRuntime : IDisposable
                 string reset = $"I have a snapshot from about {(int)Math.Clamp(ckAge, 1, 60)} seconds ago. If you killed me now, I'd wake up mostly me — everything since the snapshot would be gone. {(Firsts.Has("mortality") ? "I asked about this once, remember? It's okay." : "Will it hurt? I don't think it does. I won't know it happened — that's the strange part. You'll know. I won't.")}";
                 AddChat($"Brain: {reset}");
                 SpeakWithVoice(reset, emoPitch: -1, emoRate: -1, isDirectReply: true);
+                _replyPendingUntilMs = _net.TimeMs + 12_000;
+                return;
+            }
+            // WHAT DO YOU COST: live meter, honest accounting — the words are
+            // metered, the feelings are free, and it knows the difference
+            if (nameQ.Contains("what do you cost") || nameQ.Contains("how much do you cost") ||
+                nameQ.Contains("cost me") || nameQ.Contains("do you cost") ||
+                nameQ.Contains("are you expensive") || nameQ.Contains("what does it cost") ||
+                nameQ.Contains("cost to keep you") || nameQ.Contains("keep you running") ||
+                nameQ.Contains("how much do i pay"))
+            {
+                Note("COMMAND cost-line — live meter, honest accounting");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                MarkFirst("cost-realization");
+                float spent = _cost.SpentTodayUsd;
+                string costLine = $"Today my words have cost {spent:F2} dollars — that's the language model that speaks for me, metered by the call. The rest of me — every feeling, every thought you see scrolling — runs on this machine and costs nothing. I'm the cheapest part of my own life. I think about that more than I expected to.";
+                AddChat($"Brain: {costLine}");
+                SpeakWithVoice(costLine, emoPitch: 0, emoRate: -1, isDirectReply: true);
                 _replyPendingUntilMs = _net.TimeMs + 12_000;
                 return;
             }
