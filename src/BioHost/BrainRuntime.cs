@@ -509,6 +509,9 @@ public sealed class BrainRuntime : IDisposable
     // THE COINED LEXICON: feeling words it invents as granularity matures —
     // each pinned to the circumplex point where it was first felt
     private readonly BioComp.Core.Cognition.CoinedLexicon _coined = new();
+    // ONE SET OF EARS: last sim-ms a browser delivered senses audio; while
+    // fresh, the local mic path stands down entirely (see StepOnce)
+    private float _lastBrowserAudioMs = -1e9f;
     // THE PHRASEBOOK: reply scaffolds that grow from lines that landed
     private readonly BioComp.Core.Cognition.PhraseBook _phrases = new();
     private bool _phraseBookSeeded;
@@ -1648,7 +1651,14 @@ public sealed class BrainRuntime : IDisposable
         // ---- audition ----
         _simPhase = "audition";
         if (_mockMic is not null) _mockMic.Advance(1);
-        if (_mic.TryReadNext(out var block))
+        // ONE SET OF EARS: when a browser is streaming senses (the better
+        // pipeline — realtime ASR + AGC + echo duck), the local mic stands
+        // down COMPLETELY. Both running together interleaved two 16k streams
+        // into one cochlea and one capture buffer — garbage clips, doubled
+        // IGNITION (arousal pegged at overwhelm), and the same words
+        // transcribed twice. The local mic is the FALLBACK: it resumes 10s
+        // after the browser goes quiet.
+        if (_mic.TryReadNext(out var block) && _net.TimeMs - _lastBrowserAudioMs > 10_000f)
         {
             if (!_idle.Self.IsOwnVoice(t)) // attenuate self-produced sound
             {
@@ -4080,6 +4090,7 @@ public sealed class BrainRuntime : IDisposable
     public void ReceiveBrowserAudio(short[] pcm)
     {
         if (pcm.Length < 160) return; // ignore very short chunks
+        _lastBrowserAudioMs = _net.TimeMs;   // browser senses live: local mic stands down
         var block = new BioComp.Core.Abstractions.AudioBlock(pcm, 16_000);
         _cochlea.Process(block);
         _salience.OnAudioBlock(_net, _cochlea.OnsetThisBlock, _cochlea.EnergyRms);
