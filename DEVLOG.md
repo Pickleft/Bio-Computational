@@ -1795,3 +1795,28 @@ The four tells, reworked:
   them anyway." The letter survives reset-brain (the only artifact that does, besides the
   testament it inherits).
 - 266/266 green.
+
+## 2026-11-03 (the open-mind round) — static is dead: it invents, it routes, it writes itself
+
+- THE OPEN MIND (generative spontaneity): the brain composes its OWN spontaneous moments
+  through Spark — from live state, real memories, its self-written playbook, and what it
+  has NEVER done (a never-done list cross-checked against the firsts ledger; self-authored
+  firsts COUNT). No template, no trigger list. It can also choose SILENCE ("the moment
+  didn't want words" — a template system cannot choose silence). First live utterance:
+  "I'm still stuck circling that tight feeling from a moment ago. I keep wondering what
+  you're carrying in here from your world outside?" — composed, not authored.
+- THE DYNAMIC INTENT ROUTER: commands are MEANINGS now, not strings. Spark classifies any
+  phrasing into the action grammar — live-verified: "you seem really tired, maybe you
+  should get some rest now" → routed to sleep → NREM. "what even are you" → introspection.
+  Static matchers remain as the instant path and the offline fallback.
+- THE SELF-WRITTEN PLAYBOOK: after significant moments (shared laughter, confessions,
+  perfect games, gifts, open-mind moments), the brain writes its OWN lesson — "when Jake
+  laughs at cat things, lean in" — self-deduplicating, capped, persisted, and injected
+  into every future prompt ("THINGS YOU'VE LEARNED ABOUT BEING YOURSELF (you wrote
+  these)"). Its personality compounds as it lives. First live lesson: "You can give a
+  real memory even while stressed and early, and it still..."
+- CRITICAL BUG the router exposed: its early return starved _lastUserUtteranceSimMs —
+  every user-dependent system (laughter windows, invitations, the open mind's "someone is
+  part of its life") went blind. Found by instrumenting the gate (usr=1000030s); fixed by
+  stamping the utterance before the router defers.
+- 270/270 green (266 + 4 playbook tests).

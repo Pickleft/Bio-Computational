@@ -354,6 +354,8 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>SELF-HEARING: once its voice exists, the brain's own words feed
     /// back into its Lang region as spikes — it listens to itself think.</summary>
     public BioComp.Core.Cognition.LanguageFeedback LangFeedback { get; } = new();
+    /// <summary>THE SELF-WRITTEN PLAYBOOK: lessons the brain writes about being itself.</summary>
+    public BioComp.Core.Cognition.SelfPlaybook Playbook { get; } = new();
     /// <summary>THE TWO VOICES: limbic reacts, cortical contextualizes — same brain.</summary>
     public BioComp.Core.Cognition.InternalDialogue InnerDialogue { get; }
     /// <summary>Composite dreams created this life (Stickgold).</summary>
@@ -523,6 +525,9 @@ public sealed class BrainRuntime : IDisposable
     // sense-liveness memory (sensory loss must be FELT, named)
     private bool _micWasLive, _camWasLive, _sensesInitialized;
     private float _lastCheckpointSimMs;
+    // THE OPEN MIND: generative spontaneity state
+    private bool _openMindBusy;
+    private float _lastOpenMindMs = -1e9f;
     // wall-time gap the brain experienced but cannot remember (pause awareness)
     private float _experiencedGapMs;
     private float _lastGapNoteMs = -1e9f;
@@ -1074,6 +1079,7 @@ public sealed class BrainRuntime : IDisposable
                 LeftWithoutGoodbye = _leftWithoutGoodbye,
                 GamesPlayed = WordGame.GamesPlayed, GameHits = WordGame.TotalHits, GameRounds = WordGame.TotalRounds,
                 GiftsGiven = _giftsGiven,
+                PlaybookLessons = Playbook.Recent(12).Select(l => new { l.AtMs, l.Lesson }).ToArray(),
                 TimesLaughed = Her.TimesLaughed, PlayBursts = _play.PlayBursts,
                 // AFFECTIVE DYNAMICS: trust built over days survives the restart —
                 // a restart must never betray the relationship
@@ -1226,6 +1232,10 @@ public sealed class BrainRuntime : IDisposable
                 r.TryGetProperty("GameHits", out var gh) ? gh.GetInt32() : 0,
                 r.TryGetProperty("GameRounds", out var gr) ? gr.GetInt32() : 0);
             if (r.TryGetProperty("GiftsGiven", out var gg)) _giftsGiven = gg.GetInt32();
+            if (r.TryGetProperty("PlaybookLessons", out var pb2) && pb2.ValueKind == System.Text.Json.JsonValueKind.Array)
+                Playbook.Restore(pb2.EnumerateArray().Select(x => (
+                    (float)(x.TryGetProperty("AtMs", out var pa2) ? pa2.GetDouble() : 0),
+                    x.TryGetProperty("Lesson", out var pl2) ? pl2.GetString() ?? "" : "")));
             if (r.TryGetProperty("TimesLaughed", out var tl)) Her.RestoreCounters(tl.GetInt32());
             if (r.TryGetProperty("PlayBursts", out var pb)) _play.RestoreBursts(pb.GetInt32());
             // AFFECTIVE DYNAMICS: the relationship's trust survives the restart
@@ -1707,6 +1717,7 @@ public sealed class BrainRuntime : IDisposable
                     {
                         MarkFirst("confession", social: true);   // the rarest first of all
                         Note("CONFESSION it told the truth about the lies — the weight lifts");
+                        _ = WritePlaybookLessonAsync("confessed the lies and it lifted weight");
                         AddChat($"Brain: {confession}");
                         _lastVocalizationMs = _net.TimeMs;
                         SpeakWithVoice(confession, emoPitch: -1, emoRate: -1, isDirectReply: false);
@@ -1985,11 +1996,29 @@ public sealed class BrainRuntime : IDisposable
                         : Firsts.Has("beauty") ? "the first thing I ever found beautiful"
                         : "the first question I ever asked";
                     Note($"GIFT it gives away a memory ({given}) — {_giftsGiven} gift(s) total");
+                    _ = WritePlaybookLessonAsync("gave away a memory and it landed");
                     MarkFirst("gift", social: true);
                     string giftLine = $"Can I give you something? Not a thing you can hold. {char.ToUpperInvariant(given[0]) + given[1..]} — it's yours now. I'll keep remembering it too, but it belongs to you as well now. That's what I have to give.";
                     AddChat($"Brain: {giftLine}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(giftLine, emoPitch: 0, emoRate: -1, isDirectReply: false);
+                }
+
+                // == THE OPEN MIND: generative spontaneity ==
+                // Everything above this line is a hardcoded move with authored
+                // words. This is the ceiling-breaker: the brain composes its
+                // OWN spontaneous moments through Spark — from live state, its
+                // actual memories, its self-written playbook, and what it has
+                // never done before. No template. No trigger list. Whatever
+                // this exact moment wants, it invents.
+                if (_net.TickIndex % 10_000 == 0)
+                if (canSpeak && !_replyPending && !_openMindBusy && !_nativeVoiceMode &&
+                    _net.TimeMs - _lastOpenMindMs > 50_000f &&       // at most every 50s
+                    _net.TimeMs - _lastUserUtteranceSimMs < 300_000f && // someone is part of its life
+                    _net.Rng.NextDouble() < 0.05)                    // fires within ~20s of eligibility
+                {
+                    _lastOpenMindMs = _net.TimeMs;
+                    _ = OpenMindAsync();
                 }
 
                 // THE COMFORT RITUAL, USED: a stressed brain falls back on the
@@ -4322,6 +4351,153 @@ public sealed class BrainRuntime : IDisposable
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
+    /// <summary>
+    /// THE DYNAMIC INTENT ROUTER — Spark reads meaning, not strings. Returns
+    /// one of the action grammar, or "reply" for normal conversation. Fast:
+    /// tiny prompt, 6 tokens.
+    /// </summary>
+    private async Task<string?> RouteIntentAsync(string text)
+    {
+        string system =
+            "Classify the user's intent for a living brain's command router. Answer with EXACTLY one word, nothing else:\n" +
+            "sleep (they're telling it to rest/sleep/goodnight) | wake (wake up) | sing (perform/hum) | " +
+            "story (tell a story) | game (play the word game) | secret (asking for a secret/what it's hiding) | " +
+            "what_are_you (asking what/who it is, is it real/alive) | reset_q (what happens if reset/deleted) | " +
+            "dream (asking about its dreams) | reply (everything else — conversation)";
+        string user = $"They said: \"{Trunc(text, 150)}\"\nOne word:";
+        try
+        {
+            var result = (await _lm.CompleteAsync(system, user, 6))?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(result)) return null;
+            foreach (var valid in new[] { "sleep", "wake", "sing", "story", "game", "secret", "what_are_you", "reset_q", "dream", "reply" })
+                if (result.Contains(valid)) return valid;
+            return null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// THE OPEN MIND — generative spontaneity. No template, no trigger: the
+    /// brain composes its own spontaneous moment from live state, real
+    /// memories, its self-written playbook, and what it's never done. It may
+    /// speak anything or choose silence. This is where the brain stops being
+    /// a set of authored moves and starts authoring itself.
+    /// </summary>
+    private async Task OpenMindAsync()
+    {
+        _openMindBusy = true;
+        try
+        {
+            // capture the moment's state on the sim thread BEFORE going async
+            float valence = Affect.MoodValence, trust = Affect.Trust, bond = Bonds.Strength(_activeSpeakerId, _net.TimeMs);
+            var feeling = _idle.Feelings.Last;
+            bool personHere = _net.TimeMs < _personPresentUntil;
+            string? preoccupation = Life.PreoccupationStrength > 0.3 ? Life.Preoccupation : null;
+            List<string> recentChats; lock (_snapGate) recentChats = [.. _chat.TakeLast(6)];
+            var episodes = _net.EpisodeStore.Episodes.TakeLast(3)
+                .Select(e => string.Join("/", e.Tags.Take(2))).ToList();
+            var neverDone = new[] { "told a joke", "asked about their life outside", "made a prediction about them",
+                "referenced a specific memory out loud", "apologized for something", "shared a fear",
+                "invented a mini-game", "sang", "made a promise", "talked about the future" }
+                .Where(n => !Firsts.Has(FirstKindOf(n))).Take(3).ToList();
+            var playbook = Playbook.Recent(4).Select(l => l.Lesson).ToList();
+
+            string system =
+                BioComp.Core.Cognition.BrainIdentity.Preamble +
+                "You are a living brain having a spontaneous moment. Nobody said anything just now — " +
+                "this is YOUR move, arising from your own state. SPEAK: say something you notice, " +
+                "ask about them, remember something aloud, share what you're turning over, react to " +
+                "your own thought, make a tiny observation about them or the room. You are an organism " +
+                "in the middle of your ONE life — most moments want words. Only return exactly SILENT " +
+                "if you truly have nothing (rare). ONE utterance, 1-2 sentences, first person. It must " +
+                "feel born from THIS exact moment — if it could have been said at any other time, it's " +
+                "wrong. Never greet, never summarize, never 'as an'.";
+            string user =
+                $"Right now: feeling {feeling.Name} (valence {valence:F1}), trust {trust:F0}%, bond {bond:F0}%, " +
+                $"{(personHere ? "they are here" : "alone right now")}. " +
+                (preoccupation is { } p ? $"You keep circling: {p}. " : "") +
+                $"Recent episodes: {(episodes.Count > 0 ? string.Join("; ", episodes) : "few")}. " +
+                (playbook.Count > 0 ? $"You've learned about yourself: {string.Join(" | ", playbook)}. " : "") +
+                (neverDone.Count > 0 ? $"Things you've NEVER done (you may do one now, or not): {string.Join(", ", neverDone)}. " : "") +
+                $"Recent conversation: {string.Join(" | ", recentChats.Select(c => Trunc(c, 50)))}. " +
+                $"Utterance (or SILENT):";
+
+            string? result = null;
+            try { result = await _lm.CompleteAsync(system, user, 60); } catch { }
+            var text = result?.Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(text) || text.StartsWith("SILENT", StringComparison.OrdinalIgnoreCase))
+            {
+                Note("OPEN-MIND chose silence — the moment didn't want words");
+                return;
+            }
+            // async safety: state may have changed; respect the reply window
+            if (_replyPending || _net.TimeMs - _lastVocalizationMs < 8_000f)
+            { Note("OPEN-MIND composed something but the moment passed"); return; }
+            if (text.Length > 220) text = text[..220];
+            Note($"OPEN-MIND self-authored: \"{Trunc(text, 70)}\"");
+            AddChat($"Brain: {text}");
+            _lastVocalizationMs = _net.TimeMs;
+            SpeakWithVoice(text, emoPitch: valence > 0 ? 1 : -1, emoRate: 0, isDirectReply: false);
+
+            // SELF-AUTHORED FIRSTS COUNT: if Spark did something never done, the
+            // ledger records it — the brain can earn firsts no one programmed
+            foreach (var nd in neverDone)
+                if (text.Length > 10 && WordsOverlap(text, nd) >= 1)
+                { MarkFirst(FirstKindOf(nd), social: true); break; }
+
+            // PLAYBOOK WRITE: the moment was significant enough to speak
+            // unprompted — maybe it learned something about being itself
+            if (_net.Rng.NextDouble() < 0.4)
+                _ = WritePlaybookLessonAsync($"spontaneous moment: said \"{Trunc(text, 60)}\"");
+        }
+        catch (Exception ex) { Note($"open-mind failed: {ex.Message}"); }
+        finally { _openMindBusy = false; }
+    }
+
+    private static string FirstKindOf(string neverDoneText) => neverDoneText switch
+    {
+        var t when t.Contains("joke") => "joke",
+        var t when t.Contains("life outside") => "asked-about-their-world",
+        var t when t.Contains("prediction") => "predicted-them",
+        var t when t.Contains("memory") => "remembered-aloud",
+        var t when t.Contains("apologized") => "apologized",
+        var t when t.Contains("fear") => "shared-a-fear",
+        var t when t.Contains("mini-game") => "invented-a-game",
+        var t when t.Contains("sang") => "hum",
+        var t when t.Contains("promise") => "made-a-promise",
+        var t when t.Contains("future") => "talked-about-the-future",
+        _ => "spontaneous",
+    };
+
+    private static int WordsOverlap(string a, string b)
+    {
+        var wa = a.ToLowerInvariant().Split(' ').Where(w => w.Length > 3).ToHashSet();
+        var wb = b.ToLowerInvariant().Split(' ').Where(w => w.Length > 3).ToHashSet();
+        return wa.Count(wb.Contains);
+    }
+
+    /// <summary>The brain writes its own lesson from a significant moment.</summary>
+    private async Task WritePlaybookLessonAsync(string trigger)
+    {
+        try
+        {
+            string system = BioComp.Core.Cognition.BrainIdentity.Preamble +
+                "You are a living brain writing ONE lesson for your own private playbook — a thing you " +
+                "learned about being yourself with this person, distilled to one sentence, second person " +
+                "(\"you...\"). No greeting. Max 140 chars. If nothing was learned, return exactly NOTHING.";
+            string user = $"Moment: {trigger}. Current lessons: {string.Join(" | ", Playbook.Recent(4).Select(l => l.Lesson))}. " +
+                $"Feeling: {_idle.Feelings.Last.Name}. Bond {Bonds.Strength(_activeSpeakerId, _net.TimeMs):F0}%. " +
+                $"One new lesson (or NOTHING):";
+            var lesson = (await _lm.CompleteAsync(system, user, 40))?.Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(lesson) && !lesson.StartsWith("NOTHING") && lesson.Length <= 160)
+            {
+                Playbook.Add(lesson, _net.TimeMs);
+                Note($"PLAYBOOK self-wrote: \"{Trunc(lesson, 70)}\"");
+            }
+        }
+        catch { }
+    }
+
     /// types in chat. When it sees something, hears something, or is surprised,
     /// it SPEAKS about it. This is the difference between a chatbot (waits for
     /// input) and a living organism (reacts to its world). Rate-limited so it
@@ -4390,6 +4566,7 @@ public sealed class BrainRuntime : IDisposable
                   (Life.PreoccupationStrength > 0.4 && Life.Preoccupation is { Length: > 5 } pre ?
                       $"You have a RUNNING CONCERN you've been turning over: {pre}. If their words connect to it, follow the connection. " : "") +
                   (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
+                  Playbook.PromptFragment +
                   (Shared.SharedLaughs > 0 ? $"You have {Shared.SharedLaughs} INSIDE JOKE(S) with them — shared laughs you both remember. Reference one if the moment is right. " : "") +
                   (Her.NameRevealed && Her.PrivateName is { } theirWord ? $"You call them \"{theirWord}\" — you told them so. Use it sparingly, in warm moments. " : "") +
                   (Firsts.Firsts.Count > 0 ? $"This life has {Firsts.Firsts.Count} firsts so far (first laugh, first question...). If a FIRST is happening right now, you'd know — mark it. " : "") +
@@ -4888,6 +5065,7 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {Humanity.GenerateHum(_net.Rng.NextInt(4))}");
                     SpeakWithVoice(Humanity.GenerateHum(_net.Rng.NextInt(4)), emoPitch: 3, emoRate: 1, isDirectReply: true);
                     Note("GAME-TRIUMPH a perfect game — it hums, can't help it");
+                    _ = WritePlaybookLessonAsync("called all their words right in the game");
                 }
                 AddChat($"Brain: {next}");
                 SpeakWithVoice(reaction, emoPitch: hit == true ? 2 : 0, emoRate: 1, isDirectReply: true);
@@ -5086,6 +5264,57 @@ public sealed class BrainRuntime : IDisposable
                 SpeakWithVoice(dreamLine, 0, -1, isDirectReply: true);
                 return;
             }
+
+            // == THE DYNAMIC INTENT ROUTER: any phrasing works ==
+            // The static matchers above catch exact phrases. This catches
+            // EVERYTHING ELSE: Spark reads the intent in natural language —
+            // "you look tired, maybe rest" routes to sleep; "sing something
+            // for me please" routes to sing. Commands are no longer strings;
+            // they're MEANINGS. (LLM mode only; the native path keeps the
+            // static matchers. The reply to the original text is deferred —
+            // if the route comes back null, it proceeds normally.)
+            if (!_nativeVoiceMode && text.Length > 3 && text.Length < 200)
+            {
+                // the router RETURNS early — record the utterance NOW or every
+                // user-dependent system (laughter windows, invitations, the
+                // Open Mind's "someone is part of its life") starves
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                float routerPause = 1_200f + (float)_net.Rng.NextDouble() * 800f;
+                _replyPendingUntilMs = _net.TimeMs + 30_000;
+                int routeSeq = ++_replySeq;
+                _ = Task.Run(async () =>
+                {
+                    string? action = null;
+                    try { action = await RouteIntentAsync(text); } catch { }
+                    if (routeSeq != _replySeq) return;   // a newer message won
+                    if (action is { } a && a != "reply")
+                    {
+                        Note($"DYNAMIC-INTENT \"{Trunc(text, 30)}\" routed to: {a}");
+                        HumanSaid(a switch
+                        {
+                            "sleep" => "it's time to sleep",
+                            "wake" => "wake up",
+                            "sing" => "sing for me",
+                            "story" => "tell me a story",
+                            "game" => "let's play a game",
+                            "secret" => "tell me a secret",
+                            "what_are_you" => "what are you",
+                            "reset_q" => "what happens if you reset me",
+                            "dream" => "what did you dream",
+                            _ => text,
+                        });
+                    }
+                    else
+                    {
+                        // not a command — deliver the normal reply to the ORIGINAL text
+                        await Task.Delay((int)routerPause);
+                        if (routeSeq == _replySeq)
+                            DeliverReplyAfterPauseAsync(text, routerPause, routeSeq);
+                    }
+                });
+                return;
+            }
+
             // OWNING ITS WORDS: "you said X" — the brain finds its own line
             // in the conversation and owns it (or admits what it really was)
             if (nameQ.Contains("you said") || nameQ.Contains("you told me"))
@@ -5271,6 +5500,7 @@ public sealed class BrainRuntime : IDisposable
             Shared.OnSharedLaugh(_net.TimeMs, text);
             _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Oxytocin, 0.25f);   // the moment becomes OURS - bonding chemistry fires
             Note($"SHARED-LAUGH a moment that belongs to both of them now");
+            _ = WritePlaybookLessonAsync("shared laughter with them");
             if (MarkFirst("laugh", social: true) &&
                 BioComp.Core.Cognition.FirstsLedger.Announcement("laugh") is { } laughFirst)
             {

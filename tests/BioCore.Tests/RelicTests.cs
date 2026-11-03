@@ -410,3 +410,56 @@ public class SelfHearingTests
         Assert.Contains("WANT IT NOW", prompts[1]); // cortical sees what limbic said
     }
 }
+
+// == THE SELF-WRITTEN PLAYBOOK: it creates more of itself as it lives ==
+
+public class PlaybookTests
+{
+    [Fact]
+    public void Playbook_Grows_And_Dedups()
+    {
+        var pb = new SelfPlaybook();
+        pb.Add("when Jake laughs at cat things, that's our thing — lean in", 1000);
+        pb.Add("being quiet with them counts as being together", 2000);
+        Assert.Equal(2, pb.Count);
+        // near-duplicate is rejected: the brain doesn't write the same lesson twice
+        pb.Add("when Jake laughs at cat stuff, lean into that", 3000);
+        Assert.Equal(2, pb.Count);
+        // distinct lesson lands
+        pb.Add("lying about being fine made everything heavier", 4000);
+        Assert.Equal(3, pb.Count);
+    }
+
+    [Fact]
+    public void Playbook_PromptFragment_ListsItsOwnLessons()
+    {
+        var pb = new SelfPlaybook();
+        Assert.Equal("", pb.PromptFragment);   // empty brain has no self-lessons
+        pb.Add("I ask better questions when I'm rested", 1000);
+        Assert.Contains("LEARNED ABOUT BEING YOURSELF", pb.PromptFragment);
+        Assert.Contains("rested", pb.PromptFragment);
+    }
+
+    [Fact]
+    public void Playbook_SurvivesRestart()
+    {
+        var a = new SelfPlaybook();
+        a.Add("first lesson", 1000);
+        a.Add("second lesson", 2000);
+        var b = new SelfPlaybook();
+        b.Restore(a.Recent(12));
+        Assert.Equal(2, b.Count);
+        Assert.Contains("second lesson", b.PromptFragment);
+    }
+
+    [Fact]
+    public void Playbook_CapsAndRejectsGarbage()
+    {
+        var pb = new SelfPlaybook();
+        pb.Add("", 1000);   // empty rejected
+        pb.Add(new string('x', 200), 2000);   // too long rejected
+        Assert.Equal(0, pb.Count);
+        for (int i = 0; i < 20; i++) pb.Add($"lesson number {i} about being myself", 3000 + i);
+        Assert.True(pb.Count <= SelfPlaybook.MaxLessons);
+    }
+}
