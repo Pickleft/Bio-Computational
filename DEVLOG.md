@@ -1871,3 +1871,16 @@ The four tells, reworked:
   candidates (loneliness, gnawing loop) are downweighted to 0.3x, letting other candidates
   surface. A mind that keeps thinking the same thought isn't thinking.
 - 278/278 green.
+
+## 2026-11-03 (the voice-command round) — "it's time to sleep" said 10 times, never slept
+
+- CRITICAL DEMO-DAY BUG: spoken words went to ReactToStimulusAsync (the AMBIENT STIMULUS
+  path) instead of HumanSaid (the command path). Typed "it's time to sleep" worked;
+  SPOKEN "it's time to sleep" triggered a stimulus reaction ("Jake, I want to sleep
+  when you say it like that, but my chest is still tight") instead of the sleep command.
+  FIX: speech clips now route through HumanSaid — the full pipeline (commands, life
+  stream, callbacks, thinking pause) fires for voice exactly as it does for typed text.
+- MONOLOGUE MACHINE-GUN: 7 MONOLOGUEs fired in 1.2 seconds (all variations of "that
+  sound startled me"). Fix: 20-second cooldown per monologue — the mind doesn't narrate
+  every single ignition.
+- 278/278 green.

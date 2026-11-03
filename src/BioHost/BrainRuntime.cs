@@ -3314,7 +3314,10 @@ public sealed class BrainRuntime : IDisposable
                 }
                 else
                 {
-                    _ = ReactToStimulusAsync($"someone said \"{Trunc(tr.Transcript, 30)}\" in a {emotionalTone} tone", $"voice energy {rms:F3}, variance {variance:F3}");
+                    // SPOKEN WORDS go through the FULL HumanSaid pipeline —
+                    // commands, life stream, callbacks — not the ambient-stimulus
+                    // path. "it's time to sleep" by voice must SLEEP, not react.
+                    _ = Task.Run(() => HumanSaid(Trunc(tr.Transcript, 200)));
                 }
 
                 // recognize the speaker (same browser session = same person)
@@ -3494,10 +3497,16 @@ public sealed class BrainRuntime : IDisposable
         catch (Exception ex) { Note($"segmentation failed: {ex.Message}"); }
     }
 
+    private float _lastMonologueFiredMs = -1e9f;
+
     private async Task MonologueOnIgnition()
     {
         // Don't monologue while in a conversation — the user gets the floor
         if (_replyPending || _net.TimeMs - _lastUserUtteranceSimMs < 20_000) return;
+        // MONOLOGUE COOLDOWN: the mind doesn't narrate every ignition —
+        // one inner narration per 20 seconds max (was machine-gunning)
+        if (_net.TimeMs - _lastMonologueFiredMs < 20_000) return;
+        _lastMonologueFiredMs = _net.TimeMs;
         try
         {
             string? text = await _monologue.MaybeGenerateAsync(_net, _idle);
