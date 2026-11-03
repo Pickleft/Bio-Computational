@@ -1935,3 +1935,15 @@ The four tells, reworked:
   EMPATHY: they sound [trajectory]. The response stays ON THREAD instead of jumping to
   gifts/jokes/ambient reactions.
 - 278/278 green.
+
+## 2026-11-03 (the transcribe-voice rescue round)
+
+- TRANSCRIPTION FETCH FLOOD: AudioWorklet fires ~375 frames/sec; each voiced frame was
+  POSTing to /api/browser-audio individually — a fetch flood that overwhelmed the browser
+  connection pool and killed transcription. FIX: batched POSTs — voiced PCM is collected
+  and sent every 100ms (10/sec, not 375/sec). senses v26.
+- VOICE QUEUE HANG: the /api/voice fetch (Kokoro generation) could stall forever, freezing
+  the entire speech queue (brain goes mute). FIX: 15s AbortController timeout on the fetch
+  + 30s absolute cap per utterance — a stalled generation falls through to TTS instead of
+  blocking the queue forever. app.js v28.
+- 278/278 green.

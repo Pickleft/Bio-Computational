@@ -146,17 +146,22 @@ async function pumpSpeech() {
       const rate = it.Rate || 0.92;
       const pitch = it.Pitch || 1.0;
       try {
-        const resp = await fetch(`/api/voice?text=${encodeURIComponent(text)}&rate=${rate}&pitch=${pitch}`);
+        // 15s timeout: Kokoro generation can stall; a stuck fetch kills the queue
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000);
+        const resp = await fetch(`/api/voice?text=${encodeURIComponent(text)}&rate=${rate}&pitch=${pitch}`, { signal: ctrl.signal });
+        clearTimeout(timer);
         if (resp.ok) {
           const blob = await resp.blob();
           const url = URL.createObjectURL(blob);
-          if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }   // one voice, ever
+          if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }
           currentAudio = new Audio(url);
           currentAudio.volume = 1.0;
           await new Promise((resolve) => {
-            currentAudio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-            currentAudio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-            currentAudio.play().catch(() => resolve());
+            const kill = setTimeout(resolve, 30000);   // absolute cap: 30s per utterance
+            currentAudio.onended = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(); };
+            currentAudio.onerror = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(); };
+            currentAudio.play().catch(() => { clearTimeout(kill); resolve(); });
           });
           window.brainBrowserSpeaking = false;
           speakPlaying = false;

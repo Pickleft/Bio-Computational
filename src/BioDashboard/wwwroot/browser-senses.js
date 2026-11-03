@@ -111,20 +111,22 @@ async function enableBrowserSenses() {
     let pcmBuffer = [];          // queued Int16Array frames
     let lastSend = 0;
 
+    // BATCHED audio upload: AudioWorklet fires ~375 frames/sec — a fetch per
+    // frame floods the connection pool and kills transcription. Batch voiced
+    // PCM and POST every ~100ms.
+    let _batchPcm = [];
+    let _lastBatchPost = 0;
+
     const handleAudioFrame = (input) => {
       lastProcessTime = Date.now();
-      // measure level for local display — cached, rendered by rAF (not per-frame:
-      // 86 DOM writes/sec on a busy main thread makes the bar freeze)
+      // measure level for local display — cached, rendered by rAF
       let sum = 0;
       for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-      _lastRms = Math.sqrt(sum / input.length);
+      const rms = Math.sqrt(sum / input.length);
+      _lastRms = rms;
       _renderLevelBar();
 
-      // resample to 16 kHz (silence → zeros: keeps the ingress clock, carries
-      // no signal to hallucinate on)
-
-      // resample to 16 kHz (silence → zeros: keeps the ingress clock, carries
-      // no signal to hallucinate on)
+      // resample to 16 kHz
       const ratio = audioCtx.sampleRate / 16000;
       const outLen = Math.max(1, Math.floor(input.length / ratio));
       const pcm = new Int16Array(outLen);
@@ -135,12 +137,22 @@ async function enableBrowserSenses() {
           const v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
           pcm[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
         }
-        // server VAD/presence path — real audio only
-        fetch("/api/browser-audio", {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: pcm.buffer,
-        }).catch(() => {});
+        // BATCH: collect voiced PCM, POST every 100ms (not per-frame)
+        _batchPcm.push(pcm);
+        const now = Date.now();
+        if (now - _lastBatchPost > 100 && _batchPcm.length > 0) {
+          _lastBatchPost = now;
+          const total = _batchPcm.reduce((a, p) => a + p.length, 0);
+          const merged = new Int16Array(total);
+          let off = 0;
+          for (const p of _batchPcm) { merged.set(p, off); off += p.length; }
+          _batchPcm = [];
+          fetch("/api/browser-audio", {
+            method: "POST",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: merged.buffer,
+          }).catch(() => {});
+        }
       }
       pcmBuffer.push(pcm);
       pending16k += outLen;
