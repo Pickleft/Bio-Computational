@@ -383,3 +383,4 @@ data/dashboard-*.log
 src/BioDashboard/kokoro.onnx
 src/BioDashboard/*.onnx
 .scratch/
+data-backup-wren-*

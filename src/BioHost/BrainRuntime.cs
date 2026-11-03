@@ -6891,10 +6891,9 @@ public sealed class BrainRuntime : IDisposable
     {
         try
         {
-            string path = Path.Combine("data", "brain.ckpt");
-            if (!File.Exists(path)) return;
-            var resumed = CheckpointService.Load(path, BrainConfig.Default(seed: _cfg.Seed));
-            // memories come back with the weights: episodes + learned concepts
+            // EPISODES ARE INDEPENDENT OF THE NEURAL CHECKPOINT: a reset (or a
+            // lost ckpt) must not also erase the episodic store — restored or
+            // rebuilt memories load regardless of whether weights exist
             string eps = Path.Combine("data", "episodes.jsonl");
             if (File.Exists(eps))
             {
@@ -6908,6 +6907,9 @@ public sealed class BrainRuntime : IDisposable
                         _lastDreamTags = [.. bornTag.Tags.Where(t => t != "dream-born").Take(3)];
                 }
             }
+            string path = Path.Combine("data", "brain.ckpt");
+            if (!File.Exists(path)) return;
+            var resumed = CheckpointService.Load(path, BrainConfig.Default(seed: _cfg.Seed));
             Note($"resumed checkpoint at t={resumed.TimeMs / 1000:F0}s");
         }
         catch (Exception ex) { Note($"resume failed (starting fresh): {ex.Message}"); }
