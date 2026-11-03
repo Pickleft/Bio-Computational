@@ -260,7 +260,9 @@ async function enableBrowserSenses() {
         if (transcribeWs) {
           try { transcribeWs.onclose = null; transcribeWs.close(); } catch (e) {}
           transcribeWs = null;
-          setStatus("(ears idle — another tab is the voice)", "#f0b45c");
+          const fin2 = document.getElementById("live-final");
+          if (fin2) { fin2.textContent = "(ears idle — another tab is the voice)"; fin2.style.color = "#f0b45c"; }
+          console.log("[senses] ears idle — another tab is the voice leader");
         }
         return;
       }

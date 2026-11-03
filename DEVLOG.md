@@ -1947,3 +1947,21 @@ The four tells, reworked:
   + 30s absolute cap per utterance — a stalled generation falls through to TTS instead of
   blocking the queue forever. app.js v28.
 - 278/278 green.
+
+## 2026-11-03 (the senses-rescue round) — fix every mic/camera/transcription bug
+
+- _lastRms UNDEFINED (the crash the user showed): _renderLevelBar function was added but
+  the _lastRms/_levelRafStarted declarations and the function itself were added by a sed
+  that silently failed. Declared at module top (v28). Every audio frame threw
+  ReferenceError → AudioWorklet dead → no transcription, no bar, nothing.
+- setStatus SCOPE BUG: watchdog called setStatus() (defined inside connectTranscribeWs)
+  from enableBrowserSenses scope — ReferenceError on non-leader tabs. Replaced with
+  direct DOM access.
+- SPEECH QUEUE RACE: when Kokoro succeeded but autoplay was blocked (browser policy),
+  the old code silently DROPPED the line (resp.ok was true, no TTS fallback fired).
+  Fix: track whether the audio actually played (played flag); if not, fall through to
+  speechSynthesis. No line is ever silently lost.
+- RUT CHECK LOGIC: compared all 3 recent thoughts against the LAST one instead of
+  checking consecutive pairs. Fixed to consecutive-pair overlap.
+- Removed dead code: lastPcmBuffer, old fallbackTTS.
+- app.js v29, senses v28. 278/278 green.

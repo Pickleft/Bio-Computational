@@ -60,8 +60,11 @@ public sealed class InnerVoice
         // candidates and let something ELSE surface. A mind that keeps
         // thinking the same thought isn't thinking.
         var recentArr = _recentSeeds.ToArray();
-        bool inARut = recentArr.Length >= 3 && recentArr.Skip(recentArr.Length - 3)
-            .All(s => WordOverlap(s, recentArr[^1]) >= 2);
+        // CONSECUTIVE overlap: last↔second-to-last AND second↔third — if both
+        // pairs share words, the mind is genuinely circling
+        bool inARut = recentArr.Length >= 3 &&
+            WordOverlap(recentArr[^1], recentArr[^2]) >= 2 &&
+            WordOverlap(recentArr[^2], recentArr[^3]) >= 2;
         float rutFactor = inARut ? 0.3f : 1f;
 
         // 0. THE THREAD: what the conversation is about — the mind stays

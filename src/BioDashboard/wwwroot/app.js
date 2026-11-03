@@ -140,41 +140,51 @@ async function pumpSpeech() {
   speakPlaying = true;
   const it = speakQueue.shift();
   const text = (it.Text || "").trim().slice(0, 300);
+  if (!text) { speakPlaying = false; pumpSpeech(); return; }
+  window.brainBrowserSpeaking = true;
+  const rate = it.Rate || 0.92;
+  const pitch = it.Pitch || 1.0;
+
+  let spoken = false;   // track whether ANY voice path actually delivered
   try {
-    if (text) {
-      window.brainBrowserSpeaking = true;
-      const rate = it.Rate || 0.92;
-      const pitch = it.Pitch || 1.0;
-      try {
-        // 15s timeout: Kokoro generation can stall; a stuck fetch kills the queue
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 15000);
-        const resp = await fetch(`/api/voice?text=${encodeURIComponent(text)}&rate=${rate}&pitch=${pitch}`, { signal: ctrl.signal });
-        clearTimeout(timer);
-        if (resp.ok) {
-          const blob = await resp.blob();
-          const url = URL.createObjectURL(blob);
-          if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }
-          currentAudio = new Audio(url);
-          currentAudio.volume = 1.0;
-          await new Promise((resolve) => {
-            const kill = setTimeout(resolve, 30000);   // absolute cap: 30s per utterance
-            currentAudio.onended = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(); };
-            currentAudio.onerror = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(); };
-            currentAudio.play().catch(() => { clearTimeout(kill); resolve(); });
-          });
-          window.brainBrowserSpeaking = false;
-          speakPlaying = false;
-          pumpSpeech();
-          return;
-        }
-      } catch (e) { console.log("[voice] server generation failed:", e); }
-      await fallbackTTSQueued(text, it);
+    // PATH 1: Kokoro neural TTS (server-side generation)
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch(`/api/voice?text=${encodeURIComponent(text)}&rate=${rate}&pitch=${pitch}`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (resp.ok) {
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }
+      currentAudio = new Audio(url);
+      currentAudio.volume = 1.0;
+      let played = false;
+      await new Promise((resolve) => {
+        const kill = setTimeout(resolve, 30000);
+        currentAudio.onended = () => { clearTimeout(kill); URL.revokeObjectURL(url); played = true; resolve(); };
+        currentAudio.onerror = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(); };
+        currentAudio.play().then(() => { played = true; }).catch(() => { clearTimeout(kill); resolve(); });
+      });
+      if (played) { spoken = true; }
     }
-  } finally {
-    window.brainBrowserSpeaking = false;
-    speakPlaying = false;
+  } catch (e) { console.log("[voice] kokoro failed:", e); }
+
+  // PATH 2: speechSynthesis fallback — only if Kokoro didn't deliver
+  if (!spoken) {
+    await new Promise((resolve) => {
+      if ("speechSynthesis" in window) {
+        try { speechSynthesis.cancel(); } catch {}
+        const u = new SpeechSynthesisUtterance(text);
+        if (pickedVoice) u.voice = pickedVoice;
+        u.rate = rate;
+        u.onend = u.onerror = () => resolve();
+        speechSynthesis.speak(u);
+      } else { resolve(); }
+    });
   }
+
+  window.brainBrowserSpeaking = false;
+  speakPlaying = false;
   pumpSpeech();
 }
 
