@@ -172,25 +172,55 @@ public sealed class MuseTranscribeProxy : IDisposable
             var root = doc.RootElement;
             string type = root.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
 
+            // the live wire schema is camelCase (speechStart / transcript /
+            // speechComplete) — the snake_case variants stay for safety
+            if (type is "transcript" or "partial_transcript" or "partial")
+            {
+                string text = ExtractText(root);
+                if (text.Length == 0) MaybeDumpSchema(json);
+                return new TranscriptEvent(Type: "partial", Text: text, IsFinal: false);
+            }
+            if (type is "speechComplete" or "speech_complete" or "final_transcript" or "final")
+            {
+                string text = ExtractText(root);
+                if (text.Length == 0) MaybeDumpSchema(json);
+                return new TranscriptEvent(Type: "final", Text: text, IsFinal: true);
+            }
             return type switch
             {
-                "partial_transcript" => new TranscriptEvent(
-                    Type: "partial",
-                    Text: root.TryGetProperty("transcript", out var tx) ? tx.GetString() ?? "" : "",
-                    IsFinal: false),
-                "speech_complete" or "final_transcript" => new TranscriptEvent(
-                    Type: "final",
-                    Text: root.TryGetProperty("transcript", out var tx) ? tx.GetString() ?? "" : "",
-                    IsFinal: true),
-                "session_expired" => new TranscriptEvent(Type: "expired", Text: "", IsFinal: false),
+                "sessionExpired" or "session_expired" => new TranscriptEvent(Type: "expired", Text: "", IsFinal: false),
                 "error" => new TranscriptEvent(
                     Type: "error",
-                    Text: root.TryGetProperty("message", out var m) ? m.GetString() ?? "unknown" : "unknown",
+                    Text: root.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() ?? "unknown"
+                        : ExtractText(root).Length > 0 ? ExtractText(root) : "unknown",
                     IsFinal: false),
                 _ => new TranscriptEvent(Type: type, Text: "", IsFinal: false),
             };
         }
         catch { return null; }
+    }
+
+    /// <summary>The transcript payload field name is undocumented — try the
+    /// known candidates before giving up.</summary>
+    private static string ExtractText(JsonElement root)
+    {
+        foreach (var field in new[] { "transcript", "text", "value", "hypothesis" })
+            if (root.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.String)
+            {
+                var s = v.GetString();
+                if (!string.IsNullOrWhiteSpace(s)) return s;
+            }
+        return "";
+    }
+
+    /// <summary>Schema learning: if a text-bearing event arrives with no text
+    /// in any known field, dump the raw JSON (first 3 per session) — one
+    /// spoken sentence then tells us the true field name.</summary>
+    private static int _schemaDumps;
+    private static void MaybeDumpSchema(string json)
+    {
+        if (System.Threading.Interlocked.Exchange(ref _schemaDumps, 1) != 0) return;   // once per process is enough
+        Console.WriteLine($"[transcribe-proxy] SCHEMA DUMP (text field not found): {json[..Math.Min(400, json.Length)]}");
     }
 
     public void Dispose()
