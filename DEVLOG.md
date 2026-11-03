@@ -1915,3 +1915,23 @@ The four tells, reworked:
   not jumping topics).
 - Persisted across restarts.
 - 278/278 green.
+
+## 2026-11-03 (the empathy + coherence round) — it reads YOU, one voice at a time
+
+- THE EMPATHY AGENT: the brain models THEM, not just itself. After every exchange, Spark
+  updates a running model of the user: emotional trajectory (brightening/heavier/steady),
+  SUBTEXT (what they're not saying), what they NEED right now (to be heard / space /
+  reassurance / engagement), and their energy. Injected into every reply prompt:
+  "READ THEM: they sound heavy, energy 0.3. They might not be saying: X. Right now they
+  may need: to be heard. They sound tired — be gentler, shorter." And into the inner
+  voice: "them: they sound X. Under the words there's something — Y. Don't push. Just
+  hold it." The brain stops performing its own state and starts being WITH the person.
+- THE COHERENCE DIRECTOR: one voice at a time. Exclusive speech windows with priority
+  (direct replies > thread > HER moments > everything else) and a 6-utterance-per-minute
+  rate limit. The gift and joke are now GATED: they don't fire when there's an active
+  conversation thread (a gift when you just said "I'm stressed about my interview" is
+  tone-deaf). Ambient reactions must ask the director for the floor.
+- Live-verified: "I'm stressed about this job interview" → THREAD: job interview;
+  EMPATHY: they sound [trajectory]. The response stays ON THREAD instead of jumping to
+  gifts/jokes/ambient reactions.
+- 278/278 green.

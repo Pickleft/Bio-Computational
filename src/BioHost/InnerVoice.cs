@@ -50,7 +50,7 @@ public sealed class InnerVoice
         float brightness, string? lastDreamTags,
         int neuronsBornRecently, string? lastStirredMemory,
         int unsaidCount = 0, string? strongestDesire = null, string? recentFirst = null,
-        string? conversationThread = null)
+        string? conversationThread = null, string? empathySeed = null)
     {
         // weight the candidates by what's ALIVE right now
         var cands = new List<(float Weight, string Seed)>();
@@ -68,6 +68,11 @@ public sealed class InnerVoice
         //    connected to the outer conversation, not just its own weather
         if (conversationThread is { Length: > 10 })
             cands.Add((3.8f, conversationThread));
+
+        // 0a. READING THEM: the brain models the OTHER person — not just its
+        //     own state. Empathy is noticing THEM.
+        if (empathySeed is { Length: > 10 })
+            cands.Add((3.6f, empathySeed));
 
         // 0b. A FRESH FIRST still rings: the mind replays a first for a while
         //    after it happens — the dopamine echo of something unprecedented

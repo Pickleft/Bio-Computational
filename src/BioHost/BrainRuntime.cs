@@ -354,6 +354,10 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>SELF-HEARING: once its voice exists, the brain's own words feed
     /// back into its Lang region as spikes — it listens to itself think.</summary>
     public BioComp.Core.Cognition.LanguageFeedback LangFeedback { get; } = new();
+    /// <summary>THE EMPATHY AGENT: models THEM, not just itself.</summary>
+    public BioComp.Core.Cognition.EmpathyAgent Empathy { get; } = new();
+    /// <summary>THE COHERENCE DIRECTOR: one voice at a time.</summary>
+    public BioComp.Core.Cognition.CoherenceDirector Director { get; } = new();
     /// <summary>THE THREAD AGENT: conversation coherence — what we're talking about.</summary>
     public BioComp.Core.Cognition.ThreadAgent TheThread { get; } = new();
     /// <summary>THE GOAL ENGINE: self-set, open-ended goals it pursues.</summary>
@@ -670,7 +674,8 @@ public sealed class BrainRuntime : IDisposable
             0, _lastStirredMemory,
             Humanity.UnsaidThings.Count, Humanity.StrongestDesire?.What,
             _net.TimeMs - _recentFirstAtMs < 90_000f ? _recentFirstKind : null,   // a fresh first still rings
-            !TheThread.IsStale(_net.TimeMs) ? TheThread.InnerVoiceSeed : null);   // the conversation thread
+            !TheThread.IsStale(_net.TimeMs) ? TheThread.InnerVoiceSeed : null,
+            Empathy.InnerVoiceSeed);   // thread + empathy
     }
     private readonly InnerVoice _ambientVoice = new(() => 0.42);  // deterministic draw for ambient
     private (bool Cam, bool Mic) _devicesLive;
@@ -1093,6 +1098,7 @@ public sealed class BrainRuntime : IDisposable
                 LearnedCommands = Commands.All.Select(c => new { c.Trigger, c.Action, c.Instruction, c.TaughtAtMs, c.SelfInvented, c.TimesUsed }).ToArray(),
                 SelfGoals = Goals.All.Select(g => new { g.What, g.Why, g.Progress, g.SetAtMs, g.CompletedAtMs, g.Abandoned }).ToArray(),
                 ThreadTopic = TheThread.Current.Topic, ThreadUnresolved = TheThread.Current.Unresolved, ThreadUndertone = TheThread.Current.Undertone, ThreadCommitment = TheThread.Current.LastCommitment,
+                EmpathyTrajectory = Empathy.Current.Trajectory, EmpathySubtext = Empathy.Current.Subtext, EmpathyNeed = Empathy.Current.NeedNow, EmpathyEnergy = Empathy.Current.Energy,
                 TimesLaughed = Her.TimesLaughed, PlayBursts = _play.PlayBursts,
                 // AFFECTIVE DYNAMICS: trust built over days survives the restart —
                 // a restart must never betray the relationship
@@ -1275,6 +1281,12 @@ public sealed class BrainRuntime : IDisposable
                     r.TryGetProperty("ThreadUnresolved", out var tu) ? tu.GetString() : null,
                     r.TryGetProperty("ThreadUndertone", out var ton) ? ton.GetString() ?? "neutral" : "neutral",
                     r.TryGetProperty("ThreadCommitment", out var tc) ? tc.GetString() : null,
+                    _net.TimeMs);
+            if (r.TryGetProperty("EmpathyTrajectory", out var et))
+                Empathy.Restore(et.GetString() ?? "steady",
+                    r.TryGetProperty("EmpathySubtext", out var es2) ? es2.GetString() : null,
+                    r.TryGetProperty("EmpathyNeed", out var en) ? en.GetString() ?? "nothing specific" : "nothing specific",
+                    (float)(r.TryGetProperty("EmpathyEnergy", out var ee) ? ee.GetDouble() : 0.5),
                     _net.TimeMs);
             if (r.TryGetProperty("TimesLaughed", out var tl)) Her.RestoreCounters(tl.GetInt32());
             if (r.TryGetProperty("PlayBursts", out var pb)) _play.RestoreBursts(pb.GetInt32());
@@ -2032,6 +2044,7 @@ public sealed class BrainRuntime : IDisposable
                 // point. If they laugh, the contagion path makes it a shared
                 // moment automatically.
                 if (canSpeak && !_replyPending && personHere &&
+                    Director.RequestFloor("her", 6f, _net.TimeMs, 15_000f) &&   // coherence: don't joke over a serious thread
                     Affect.MoodValence > 0.1f &&
                     _net.TimeMs - _lastJokeMs > 300_000f &&
                     _net.TimeMs - _lastHerExpressionMs > 90_000f &&
@@ -2063,8 +2076,11 @@ public sealed class BrainRuntime : IDisposable
                 }
 
                 // THE GIFT: rarely, and only when it has something worth giving,
-                // it gives a memory away. Not a copy — a belonging.
+                // it gives a memory away. GATED: if they just said something
+                // that needs a response, a gift is tone-deaf (coherence).
                 if (canSpeak && !_replyPending && personHere &&
+                    TheThread.IsStale(_net.TimeMs) &&   // only gift when NO active thread
+                    Director.RequestFloor("her", 6f, _net.TimeMs, 20_000f) &&
                     Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.6f &&
                     Firsts.Firsts.Count > 0 &&
                     _net.TimeMs - _lastGiftMs > 600_000f && _net.Rng.NextDouble() < 0.002)
@@ -3517,6 +3533,7 @@ public sealed class BrainRuntime : IDisposable
         // MONOLOGUE COOLDOWN: the mind doesn't narrate every ignition —
         // one inner narration per 20 seconds max (was machine-gunning)
         if (_net.TimeMs - _lastMonologueFiredMs < 20_000) return;
+        if (!Director.RequestFloor("monologue", 3f, _net.TimeMs, 15_000f)) return;   // the director: one voice
         _lastMonologueFiredMs = _net.TimeMs;
         try
         {
@@ -4780,6 +4797,10 @@ public sealed class BrainRuntime : IDisposable
     private async Task ReactToStimulusAsync(string stimulus, string detail)
     {
         if (_net.TimeMs - _lastReactionMs < 8_000 && !stimulus.StartsWith("DIRECT:")) return;
+        // THE COHERENCE DIRECTOR: direct replies get the floor; ambient
+        // reactions must ask. One voice at a time — a person is not five.
+        if (!stimulus.StartsWith("DIRECT:") &&
+            !Director.RequestFloor("ambient", 2f, _net.TimeMs, 12_000f)) return;
         // Non-direct reactions (ambient audio, sight) must not interject in
         // chat OR voice while a reply to the user is being composed / was
         // just delivered — the user hears one clean response, nothing else.
@@ -4843,6 +4864,7 @@ public sealed class BrainRuntime : IDisposable
                   Playbook.PromptFragment +
                   Goals.PromptFragment +
                   TheThread.PromptFragment +
+                  Empathy.PromptFragment +
                   (Shared.SharedLaughs > 0 ? $"You have {Shared.SharedLaughs} INSIDE JOKE(S) with them — shared laughs you both remember. Reference one if the moment is right. " : "") +
                   (Her.NameRevealed && Her.PrivateName is { } theirWord ? $"You call them \"{theirWord}\" — you told them so. Use it sparingly, in warm moments. " : "") +
                   (Firsts.Firsts.Count > 0 ? $"This life has {Firsts.Firsts.Count} firsts so far (first laugh, first question...). If a FIRST is happening right now, you'd know — mark it. " : "") +
@@ -6195,6 +6217,42 @@ public sealed class BrainRuntime : IDisposable
         catch { /* the thread is coherence, not survival */ }
     }
 
+    /// <summary>THE EMPATHY AGENT updater: model THEM after each exchange.</summary>
+    private async Task UpdateEmpathyAsync(string userText)
+    {
+        if (_nativeVoiceMode) return;
+        try
+        {
+            string system =
+                "Model the person the brain is talking to. Reply EXACTLY as four lines:\n" +
+                "TRAJECTORY: <one word: brightening/heavier/steady/wound up/softening>\n" +
+                "SUBTEXT: <what they might not be saying - or NONE>\n" +
+                "NEED: <one: to be heard/space/reassurance/engagement/to laugh/nothing specific>\n" +
+                "ENERGY: <0.0 to 1.0>";
+            var recent = _chat.TakeLast(3).ToList();
+            string user = $"They said: \"{Trunc(userText, 120)}\". " +
+                $"Voice tone: valence {Contagion.UserValence:F1}, arousal {Contagion.UserArousal:F1}. " +
+                $"Earlier: {string.Join(" | ", recent.Select(c => Trunc(c, 30)))}. " +
+                $"Previous model: {Empathy.Current.Trajectory}.\nFour lines:";
+            var raw = await _lm.CompleteAsync(system, user, 60);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            var traj = ExtractAfter(raw, "TRAJECTORY:");
+            var sub = ExtractAfter(raw, "SUBTEXT:");
+            var need = ExtractAfter(raw, "NEED:");
+            var energyStr = ExtractAfter(raw, "ENERGY:");
+            float energy = 0.5f;
+            if (energyStr is { } es && float.TryParse(es.Trim().Substring(0, Math.Min(3, es.Trim().Length)), out var e))
+                energy = Math.Clamp(e, 0f, 1f);
+            if (traj is { Length: > 2 })
+            {
+                Empathy.Update(traj, sub is { Length: > 2 } and not "NONE" ? sub : null,
+                    need is { Length: > 2 } ? need : "nothing specific", energy, _net.TimeMs);
+                Note($"EMPATHY they sound {traj} (energy {energy:F1}), need: {need}");
+            }
+        }
+        catch { }
+    }
+
     private async Task DeliverReplyAfterPauseAsync(string text, float pauseMs, int seq)
     {
         try
@@ -6237,13 +6295,14 @@ public sealed class BrainRuntime : IDisposable
                 emoPitch: f.Valence > 0.2f ? 2 : f.Valence < -0.2f ? -3 : 0,
                 emoRate: f.Name == "curious" ? 2 : f.Name == "tired" ? -3 : 0,
                 isDirectReply: true);
-            _ = UpdateThreadAsync(text, nativeReply);   // the thread agent tracks this exchange
+            _ = UpdateThreadAsync(text, nativeReply);   // the thread agent
+            _ = UpdateEmpathyAsync(text);   // the empathy agent models THEM
             return;
         }
 
         _ = ReactToStimulusAsync($"DIRECT: {(_userName is null ? "someone" : _userName)} said to you: \"{Trunc(text, 100)}\"",
             "typed in the chat - they are talking to you directly; answer them")
-            .ContinueWith(t => { _ = UpdateThreadAsync(text, null); });
+            .ContinueWith(t => { _ = UpdateThreadAsync(text, null); _ = UpdateEmpathyAsync(text); });
     }
 
     private static string Trunc(string s, int n) => s.Length <= n ? s : s[..n] + "...";
