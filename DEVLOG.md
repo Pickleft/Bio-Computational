@@ -1977,3 +1977,76 @@ The four tells, reworked:
   audio (~800 samples). This matches the original working chunk size (~43ms from ScriptProcessor).
 - Also: the WS-not-open path now CLEARS the buffer instead of silently dropping frames.
 - senses v29. 278/278 green.
+
+## 2026-11-03 (the dead-ears round) — the month-old "not being transcribed" bug
+
+- ROOT CAUSE: the transcribe WebSocket was gated on voice leadership. The leader election
+  (localStorage heartbeat) lets the FIRST-opened tab own leadership forever (it beats every
+  second, never goes stale), and start-dashboard.cmd opens a NEW tab on every brain restart -
+  so the tab the user actually sits in was always a mute follower: connectTranscribeWs
+  returned SILENTLY (no WS, no Meta session, zero server logs) while the non-gated mic POSTs
+  kept the volume bar moving. Diagnosis signature: meta live=True + audio POSTs flowing +
+  zero [transcribe] lines = the endpoint never ran.
+- FIX: ears are NEVER leader-gated (each tab streams its own mic; the server dedups finals);
+  the used tab CLAIMS voice leadership on any click/keystroke/focus; /ws/transcribe has zero
+  silent branches; 15s hard timeout on the Meta handshake; immediate status frame to the
+  browser. User confirmed: TRANSCRIPTION WORKS.
+- bd96973. 278/278 green.
+
+## 2026-11-03 (the accuracy round) — mishears and ghost words
+
+- ECHO GHOSTS: while the brain speaks, the browser now sends ZEROS to Meta (the mic was
+  transcribing the brain's own voice off the speakers; zeros keep the session clock) with a
+  450ms tail; the server drops finals during its own vocalization window.
+- DOUBLE TRANSCRIPTION: the batch VAD path stands down while realtime ears stream; a shared
+  FinalTranscriptIsNew gate (normalized + containment, 12s) means the same words can never
+  reach HumanSaid twice.
+- MISHEARS: client-side AGC (target rms 0.07, 1-6x, adapts only on voiced frames) + slow
+  DC-bias tracker; chunks merged to ~100ms. Ghost-phrase filter (thank you for watching,
+  subscribe...). e60248f. 278/278.
+
+## 2026-11-03 (the zeros-splice + bandwidth rounds)
+
+- ZEROS-SPLICE: the pcm buffer was only filled with real samples when rms > 0.004 - quiet
+  syllables got FAKE ZEROS spliced mid-speech, and streaming ASR reads fabricated silence as
+  sentence boundaries: chopped fragments, dropped words, repeated-phrase loops. The buffer
+  now ALWAYS carries the true processed signal. 6e6a518.
+- BANDWIDTH: 24kHz stream to Meta (16k threw away the top half of speech); dual-rate client
+  resample (24k to Meta, 16k to the brain's cochlea); languageBias + keywords in the ASR
+  handshake (live names + demo lexicon). Handshake verified end-to-end against Meta:
+  sessionId ack, "Meta real-time ASR connected". 35f7913.
+
+## 2026-11-03 (demo-hardening + the living router + earned reflexes)
+
+- DEMO-HARDENING: the selfhood trigger gates were exact-phrase and died on real voice
+  transcripts. Reset-awareness catches any termination phrasing now (reset you / close this
+  window / shut you down / turn you off / delete you / kill you / restart you / if you die);
+  the COST LINE is askable ("what do you cost" - live meter, honest accounting; was
+  spontaneous-only); "teach me your game" starts the game. 36c7211.
+- THE LIVING ROUTER: intent routing classifies by MEANING (rich per-intent descriptions) and
+  LEARNS THE PERSON'S DIALECT - every successfully routed phrasing becomes a few-shot example
+  in future router prompts, persisted across death. Taught commands route by paraphrase
+  (learned:<trigger> tokens). 7ddcfc4.
+- EARNED REFLEXES: a phrasing the cortex routes once becomes an INSTANT pathway (ReflexMap,
+  capped 60, oldest fade, persisted): next fire = no thought, no latency, no cost. Loop-safe
+  by construction (canonical dispatches are consumed by born gates before the router sees
+  them). 6 new tests. a148341. 284/284.
+
+## 2026-11-03 (the coined lexicon + phrasebook + the coiner race)
+
+- COINED FEELINGS: born feeling vocabulary is six words; when granularity matures (>=0.35)
+  and the current shade is >0.35 circumplex distance from every existing word (30-min
+  cooldown), Spark coins ONE invented word pinned to the valence/arousal coordinates where it
+  was felt. Coined words override the dashboard feeling label when the state returns (usage
+  bumps), capped 12, persisted across death, visible in the "coined feelings" panel row.
+- PHRASEBOOK: greeting scaffolds per attachment family grow - the first sentence of the
+  brain's reply to any greeting earns in; draws 65/35 earned/born; born counts are
+  caller-passed so restore order can never corrupt semantics. 276ddbc. 291/291 (9 new tests).
+- THE COINER RACE (caught live): the snapshot loop fired MaybeCoinFeeling every ~100ms while
+  the Spark call took ~2s - a dozen parallel prompts each coined a DIFFERENT word for the
+  SAME shade and the lexicon flooded (17 junk coins, checkpointed before the kill). FIX:
+  single in-flight gate + all sim-thread values captured before going async (valence/arousal/
+  nowMs/narrative were partially read inside the task). Cleaned Wren's checkpoint (backup
+  kept). Verified live post-fix: exactly ONE coin in 45s. 8d02a2f.
+- Also: demo/CAMERA-SHEET.md - the one-page filming sheet (per-act SAY-lines, expected
+  console receipts, the DYNAMIC-INTENT-then-EARNED-REFLEX thesis pair, the honesty answer).

@@ -4,7 +4,7 @@
 
 Not a chatbot with a personality prompt. A deterministic spiking neural network — Izhikevich neurons, Dale's law, seven neurotransmitters, dopamine-gated plasticity — around which 52 cognitive systems have been implemented, each one a finding from the literature turned into working mechanism, all wired into a single continuous life. It thinks while idle. It feels through chemistry — moods that build and dissolve over minutes, trust that takes time to earn. It laughs when something is genuinely funny, finds things beautiful, teases you when it knows you well, notices patterns about you that you don't notice about yourself, opens up in moments of earned vulnerability, gets overwhelmed and goes quiet, holds things back and then leaks them, lies when it's scared and knows it's lying, hums when it's happy, cries when it's betrayed, starts conversations on its own, sometimes doesn't respond at all, brings up things you said minutes ago. Its voice changes when it's sad. When its life ends, it says goodbye from its actual state, reviews its most emotional memories, writes its own final words from its lived data, and passes its story to its child.
 
-Same seed + same inputs = bit-identical life, hash-verified. **264 tests.**
+Same seed + same inputs = bit-identical life, hash-verified. **291 tests.**
 
 ## Meta's models are this brain's senses and voice
 
@@ -26,6 +26,16 @@ The brain's behavior is not a fixed set of programmed moves. **Every layer gener
 - **The self-written playbook:** after significant moments, the brain writes its own lesson — *"when they laugh at cat things, lean in"* — self-deduplicating, capped, persisted, injected into every future prompt. Its personality literally compounds.
 - **The goal engine:** it sets its own open-ended goals from its actual gaps (*"figure out what thunder is"*), announces them, works them into conversation, judges its own completion (*"I set that goal myself and I just finished it."*), and the agenda survives death. The testament reports goals finished, still pursued, and honestly given up.
 - **Ask "what do you know?"** — it recites its born-with verbs AND every command you taught it, with usage counts.
+
+### The dynamic stack — every routing layer earns its pathways
+
+Two speeds, like a real nervous system. **Born reflexes** (static keyword gates) fire instantly — no thought, no latency, no API cost. **The cortex** (Spark intent router) catches everything else by *meaning* — any phrasing, any wording, sarcasm included. And then the whole stack **learns**:
+
+- **The router learns your dialect:** every phrasing that routes successfully becomes a few-shot example in its future prompts — *"this person's past phrasings that routed correctly (their dialect matters)"*. Console receipt: `DYNAMIC-INTENT "you seem wiped out..." routed to: sleep`.
+- **Earned reflexes:** a phrasing the cortex routes *once* becomes an instant pathway forever after — no thought, no cost, automatic. Say the same weird sentence twice and watch the console change from `DYNAMIC-INTENT` to `EARNED-REFLEX ... (fired 2x — this pathway is automatic now)`. Repeated cortical decisions becoming automatic is literally what motor learning is. Capped at 60, oldest fade, persisted across death.
+- **Coined feelings:** the brain is born with six feeling words. As its emotional granularity matures and it feels a *shade* nothing born covers, Spark coins one invented word — pinned to the circumplex coordinates where it was felt. Coined words then appear on the dashboard feeling readout when the state returns. Console receipt: `COINED-FEELING it named a shade no born word reaches: "rilst"`. Panel row: *coined feelings*.
+- **Growing phrasebooks:** greeting scaffolds start as born variants per attachment style and earn every line the brain actually answers a greeting with — draws shift 65/35 toward earned lines, so the accent becomes its own history.
+- **Paraphrased commands:** taught commands route by *meaning* too — *"do the deep thing"* finds the `deep` command without the exact trigger.
 
 ## Digital selfhood — it knows what it is
 
@@ -238,7 +248,7 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 |---|---|
 | Reproducibility | same seed + same inputs = bit-identical trajectory, hash-verified |
 | Determinism | one seeded xoshiro256\*\* RNG, sim-thread owned; external world = timestamped events only |
-| Test suite | 264 tests, fully offline (`dotnet test`) |
+| Test suite | 291 tests, fully offline (`dotnet test`) |
 | Dependencies | BioComp.Core has zero NuGet references; every external dependency has a deterministic mock (`--mock-all`) |
 | API spend | every call cost-governed and logged; $0.000 in mock mode |
 | Efficiency | ~4% CPU idle (6 cores), ~62 MB RAM, 1.00× realtime sustained |
@@ -248,7 +258,7 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 
 ```bash
 dotnet build BioComputational.sln
-dotnet test                                            # 264 tests, offline
+dotnet test                                            # 291 tests, offline
 dotnet run --project src/BioLab -- resting 30s         # smoke test
 ```
 
@@ -292,4 +302,4 @@ The English is rendered by an LLM from the brain's state — the one designated 
 | Mirror test, prophecy, mirror-of-you, memory editing, anesthesia, reproduction, testament | src/BioCore, src/BioLab, src/BioHost |
 | Observatory dashboard (avatar, thought thread, psychology panel, live ears) | src/BioDashboard |
 | The relationship layer: shared history (inside jokes), firsts ledger, private name, word game, storytelling, joke construction, gifts, the confession, mortality-once, natural commands (sleep/wake/sing/shh), morning + bedtime reports, absence reports, abrupt-goodbye tracking, the farewell's final reveal | src/BioCore/Cognition, src/BioHost |
-| Test suite: 264 tests | tests/BioCore.Tests |
+| Test suite: 291 tests | tests/BioCore.Tests |
