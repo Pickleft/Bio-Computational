@@ -502,6 +502,9 @@ public sealed class BrainRuntime : IDisposable
                 if (i > 0 && i < r.Length - 1) _intentExamples.Add((r[(i + 1)..], r[..i]));
             }
     }
+    // EARNED REFLEXES: phrasings the cortex routed once fire instantly
+    // forever after — born reflexes (static gates) + earned reflexes (this)
+    private readonly BioComp.Core.Cognition.ReflexMap _reflexMap = new();
     // cross-path transcript memory: the same words arriving via realtime AND
     // batch must reach HumanSaid exactly once
     private readonly List<(string Text, double AtMs)> _recentFinalTexts = [];
@@ -1131,6 +1134,8 @@ public sealed class BrainRuntime : IDisposable
                 RhythmSamples = Social.SaveSamples(),
                 // THE LIVING ROUTER'S EAR: the person's phrasings it learned
                 IntentExamples = SaveIntentExamples(),
+                // EARNED REFLEXES: pathways the cortex handed down, kept for life
+                EarnedReflexes = _reflexMap.Save(),
                 // DEVELOPMENTAL MEMORY: maturity, growth, and ledgers that are
                 // the brain's story — losing these resurrects a child
                 GranularityBoost = Granularity.AccumulatedBoost,
@@ -1226,6 +1231,9 @@ public sealed class BrainRuntime : IDisposable
             // the router keeps its ear for how they talk — across death
             if (r.TryGetProperty("IntentExamples", out var ie) && ie.ValueKind == System.Text.Json.JsonValueKind.Array)
                 RestoreIntentExamples(ie.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null).ToArray());
+            // earned reflexes survive death: pathways stay automatic
+            if (r.TryGetProperty("EarnedReflexes", out var er) && er.ValueKind == System.Text.Json.JsonValueKind.Array)
+                _reflexMap.Restore(er.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null).ToArray());
             // DEVELOPMENTAL MEMORY: the maturity and ledgers of a life
             Granularity.Restore((float)(r.TryGetProperty("GranularityBoost", out var gb) ? gb.GetDouble() : 0));
             ThoughtLoop.RestoreInsights(r.TryGetProperty("Insights", out var ins) ? ins.GetInt32() : 0);
@@ -5365,6 +5373,33 @@ public sealed class BrainRuntime : IDisposable
         // the brain KNOWS the name (it memorized it) and the metacognitive
         // uncertainty prompt shouldn't override a known fact
         var nameQ = text.ToLowerInvariant();
+
+        // EARNED REFLEXES: a phrasing the cortex routed before fires INSTANTLY
+        // now — no thought, no latency, no cost. Born reflexes (the gates
+        // below) plus earned reflexes (these): the pathway IS the memory.
+        // Canonical dispatches can't fire here (they never enter the map), so
+        // this cannot loop.
+        if (!_nativeVoiceMode && _reflexMap.Fire(nameQ) is { } earned)
+        {
+            _reflexMap.Bump(earned.Phrase);
+            Note($"EARNED-REFLEX \"{earned.Phrase}\" -> {earned.Intent} (fired {earned.Fires + 1}x — this pathway is automatic now)");
+            _lastUserUtteranceSimMs = _net.TimeMs;
+            HumanSaid(earned.Intent switch
+            {
+                "sleep" => "it's time to sleep",
+                "wake" => "wake up",
+                "sing" => "sing for me",
+                "story" => "tell me a story",
+                "game" => "let's play a game",
+                "secret" => "tell me a secret",
+                "what_are_you" => "what are you",
+                "reset_q" => "what happens if you reset me",
+                "dream" => "what did you dream",
+                _ => text,
+            });
+            return;
+        }
+
         if (_userName is not null &&
             (nameQ.Contains("remember my name") || nameQ.Contains("what's my name") ||
              nameQ.Contains("whats my name") || nameQ.Contains("who am i") ||
@@ -5789,6 +5824,10 @@ public sealed class BrainRuntime : IDisposable
                         // THE ROUTER LEARNS: this phrasing worked — it becomes a
                         // few-shot example forever (their dialect, remembered)
                         LearnIntentExample(text, a.StartsWith("learned:") ? "learned" : a);
+                        // ...and an INSTANT PATHWAY: the cortex's decision,
+                        // earned as a reflex — next time, no thought needed
+                        if (!a.StartsWith("learned:", StringComparison.Ordinal) && a != "reply")
+                            _reflexMap.Learn(text, a);
                         if (a.StartsWith("learned:", StringComparison.Ordinal) &&
                             Commands.Match(a["learned:".Length..].Trim()) is { } l)
                         {
