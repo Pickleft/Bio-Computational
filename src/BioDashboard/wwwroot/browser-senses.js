@@ -136,6 +136,7 @@ async function enableBrowserSenses() {
     // PCM and POST every ~100ms.
     let _batchPcm = [];
     let _lastBatchPost = 0;
+    let _lastVoicedAt = 0;
 
     const handleAudioFrame = (input) => {
       lastProcessTime = Date.now();
@@ -187,21 +188,26 @@ async function enableBrowserSenses() {
       if (rms > 0.004) {
         // BATCH: collect voiced PCM, POST every 100ms (not per-frame) — this
         // feeds the brain's audition (16 kHz); silence buys nothing there
+        _lastVoicedAt = Date.now();
         _batchPcm.push(makePcm(16000));
-        const now = Date.now();
-        if (now - _lastBatchPost > 100 && _batchPcm.length > 0) {
-          _lastBatchPost = now;
-          const total = _batchPcm.reduce((a, p) => a + p.length, 0);
-          const merged = new Int16Array(total);
-          let off = 0;
-          for (const p of _batchPcm) { merged.set(p, off); off += p.length; }
-          _batchPcm = [];
-          fetch("/api/browser-audio", {
-            method: "POST",
-            headers: { "Content-Type": "application/octet-stream" },
-            body: merged.buffer,
-          }).catch(() => {});
-        }
+      } else if (_lastVoicedAt > 0 && Date.now() - _lastVoicedAt < 1200) {
+        // TRAILING SILENCE FLUSH: the server's VAD can only END an utterance
+        // when silence ARRIVES. Without these zero frames after speech stops,
+        // the capture never closes and the batch path never transcribes.
+        _batchPcm.push(new Int16Array(160));   // 10ms of true silence
+      }
+      if (_batchPcm.length > 0 && Date.now() - _lastBatchPost > 100) {
+        _lastBatchPost = Date.now();
+        const total = _batchPcm.reduce((a, p) => a + p.length, 0);
+        const merged = new Int16Array(total);
+        let off = 0;
+        for (const p of _batchPcm) { merged.set(p, off); off += p.length; }
+        _batchPcm = [];
+        fetch("/api/browser-audio", {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: merged.buffer,
+        }).catch(() => {});
       }
       pcmBuffer.push(pcm);
       pendingSmp += pcm.length;

@@ -249,7 +249,35 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     }
 
     using var proxy = new BioComp.Host.MuseTranscribeProxy();
-    await sendInfo("connecting to Meta ASR...");
+    await sendInfo("listening (rate check)...");
+    // RATE SNIFF: the client JS version determines its stream rate (v33+ =
+    // 24kHz, an older cached tab = 16kHz). The Meta session encoding MUST
+    // match or every word arrives pitch-shifted garbage no model can
+    // transcribe. Listen ~1.2s, measure the incoming byte rate, buffer the
+    // audio, then open Meta at the RIGHT rate and flush.
+    var sniffBuf = new List<byte>(64 * 1024);
+    var sniffStart = DateTime.UtcNow;
+    var sniffBufArr = new byte[16384];
+    while ((DateTime.UtcNow - sniffStart).TotalMilliseconds < 1200 &&
+           browserWs.State == WebSocketState.Open && !ctx.RequestAborted.IsCancellationRequested)
+    {
+        using var sniffT = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+        sniffT.CancelAfter(250);
+        try
+        {
+            var r = await browserWs.ReceiveAsync(new ArraySegment<byte>(sniffBufArr), sniffT.Token);
+            if (r.MessageType == WebSocketMessageType.Close) break;
+            if (r.Count > 0) sniffBuf.AddRange(sniffBufArr[..r.Count]);
+        }
+        catch (OperationCanceledException) { /* keep waiting */ }
+        catch { break; }
+    }
+    double sniffSecs = Math.Max(0.3, (DateTime.UtcNow - sniffStart).TotalSeconds);
+    double bytesPerSec = sniffBuf.Count / sniffSecs;
+    int clientHz = bytesPerSec > 40_000 ? 24_000 : 16_000;   // 48KB/s vs 32KB/s at real-time pace
+    Console.WriteLine($"[transcribe] rate sniff: {bytesPerSec:F0} B/s -> opening Meta session at {clientHz} Hz{(clientHz == 16_000 ? " (client on older cached JS — hard-refresh recommended)" : "")}");
+    await sendInfo(clientHz == 24_000 ? "connecting to Meta ASR (24 kHz)..." : "connecting to Meta ASR (16 kHz — refresh your tab for better ears)...");
+
     // RECOGNITION BIAS: names and the words this conversation actually
     // contains — Muse weights its language model toward them
     var kw = new List<string> { "neuron", "brain", "reset", "sleep", "wake up", "dream",
@@ -263,7 +291,7 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted))
     {
         connectCts.CancelAfter(TimeSpan.FromSeconds(15));
-        try { connected = await proxy.ConnectAsync(opts.ApiKey, ct: connectCts.Token, keywords: kw.ToArray(), languageBias: new[] { "English" }); }
+        try { connected = await proxy.ConnectAsync(opts.ApiKey, ct: connectCts.Token, keywords: kw.ToArray(), languageBias: new[] { "English" }, sampleRateHz: clientHz); }
         catch (OperationCanceledException) { connected = false; }
     }
     if (!connected)
@@ -288,6 +316,13 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     }
     Console.WriteLine("[transcribe] Meta real-time ASR connected");
     runtime.RealtimeEarsUp();   // batch path stands down while these ears live
+    // the sniff buffered ~1.2s of real audio — it belongs to the person's
+    // first words, never drop it
+    if (sniffBuf.Count > 0)
+    {
+        await proxy.SendAudioAsync(sniffBuf.ToArray(), ctx.RequestAborted);
+        sniffBuf.Clear();
+    }
 
     var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
     var buffer = new byte[16384];

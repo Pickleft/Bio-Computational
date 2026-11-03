@@ -36,7 +36,7 @@ public sealed class MuseTranscribeProxy : IDisposable
     /// conversation vocabulary (names and domain words the user really says).
     /// </summary>
     public async Task<bool> ConnectAsync(string apiKey, string model = "muse-voice-transcribe-1.0",
-        CancellationToken ct = default, string[]? keywords = null, string[]? languageBias = null)
+        CancellationToken ct = default, string[]? keywords = null, string[]? languageBias = null, int sampleRateHz = 24_000)
     {
         try
         {
@@ -46,11 +46,13 @@ public sealed class MuseTranscribeProxy : IDisposable
 
             await _meta.ConnectAsync(new Uri("wss://api.meta.ai/v1/asr/realtime"), _cts.Token);
 
-            // HANDSHAKE — try the documented format; log everything for debugging
+            // HANDSHAKE — the encoding MUST match the client's actual stream
+            // rate (the server sniffs it): a mismatch pitch-shifts every word
+            // into garbage Meta cannot transcribe
             var hs = new Dictionary<string, object>
             {
                 ["authorization"] = new Dictionary<string, string> { ["accessToken"] = $"Bearer {apiKey}" },
-                ["audioEncoding"] = "PCM_24KHZ",
+                ["audioEncoding"] = sampleRateHz >= 22_050 ? "PCM_24KHZ" : "PCM_16KHZ",
                 ["model"] = model,
                 ["mode"] = "ENDPOINTING",
                 ["partialMode"] = "CUMULATIVE",
