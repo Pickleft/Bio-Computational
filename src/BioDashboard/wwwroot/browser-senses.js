@@ -414,6 +414,13 @@ let transcribeWs = null;
 let wsAudioQueue = [];
 
 function connectTranscribeWs() {
+  // RE-ENTRANCY GUARD: a reconnect already in flight (CONNECTING) or a live
+  // socket means do nothing — stacked reconnects multiplied sessions and
+  // churned "session closed" spam when the server was briefly sick
+  if (transcribeWs && (transcribeWs.readyState === WebSocket.OPEN || transcribeWs.readyState === WebSocket.CONNECTING)) {
+    console.log("[transcribe-ws] already open/connecting — skipping reconnect");
+    return;
+  }
   const fin = document.getElementById("live-final");
   const int = document.getElementById("live-interim");
   const dot = document.getElementById("live-dot");

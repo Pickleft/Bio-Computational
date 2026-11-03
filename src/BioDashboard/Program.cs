@@ -162,10 +162,18 @@ app.MapPost("/api/test-voice", () =>
 // (mmm, breaths, moods) are OURS — formant-synthesized from human voice data;
 // words ride the prosthetic vocal tract with prosody composed from the
 // neural state (SSML emphasis/breaths/pitch). Stitched into one WAV.
-app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume) =>
+// SYNTHESIS SERIALIZATION: at most ONE Kokoro job at a time. Concurrent
+// sentence-streamed requests saturating every core is what froze the sim
+// thread (watchdog spawned a second loop, threads raced, NullRef storm).
+// One at a time keeps the first sentence fast AND the brain alive; the
+// browser pipelines by prefetching the next sentence during playback.
+var voiceGate = new SemaphoreSlim(1, 1);
+
+app.MapGet("/api/voice", async (string text, float? rate, float? pitch, float? volume) =>
 {
     if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
         return Results.BadRequest(new { error = "text required" });
+    await voiceGate.WaitAsync();
     try
     {
         var r = Math.Clamp(rate ?? 0.92f, 0.5f, 1.5f);
@@ -188,6 +196,7 @@ app.MapGet("/api/voice", (string text, float? rate, float? pitch, float? volume)
         Console.WriteLine($"[voice] generation failed: {ex.Message}");
         return Results.StatusCode(502);
     }
+    finally { voiceGate.Release(); }
 });
 
 // direct-talk toggle: reply WITHOUT the language cortex (composed from state)

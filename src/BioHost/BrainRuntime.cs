@@ -1079,6 +1079,7 @@ public sealed class BrainRuntime : IDisposable
     private volatile string _simPhase = "boot";
     private long _simHeartbeat = Environment.TickCount64;
     private int _watchdogRestarts;
+    private int _simGeneration;
 
     private void StartRunLoop()
     {
@@ -1094,6 +1095,9 @@ public sealed class BrainRuntime : IDisposable
                 {
                     string phase = _simPhase;
                     _watchdogRestarts++;
+                    // bump the generation: the stalled thread (if it unsticks)
+                    // exits instead of racing this fresh one through the network
+                    System.Threading.Volatile.Write(ref _simGeneration, _watchdogRestarts);
                     Console.WriteLine("[brain-stalled] sim frozen " + stalledFor / 1000 + "s in phase '" + phase + "' - restarting (restart #" + _watchdogRestarts + ")");
                     try { _chat.Add("Brain: (I stuttered just now - something in me caught itself. '" + phase + "')"); } catch { }
                     var t2 = new Thread(RunLoop) { IsBackground = true, Name = "brain-sim-" + _watchdogRestarts };
@@ -1496,12 +1500,23 @@ public sealed class BrainRuntime : IDisposable
 
     private void RunLoop()
     {
+        // GENERATION GUARD: the stall watchdog may spawn a fresh loop while
+        // the old one is merely STARVED (not dead). When the old thread
+        // unsticks, it must exit instead of racing the new one through the
+        // same network — two sim threads tearing shared state is what made
+        // StepOnce throw NullReferenceException 101 times in a row.
+        int myGeneration = System.Threading.Volatile.Read(ref _simGeneration);
         long nextCheckpoint = 30_000; // 30 sim-seconds: save EVERYTHING frequently
         int consecutiveErrors = 0;
         double lastWallMs = _wall.Elapsed.TotalMilliseconds;
         float lastSimMs = 0;
         while (_running)
         {
+            if (myGeneration != System.Threading.Volatile.Read(ref _simGeneration))
+            {
+                Console.WriteLine("[brain-sim] stale sim thread exiting (replaced by restart)");
+                return;
+            }
             System.Threading.Volatile.Write(ref _simHeartbeat, Environment.TickCount64);
             try
             {
@@ -1525,12 +1540,17 @@ public sealed class BrainRuntime : IDisposable
             }
             catch (Exception ex)
             {
-                // the brain must never die from a single bad tick
-                if (++consecutiveErrors > 100)
+                // the brain must never die from a single bad tick — but it
+                // also must not SPAM 101 errors: bail after 5 consecutive and
+                // let the watchdog restart clean
+                if (++consecutiveErrors > 5)
                 {
-                    Note($"FATAL: {consecutiveErrors} consecutive errors, last: {ex.Message}");
+                    Note($"FATAL: {consecutiveErrors} consecutive sim errors, last: {ex.Message}");
                     Console.WriteLine($"[brain-fatal] {ex}");
-                    break;
+                    // hand the loop to the watchdog by stalling the heartbeat:
+                    // it will spawn exactly one fresh thread
+                    System.Threading.Volatile.Write(ref _simHeartbeat, Environment.TickCount64 - 60_000);
+                    return;
                 }
             }
 
