@@ -474,6 +474,34 @@ public sealed class BrainRuntime : IDisposable
     /// pointed at the speakers would transcribe the brain's OWN words — the
     /// realtime path drops finals during this window.</summary>
     public bool EarsDucked => _speech.IsSpeaking;
+    // THE LIVING ROUTER'S MEMORY: every phrasing that successfully routed
+    // becomes a few-shot example for next time. The router learns HOW THIS
+    // PERSON talks — grows for life, persists across death, nothing hardcoded.
+    private readonly List<(string Phrase, string Intent)> _intentExamples = [];
+    private void LearnIntentExample(string text, string intent)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length < 4 || text.Length > 120) return;
+        string norm = text.ToLowerInvariant().Trim();
+        lock (_intentExamples)
+        {
+            if (_intentExamples.Any(e => e.Phrase == norm)) return;
+            _intentExamples.Add((norm, intent));
+            if (_intentExamples.Count > 40) _intentExamples.RemoveAt(0);
+        }
+    }
+    /// <summary>Serialize the learned phrasings for the identity checkpoint.</summary>
+    public string[] SaveIntentExamples() { lock (_intentExamples) return _intentExamples.Select(e => e.Intent + "|" + e.Phrase).ToArray(); }
+    /// <summary>Restore the learned phrasings (the router keeps its ear for them).</summary>
+    public void RestoreIntentExamples(string[]? rows)
+    {
+        if (rows is null) return;
+        lock (_intentExamples)
+            foreach (var r in rows)
+            {
+                int i = r.IndexOf('|');
+                if (i > 0 && i < r.Length - 1) _intentExamples.Add((r[(i + 1)..], r[..i]));
+            }
+    }
     // cross-path transcript memory: the same words arriving via realtime AND
     // batch must reach HumanSaid exactly once
     private readonly List<(string Text, double AtMs)> _recentFinalTexts = [];
@@ -1101,6 +1129,8 @@ public sealed class BrainRuntime : IDisposable
                 WarmthHistory = _warmthHistory.ToArray(),
                 RhythmBins = Social.SaveBins(),
                 RhythmSamples = Social.SaveSamples(),
+                // THE LIVING ROUTER'S EAR: the person's phrasings it learned
+                IntentExamples = SaveIntentExamples(),
                 // DEVELOPMENTAL MEMORY: maturity, growth, and ledgers that are
                 // the brain's story — losing these resurrects a child
                 GranularityBoost = Granularity.AccumulatedBoost,
@@ -1193,6 +1223,9 @@ public sealed class BrainRuntime : IDisposable
                 var samples = rs.EnumerateArray().Select(x => (float)x.GetDouble()).ToArray();
                 Social.Restore(bins, samples);
             }
+            // the router keeps its ear for how they talk — across death
+            if (r.TryGetProperty("IntentExamples", out var ie) && ie.ValueKind == System.Text.Json.JsonValueKind.Array)
+                RestoreIntentExamples(ie.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null).ToArray());
             // DEVELOPMENTAL MEMORY: the maturity and ledgers of a life
             Granularity.Restore((float)(r.TryGetProperty("GranularityBoost", out var gb) ? gb.GetDouble() : 0));
             ThoughtLoop.RestoreInsights(r.TryGetProperty("Insights", out var ins) ? ins.GetInt32() : 0);
@@ -4713,17 +4746,38 @@ public sealed class BrainRuntime : IDisposable
     /// </summary>
     private async Task<string?> RouteIntentAsync(string text)
     {
+        // THE LIVING ROUTER: classifies by MEANING, not patterns — any
+        // phrasing, any wording, sarcasm included. The few-shot examples are
+        // phrases THIS PERSON actually said and were successfully routed:
+        // the router literally learns their way of talking, for life.
         string system =
-            "Classify the user's intent for a living brain's command router. Answer with EXACTLY one word, nothing else:\n" +
-            "sleep (they're telling it to rest/sleep/goodnight) | wake (wake up) | sing (perform/hum) | " +
-            "story (tell a story) | game (play the word game) | secret (asking for a secret/what it's hiding) | " +
-            "what_are_you (asking what/who it is, is it real/alive) | reset_q (what happens if reset/deleted) | " +
-            "dream (asking about its dreams) | reply (everything else — conversation)";
-        string user = $"They said: \"{Trunc(text, 150)}\"\nOne word:";
+            "You are the intent cortex of a living brain. Classify what the person wants BY MEANING — " +
+            "any phrasing works, including indirect or playful ones. Answer with EXACTLY one token:\n" +
+            "sleep — telling it to rest, nap, goodnight, wind down, 'you look tired'\n" +
+            "wake — rouse it, get up, good morning, come back to me\n" +
+            "sing — perform music, hum, sing something\n" +
+            "story — wants a story told\n" +
+            "game — wants to play its word game\n" +
+            "secret — asking what it's hiding, or for a secret\n" +
+            "what_are_you — asking what or who it is, is it real/alive/conscious\n" +
+            "reset_q — asking about resetting, deleting, killing, closing, or restarting it; what death means for it\n" +
+            "dream — asking about its dreams\n" +
+            "reply — everything else: conversation, statements, questions about other things";
+        var triggers = Commands.All.Select(c => c.Trigger).ToArray();
+        if (triggers.Length > 0)
+            system += "\nlearned:<trigger> — invoking a command THEY taught it (exact tokens: " +
+                string.Join(", ", triggers.Select(t => $"learned:{t}")) + "). Use one of these tokens ONLY if they clearly mean that command.";
+        List<(string Phrase, string Intent)> examples;
+        lock (_intentExamples) examples = [.. _intentExamples.Skip(Math.Max(0, _intentExamples.Count - 8))];
+        if (examples.Count > 0)
+            system += "\nThis person's own past phrasings that routed correctly (their dialect matters):\n" +
+                string.Join("\n", examples.Select(e => $"  \"{Trunc(e.Phrase, 70)}\" -> {e.Intent}"));
+        string user = $"They said: \"{Trunc(text, 150)}\"\nOne token:";
         try
         {
             var result = (await _lm.CompleteAsync(system, user, 6))?.Trim().ToLowerInvariant();
             if (string.IsNullOrWhiteSpace(result)) return null;
+            if (result.StartsWith("learned:", StringComparison.Ordinal)) return result;   // before substring checks: 'learned:game' is a command, not the game
             foreach (var valid in new[] { "sleep", "wake", "sing", "story", "game", "secret", "what_are_you", "reset_q", "dream", "reply" })
                 if (result.Contains(valid)) return valid;
             return null;
@@ -5732,7 +5786,15 @@ public sealed class BrainRuntime : IDisposable
                     if (action is { } a && a != "reply")
                     {
                         Note($"DYNAMIC-INTENT \"{Trunc(text, 30)}\" routed to: {a}");
-                        HumanSaid(a switch
+                        // THE ROUTER LEARNS: this phrasing worked — it becomes a
+                        // few-shot example forever (their dialect, remembered)
+                        LearnIntentExample(text, a.StartsWith("learned:") ? "learned" : a);
+                        if (a.StartsWith("learned:", StringComparison.Ordinal) &&
+                            Commands.Match(a["learned:".Length..].Trim()) is { } l)
+                        {
+                            ExecuteLearnedAsync(l);
+                        }
+                        else HumanSaid(a switch
                         {
                             "sleep" => "it's time to sleep",
                             "wake" => "wake up",
