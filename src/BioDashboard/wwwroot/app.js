@@ -150,6 +150,30 @@ function speakBrain(s) {
   pumpSpeech();
 }
 
+// fetch one sentence's audio from Kokoro
+function fetchVoiceClip(sentence, rate, pitch) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  return fetch(`/api/voice?text=${encodeURIComponent(sentence)}&rate=${rate}&pitch=${pitch}`, { signal: ctrl.signal })
+    .then(r => { clearTimeout(timer); return r.ok ? r.blob() : null; })
+    .catch(() => { clearTimeout(timer); return null; });
+}
+
+// play one audio blob to completion (30s cap, resolve on end/error)
+function playClip(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }
+    currentAudio = new Audio(url);
+    currentAudio.volume = 1.0;
+    let played = false;
+    const kill = setTimeout(() => { URL.revokeObjectURL(url); resolve(played); }, 30000);
+    currentAudio.onended = () => { clearTimeout(kill); URL.revokeObjectURL(url); played = true; resolve(true); };
+    currentAudio.onerror = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(played); };
+    currentAudio.play().then(() => { played = true; }).catch(() => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(played); });
+  });
+}
+
 async function pumpSpeech() {
   if (speakPlaying || speakQueue.length === 0) return;
   speakPlaying = true;
@@ -162,25 +186,19 @@ async function pumpSpeech() {
 
   let spoken = false;   // track whether ANY voice path actually delivered
   try {
-    // PATH 1: Kokoro neural TTS (server-side generation)
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    const resp = await fetch(`/api/voice?text=${encodeURIComponent(text)}&rate=${rate}&pitch=${pitch}`, { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (resp.ok) {
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }
-      currentAudio = new Audio(url);
-      currentAudio.volume = 1.0;
-      let played = false;
-      await new Promise((resolve) => {
-        const kill = setTimeout(resolve, 30000);
-        currentAudio.onended = () => { clearTimeout(kill); URL.revokeObjectURL(url); played = true; resolve(); };
-        currentAudio.onerror = () => { clearTimeout(kill); URL.revokeObjectURL(url); resolve(); };
-        currentAudio.play().then(() => { played = true; }).catch(() => { clearTimeout(kill); resolve(); });
-      });
-      if (played) { spoken = true; }
+    // PATH 1: Kokoro neural TTS — SENTENCE-STREAMED: the whole paragraph
+    // used to synthesize before any sound played (10s+ of silence for long
+    // lines). Now the first sentence plays in ~1s while the NEXT sentence
+    // synthesizes during its playback — pipelined.
+    const sentences = (text.match(/[^.!?…]+[.!?…]*/g) || [text]).map(s => s.trim()).filter(s => s.length > 0);
+    let nextBlob = fetchVoiceClip(sentences[0], rate, pitch);
+    for (let i = 0; i < sentences.length; i++) {
+      const blob = await nextBlob;
+      if (i + 1 < sentences.length) nextBlob = fetchVoiceClip(sentences[i + 1], rate, pitch);
+      if (blob) {
+        const played = await playClip(blob);
+        if (played) spoken = true;
+      }
     }
   } catch (e) { console.log("[voice] kokoro failed:", e); }
 

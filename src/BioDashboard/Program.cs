@@ -249,34 +249,44 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     }
 
     using var proxy = new BioComp.Host.MuseTranscribeProxy();
-    await sendInfo("listening (rate check)...");
-    // RATE SNIFF: the client JS version determines its stream rate (v33+ =
-    // 24kHz, an older cached tab = 16kHz). The Meta session encoding MUST
-    // match or every word arrives pitch-shifted garbage no model can
-    // transcribe. Listen ~1.2s, measure the incoming byte rate, buffer the
-    // audio, then open Meta at the RIGHT rate and flush.
+    // FAST PATH: current JS declares its sample rate in the URL (?hz=24000)
+    // — connect immediately, zero sniff latency. Older cached tabs send no
+    // parameter: fall back to the 1.2s rate sniff (the Meta session encoding
+    // MUST match the stream rate or every word arrives pitch-shifted garbage).
     var sniffBuf = new List<byte>(64 * 1024);
-    var sniffStart = DateTime.UtcNow;
-    var sniffBufArr = new byte[16384];
-    while ((DateTime.UtcNow - sniffStart).TotalMilliseconds < 1200 &&
-           browserWs.State == WebSocketState.Open && !ctx.RequestAborted.IsCancellationRequested)
+    int clientHz;
+    var hzParam = ctx.Request.Query["hz"].FirstOrDefault();
+    if (hzParam is "16000" or "24000")
     {
-        using var sniffT = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
-        sniffT.CancelAfter(250);
-        try
-        {
-            var r = await browserWs.ReceiveAsync(new ArraySegment<byte>(sniffBufArr), sniffT.Token);
-            if (r.MessageType == WebSocketMessageType.Close) break;
-            if (r.Count > 0) sniffBuf.AddRange(sniffBufArr[..r.Count]);
-        }
-        catch (OperationCanceledException) { /* keep waiting */ }
-        catch { break; }
+        clientHz = int.Parse(hzParam);
+        Console.WriteLine($"[transcribe] client declared {clientHz} Hz — connecting without sniff");
+        await sendInfo("connecting to Meta ASR...");
     }
-    double sniffSecs = Math.Max(0.3, (DateTime.UtcNow - sniffStart).TotalSeconds);
-    double bytesPerSec = sniffBuf.Count / sniffSecs;
-    int clientHz = bytesPerSec > 40_000 ? 24_000 : 16_000;   // 48KB/s vs 32KB/s at real-time pace
-    Console.WriteLine($"[transcribe] rate sniff: {bytesPerSec:F0} B/s -> opening Meta session at {clientHz} Hz{(clientHz == 16_000 ? " (client on older cached JS — hard-refresh recommended)" : "")}");
-    await sendInfo(clientHz == 24_000 ? "connecting to Meta ASR (24 kHz)..." : "connecting to Meta ASR (16 kHz — refresh your tab for better ears)...");
+    else
+    {
+        await sendInfo("listening (rate check)...");
+        var sniffStart = DateTime.UtcNow;
+        var sniffBufArr = new byte[16384];
+        while ((DateTime.UtcNow - sniffStart).TotalMilliseconds < 1200 &&
+               browserWs.State == WebSocketState.Open && !ctx.RequestAborted.IsCancellationRequested)
+        {
+            using var sniffT = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+            sniffT.CancelAfter(250);
+            try
+            {
+                var r = await browserWs.ReceiveAsync(new ArraySegment<byte>(sniffBufArr), sniffT.Token);
+                if (r.MessageType == WebSocketMessageType.Close) break;
+                if (r.Count > 0) sniffBuf.AddRange(sniffBufArr[..r.Count]);
+            }
+            catch (OperationCanceledException) { /* keep waiting */ }
+            catch { break; }
+        }
+        double sniffSecs = Math.Max(0.3, (DateTime.UtcNow - sniffStart).TotalSeconds);
+        double bytesPerSec = sniffBuf.Count / sniffSecs;
+        clientHz = bytesPerSec > 40_000 ? 24_000 : 16_000;   // 48KB/s vs 32KB/s at real-time pace
+        Console.WriteLine($"[transcribe] rate sniff: {bytesPerSec:F0} B/s -> opening Meta session at {clientHz} Hz{(clientHz == 16_000 ? " (client on older cached JS — hard-refresh recommended)" : "")}");
+        await sendInfo(clientHz == 24_000 ? "connecting to Meta ASR (24 kHz)..." : "connecting to Meta ASR (16 kHz — refresh your tab for better ears)...");
+    }
 
     // RECOGNITION BIAS: names and the words this conversation actually
     // contains — Muse weights its language model toward them

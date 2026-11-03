@@ -378,8 +378,11 @@ async function enableBrowserSenses() {
     // dedups duplicate transcripts.
     watchdogTimer = setInterval(() => {
       if (!senseActive || !audioCtx) return;
-      if (Date.now() - lastProcessTime > 5000) {
-        console.log("[senses] audio stalled >5s — recycling ASR session");
+      // recycle ONLY while holding the talk button: with push-to-talk, idle
+      // gaps between holds are normal and sessions dying idle is fine —
+      // talkDown revives on demand. A stall WHILE HOLDING is a real stall.
+      if (Date.now() - lastProcessTime > 5000 && window.__talkHeld === true) {
+        console.log("[senses] audio stalled while holding — recycling ASR session");
         lastProcessTime = Date.now();
         if (transcribeWs) {
           try { transcribeWs.onclose = null; transcribeWs.close(); } catch (e) {}
@@ -421,7 +424,8 @@ function connectTranscribeWs() {
 
   try {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    transcribeWs = new WebSocket(`${proto}//${location.host}/ws/transcribe`);
+    // declare our rate so the server connects to Meta with ZERO sniff delay
+    transcribeWs = new WebSocket(`${proto}//${location.host}/ws/transcribe?hz=24000`);
     transcribeWs.binaryType = "arraybuffer";
   } catch (e) {
     setStatus("(cannot open transcription socket: " + e.message + ")", "#f07080");
@@ -475,10 +479,11 @@ function connectTranscribeWs() {
       setTimeout(connectTranscribeWs, 5000); // retry in 5s
       return;
     }
-    // normal close: reconnect after 2s
+    // normal close (an idle session ending between holds is EXPECTED with
+    // push-to-talk): reconnect quietly, no scary status
     if (senseActive) {
-      setStatus("(reconnecting...)", "#f0b45c");
-      setTimeout(connectTranscribeWs, 2000);
+      setStatus("(ears refreshed — hold to talk)", "#3ddbb8");
+      setTimeout(connectTranscribeWs, 500);
     }
   };
 
