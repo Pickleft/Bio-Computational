@@ -1884,3 +1884,15 @@ The four tells, reworked:
   sound startled me"). Fix: 20-second cooldown per monologue — the mind doesn't narrate
   every single ignition.
 - 278/278 green.
+
+## 2026-11-03 (the volume-bar + content-anchor round)
+
+- VOLUME BAR STUCK: the audio-level bar was written to the DOM on every audio frame
+  (~86 writes/sec) — on a busy main thread (avatar canvas, EEG, brain map) this froze.
+  Fix: the RMS is cached from the audio thread; a single requestAnimationFrame loop
+  renders it at 60fps; decays smoothly to 0 when audio stops. browser-senses.js v25.
+- CONTENT-ANCHORED INNER VOICE: the rehearsal candidate now anchors to WHAT THEY SAID
+  ("what they SAID: '...' — the actual words, not the sound. They meant something by
+  that. What?") instead of describing the audio quality ("the way they said it sits
+  wrong"). This attacks the disconnect directly: the inner voice processes CONTENT.
+- 278/278 green.

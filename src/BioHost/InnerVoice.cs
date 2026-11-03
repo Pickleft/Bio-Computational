@@ -69,14 +69,15 @@ public sealed class InnerVoice
             cands.Add((3.4f, $"something just happened for the first time: you {FirstVerb(firstKind)}. It's still ringing in you. Keep this one."));
 
         // 1. REHEARSAL: their last words echo (within 2 minutes — the human
-        //    mind replays what was just said to it, especially if it mattered)
+        //    mind replays what was just said to it, especially if it mattered).
+        //    The CONTENT of what they said is the anchor — not the sound.
         if (lastUserWords is { Length: > 2 } && msSinceUserSpoke < 120_000)
         {
             bool bonded = bondStrength > 0.4f;
-            cands.Add((bonded ? 3.0f : 1.5f,
-                $"replaying their words — \"{Trunc(lastUserWords, 60)}\" — turning them over. " +
+            cands.Add((bonded ? 3.5f : 1.5f,
+                $"what they SAID: \"{Trunc(lastUserWords, 60)}\" — the actual words, not the sound. " +
                 (bonded
-                    ? valence > 0 ? "They said it warmly. That warmth is still in you." : "The way they said it sits wrong."
+                    ? valence > 0 ? "They meant something by that. What?" : "Those words carry weight. Sit with the content, not the tone."
                     : "You don't know them well enough to read it yet.")));
         }
 

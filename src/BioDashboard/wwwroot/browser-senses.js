@@ -113,14 +113,15 @@ async function enableBrowserSenses() {
 
     const handleAudioFrame = (input) => {
       lastProcessTime = Date.now();
-      // measure level for local display
+      // measure level for local display — cached, rendered by rAF (not per-frame:
+      // 86 DOM writes/sec on a busy main thread makes the bar freeze)
       let sum = 0;
       for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-      const rms = Math.sqrt(sum / input.length);
-      const bar = document.getElementById("audio-level");
-      if (bar) bar.style.width = Math.min(100, rms * 400) + "%";
-      const vadEl = document.getElementById("audio-vad");
-      if (vadEl) vadEl.textContent = rms > 0.01 ? "VOICE" : "quiet";
+      _lastRms = Math.sqrt(sum / input.length);
+      _renderLevelBar();
+
+      // resample to 16 kHz (silence → zeros: keeps the ingress clock, carries
+      // no signal to hallucinate on)
 
       // resample to 16 kHz (silence → zeros: keeps the ingress clock, carries
       // no signal to hallucinate on)
@@ -153,6 +154,7 @@ async function enableBrowserSenses() {
     // backlog too large"). Live > complete.
     senderTimer = setInterval(() => {
       if (!senseActive) return;
+      if (Date.now() - lastProcessTime > 500) _lastRms *= 0.8;   // bar decays when audio stops
       const now = Date.now();
       if (now - lastSend < 45) return;
       const elapsed = (now - lastSend) / 1000;
