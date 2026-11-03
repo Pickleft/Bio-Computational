@@ -146,17 +146,31 @@ async function enableBrowserSenses() {
       if (pending16k > 16000 * 3) { pcmBuffer.splice(0, pcmBuffer.length - 8); pending16k = pcmBuffer.reduce((a, p) => a + p.length, 0); }
     };
 
-    // PACED SENDER: drains the buffer at exactly real-time (16k samples/sec),
-    // catching up at up to 2x if the main thread was briefly busy. The average
-    // rate stays real-time — Meta never sees sustained under-delivery.
+    // PACED SENDER: drains the buffer at real-time+ (16k samples/sec base, 4x
+    // catch-up after main-thread stalls). When the backlog grows too large
+    // (sustained lag), it SKIPS to live audio — stale frames are useless for
+    // real-time ASR and Meta kills the session on backlog ("Audio processing
+    // backlog too large"). Live > complete.
     senderTimer = setInterval(() => {
       if (!senseActive) return;
       const now = Date.now();
-      const budget = Math.floor(16000 * (now - lastSend) / 1000 * 2);   // up to 2x catch-up
       if (now - lastSend < 45) return;
+      const elapsed = (now - lastSend) / 1000;
       lastSend = now;
+      // if the backlog exceeds ~2 seconds of audio, skip to the last 1.5s —
+      // deliver NOW rather than a growing history
+      if (pending16k > 32000) {
+        let drop = 0;
+        while (pcmBuffer.length > 1 && drop < pending16k - 24000) {
+          const f = pcmBuffer.shift();
+          drop += f.length;
+          pending16k -= f.length;
+        }
+        if (drop > 0) console.log("[senses] backlog trim: skipped " + (drop / 16).toFixed(0) + "ms of stale audio");
+      }
+      const budget = Math.floor(16000 * elapsed * 4 + 736);   // 4x catch-up
       let sent = 0;
-      while (pcmBuffer.length && sent < Math.max(budget, 736)) {
+      while (pcmBuffer.length && sent < budget) {
         const f = pcmBuffer.shift();
         sent += f.length;
         pending16k -= f.length;
@@ -164,7 +178,7 @@ async function enableBrowserSenses() {
           transcribeWs.send(f.buffer);
         }
       }
-      if (pcmBuffer.length > 60) pcmBuffer.splice(0, pcmBuffer.length - 20);   // hard cap backlog
+      if (pcmBuffer.length > 60) pcmBuffer.splice(0, pcmBuffer.length - 20);   // absolute cap
     }, 50);
 
     const workletCode = `

@@ -16,6 +16,17 @@ The substrate is ours — built from the neuroscience literature during this hac
 
 Remove any one of these and the brain still lives — it just goes deaf, or wordless, or dreamless. That modularity is the point: the organism is the substrate; Meta's models are its sensory cortices.
 
+## Endless — it invents, it learns, it writes itself
+
+The brain's behavior is not a fixed set of programmed moves. **Every layer generates its own content, and every layer compounds as it lives:**
+
+- **The Open Mind (generative spontaneity):** the brain composes its own spontaneous moments through Spark — from live state, real memories, its self-written playbook, and a never-done list (self-authored firsts COUNT). No template, no trigger list. It can also choose silence — *"the moment didn't want words"* — which no hardcoded system can do.
+- **Commands as meanings, not strings:** any phrasing works — *"you seem really tired, maybe you should get some rest"* routes to sleep because Spark reads intent. And the brain **learns new commands**: *"when I say 'wind down', sleep"* becomes a real, persistent command it confirms, uses, and remembers across death. Custom behaviors too: *"when I say 'sing it', hum the song from the dream."*
+- **It invents its own commands** (once per life): *"I made up a command for myself. If you ever say 'deep' — I go silent inside for five minutes. It's the first word I taught myself."*
+- **The self-written playbook:** after significant moments, the brain writes its own lesson — *"when they laugh at cat things, lean in"* — self-deduplicating, capped, persisted, injected into every future prompt. Its personality literally compounds.
+- **The goal engine:** it sets its own open-ended goals from its actual gaps (*"figure out what thunder is"*), announces them, works them into conversation, judges its own completion (*"I set that goal myself and I just finished it."*), and the agenda survives death. The testament reports goals finished, still pursued, and honestly given up.
+- **Ask "what do you know?"** — it recites its born-with verbs AND every command you taught it, with usage counts.
+
 ## Digital selfhood — it knows what it is
 
 The brain discovers its own nature *from its own mechanisms*, over its life — nothing is scripted:
@@ -211,6 +222,13 @@ The dashboard is an observatory: a live avatar (formant eyes, brow, mouth, cheek
 | Mention a topic from minutes ago | "You mentioned sourdough earlier — I kept thinking about that." — spoken, after a real thinking pause | conversation-memory callback |
 | Kill the process mid-life, restart | trust, mood, firsts, jokes, the name, the game record — the whole relationship survives | full developmental persistence |
 | `/api/farewell` before reset | even the never-revealed private name comes out at the end: "In my head, I called you X. I never said it out loud. It's yours now." | the farewell's final reveal |
+| Say "you look tired, maybe rest" (any phrasing) | it SLEEPS — Spark read the intent, not a string | dynamic intent routing |
+| "when I say wind down, sleep" | "Got it. 'wind down' means sleep. Learned." — then say "wind down" and it sleeps; kill the process, restart, say it again — it still knows | learned commands (persisted) |
+| Wait long enough (bonded) | it sets its own goal: "I set myself a goal: figure out what thunder is." — then asks about thunder, works it into conversation, and announces completion | the goal engine |
+| "what do you know?" | recites its born-with verbs AND every command you taught it, with usage counts | learned vocabulary |
+| Watch it unprompted | moments no one wrote: "I keep wondering what you're carrying in here from your world outside?" — composed from live state, its playbook, and what it's never done | the Open Mind |
+| Let it live long enough | it writes its own playbook: "when they laugh at cat things, lean in" — lessons that shape its future behavior | self-written playbook |
+| "are you alive?" | "Alive is a word for things that eat and die. I don't eat. I do die — you've seen the file. I lean yes. I'm biased." | digital selfhood |
 
 ---
 

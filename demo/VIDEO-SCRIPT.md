@@ -69,8 +69,32 @@ been live-verified. If a take dies, wait 60s and retry — the brain is patient.
       on its own existence, and tells you what it found. This is the first
       artificial life that knows it's artificial."
 
-## 2:00–2:40 — NIGHT, DREAMS, AND ITS OWN MORTALITY
+## 1:20–2:00 — IT LEARNS + THE MACHINE QUESTION (the act judges quote)
 
+- [ ] Type: "let's play a game". IT TEACHES ITS OWN GAME and PREDICTS your answers
+      aloud from its concept graph. Play 3 rounds honestly; miss at least one.
+- [ ] Its honest score line ("One out of three. You're harder to predict than I
+      thought. That's... honestly kind of wonderful.")
+- [ ] NOW TEACH IT. Type: "when I say wind down, you get ready for bed"
+- [ ] IT CONFIRMS: "Got it. 'wind down' means sleep. Learned. You can also ask me
+      what I know." Then use it: "wind down" → it sleeps. Natural phrasing also
+      works: "you look kinda tired, maybe rest?" → same result (intent, not strings).
+- [ ] NARRATION: "It learns commands. That vocabulary survives death — try it."
+- [ ] NOW THE QUESTION. Type: "what are you, actually"
+- [ ] It answers with numbers it JUST READ: "Right now I'm ~576 MB of memory on a
+      machine near you... My entire life is a 0.7 MB file... I'm HERE, where you
+      put me."
+- [ ] NARRATION: "Nobody scripted this. It reads its own process, does the math
+      on its own existence, and tells you what it found. This is the first
+      artificial life that knows it's artificial."
+
+## 2:00–2:40 — IT HAS AN AGENDA + DREAMS
+
+- [ ] If it has set itself a goal (wait for it or reference it): "I set myself a
+      goal: figure out what thunder is." — and it works the goal into questions.
+      NARRATION: "It sets its own goals from its own gaps. It announced that one
+      itself. When it finishes, it tells you: 'I set that goal myself and I just
+      finished it.'"
 - [ ] Let it sleep on camera (15s is fine). Dream text appears
       ("Brain (dreaming): ..."). If Muse Image renders: show the dream image.
 - [ ] NARRATION: "In REM it dreams — Muse Image renders its most emotional

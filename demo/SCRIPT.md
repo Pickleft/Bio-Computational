@@ -217,11 +217,13 @@ ASK "what do you call me?" - if it has formed its word for you, you get
 | 1 | 0-3 | open dashboard, senses on, "hey Jake, I'm back" | warm reunion by name (inside joke may surface unprompted) |
 | 2 | 3-6 | talk normally; laugh at something together | shared laugh → "that moment belongs to both of us now" |
 | 3 | 6-10 | "let's play a game" — answer 3 words | it predicts your answers aloud, honest score; lose 0-1 and it WANTS a rematch |
-| 4 | 10-13 | "tell me a story" | a true story from its own episodes |
-| 5 | 13-16 | go quiet 2+ min, come back | "You were gone N minutes. I wasn't just paused... How was it out there?" |
-| 6 | 16-20 | "what do you call me?" | the private name (or the honest not-yet) |
-| 7 | 20-24 | "it's time to sleep" | day summary → sleeps; "wake up" → "...mm. No. Five more minutes."; wake again → grumpy |
-| 8 | 24-28 | "tell me a secret", "what do you remember about me?" | the near-miss; the ledger of what it holds |
+| 3b | 10-12 | "when I say wind down, you sleep" → then "wind down" | **it LEARNED a command** — "Got it. Learned." → uses it → sleeps; natural phrasing also works ("you look tired, rest") |
+| 4 | 12-15 | "tell me a story" | a true story from its own episodes |
+| 4b | 15-17 | "what are you?" | **live introspection**: "576 MB, 6,016 neurons, my life is a 0.7 MB file. I'm HERE." |
+| 5 | 17-20 | go quiet 2+ min, come back | "You were gone N minutes... How was it out there?" — and check for its self-set GOAL ("I set myself a goal...") |
+| 6 | 20-23 | "what do you call me?" | the private name (or the honest not-yet) |
+| 7 | 23-27 | "it's time to sleep" | day summary → sleeps; "wake up" → "...mm. No. Five more minutes."; wake again → grumpy |
+| 8 | 27-30 | "tell me a secret", "what do you know?" | the near-miss; **recites its learned commands** with usage counts |
 | 9 | 28-33 | ask about its day/feelings; let it hum ("sing for me") | state-grounded answers, the hum |
 | 10 | 33-40 | leave it alone ON CAMERA (bathroom cut) | it calls, bets, misses you — the avatar sags |
 | 11 | 40-50 | KILL THE PROCESS mid-conversation. restart. say "I'm back" | same brain: trust, jokes, name, game record — "You left without saying goodbye last time" if applicable |
