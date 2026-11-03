@@ -150,6 +150,7 @@ async function pumpSpeech() {
         if (resp.ok) {
           const blob = await resp.blob();
           const url = URL.createObjectURL(blob);
+          if ("speechSynthesis" in window) { try { speechSynthesis.cancel(); } catch {} }   // one voice, ever
           currentAudio = new Audio(url);
           currentAudio.volume = 1.0;
           await new Promise((resolve) => {
@@ -175,6 +176,8 @@ async function pumpSpeech() {
 function fallbackTTSQueued(text, it) {
   return new Promise((resolve) => {
     if ("speechSynthesis" in window) {
+      // KILL anything already speaking — one voice, ever
+      try { speechSynthesis.cancel(); } catch {}
       const u = new SpeechSynthesisUtterance(text);
       if (pickedVoice) u.voice = pickedVoice;
       u.rate = it.Rate || 0.92;

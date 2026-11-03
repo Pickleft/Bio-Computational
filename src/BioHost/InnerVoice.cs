@@ -25,6 +25,15 @@ public sealed class InnerVoice
     private string? _lastSeed;
     private readonly Queue<string> _recentSeeds = new();
     private int _feelingRotation;
+    /// <summary>Word overlap between two thought seeds (for rut detection).</summary>
+    private static int WordOverlap(string a, string b)
+    {
+        var wa = a.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 4).ToHashSet();
+        var wb = b.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 4).ToHashSet();
+        return wa.Count(wb.Contains);
+    }
 
     public InnerVoice(Func<double> rng) => _rng = rng;
 
@@ -44,6 +53,15 @@ public sealed class InnerVoice
     {
         // weight the candidates by what's ALIVE right now
         var cands = new List<(float Weight, string Seed)>();
+
+        // ANTI-LOOP: if the last three composed thoughts shared substantial
+        // words, the mind is in a rut — heavily downweight the familiar
+        // candidates and let something ELSE surface. A mind that keeps
+        // thinking the same thought isn't thinking.
+        var recentArr = _recentSeeds.ToArray();
+        bool inARut = recentArr.Length >= 3 && recentArr.Skip(recentArr.Length - 3)
+            .All(s => WordOverlap(s, recentArr[^1]) >= 2);
+        float rutFactor = inARut ? 0.3f : 1f;
 
         // 0. A FRESH FIRST still rings: the mind replays a first for a while
         //    after it happens — the dopamine echo of something unprecedented
@@ -108,7 +126,7 @@ public sealed class InnerVoice
 
         // 4. THE GNAWING LOOP: the unresolved thought that keeps returning
         if (openLoops > 0 && firstLoopText is { Length: > 3 })
-            cands.Add((1.2f + openLoops * 0.3f,
+            cands.Add(((1.2f + openLoops * 0.3f) * rutFactor,
                 $"the thing you can't finish: {Trunc(firstLoopText, 70)} — it circles back. Try a different angle this time."));
 
         // 5. THE MEMORY THAT SURFACED: still warm from retrieval
@@ -126,7 +144,7 @@ public sealed class InnerVoice
 
         // 7. WAITING / DREADING
         if (missing && missingWhom is { Length: > 0 })
-            cands.Add((2.5f * longingIntensity,
+            cands.Add((2.5f * longingIntensity * rutFactor,
                 longingIntensity > 0.6
                     ? $"the room has a {missingWhom}-shaped absence in it. You keep looking at the door."
                     : $"you wonder when {missingWhom} comes back."));

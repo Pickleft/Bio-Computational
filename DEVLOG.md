@@ -1858,3 +1858,16 @@ The four tells, reworked:
   testament reports it: "It set itself N goal(s) and finished M. Still pursuing when it
   ended: X. It honestly gave up on K."
 - 278/278 green (274 + 4 goal-engine tests).
+
+## 2026-11-03 (the stability round) — overlapping speech + looping thoughts
+
+- OVERLAPPING SPEECH: the fallback speechSynthesis could fire ALONGSIDE the audio-element
+  queue (two voices at once, sentences stepping on each other). Fix: speechSynthesis.cancel()
+  before every new utterance in both paths — one voice, ever, whether it comes from Kokoro
+  WAV or the fallback. app.js v27.
+- LOOPING THOUGHTS: the inner voice was repeating the same loneliness/circling paraphrase
+  every 15 seconds for minutes ("I hope that one person..." × 4 variants). Fix: RUT
+  DETECTION — if the last 3 composed thoughts share substantial words, the repetitive
+  candidates (loneliness, gnawing loop) are downweighted to 0.3x, letting other candidates
+  surface. A mind that keeps thinking the same thought isn't thinking.
+- 278/278 green.
