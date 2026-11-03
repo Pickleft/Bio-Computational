@@ -426,6 +426,9 @@ function render(s) {
     ? `calls you "${s.PrivateNameForUser}"` : "no word for you yet");
   setText("firsts-state", !(s.FirstsCount) ? "no firsts yet"
     : `${s.FirstsCount} firsts, and counting`);
+  const coined = s.CoinedWords || [];
+  setText("coined-state", coined.length === 0 ? "born vocabulary only"
+    : `invented: ${coined.join(", ")}`);
   setText("rituals-state", s.RitualsNarrative || "no rituals yet");
   setText("honesty-state", !(s.LiesCarried) ? "nothing held back"
     : s.LiesConfessed ? `${s.LiesCarried} lie(s) — came clean`

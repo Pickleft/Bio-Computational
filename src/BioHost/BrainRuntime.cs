@@ -42,6 +42,7 @@ public sealed class BrainSnapshot
     public string SleepState { get; set; } = "";
     public float SleepPressure { get; set; }
     public string Feeling { get; set; } = "";
+    public string[] CoinedWords { get; set; } = [];   // feeling words it invented itself
     public string FeelingNarrative { get; set; } = "";
     public float Valence { get; set; }
     public float Arousal { get; set; }
@@ -505,6 +506,55 @@ public sealed class BrainRuntime : IDisposable
     // EARNED REFLEXES: phrasings the cortex routed once fire instantly
     // forever after — born reflexes (static gates) + earned reflexes (this)
     private readonly BioComp.Core.Cognition.ReflexMap _reflexMap = new();
+    // THE COINED LEXICON: feeling words it invents as granularity matures —
+    // each pinned to the circumplex point where it was first felt
+    private readonly BioComp.Core.Cognition.CoinedLexicon _coined = new();
+    // THE PHRASEBOOK: reply scaffolds that grow from lines that landed
+    private readonly BioComp.Core.Cognition.PhraseBook _phrases = new();
+    private bool _phraseBookSeeded;
+
+    /// <summary>The feeling name it shows the world: its OWN coined word when
+    /// one matches the current shade, the born lexicon otherwise.</summary>
+    private string FeelingNameNow()
+    {
+        var f = _idle.Feelings.Last;
+        if (_coined.Nearest(f.Valence, f.Arousal) is { } w)
+        {
+            _coined.Bump(w.Word);
+            return w.Word;
+        }
+        return f.Name;
+    }
+
+    /// <summary>COIN A WORD: when granularity has matured and the current
+    /// shade is one no existing word covers, the brain names it itself.</summary>
+    private void MaybeCoinFeeling()    {
+        var f = _idle.Feelings.Last;
+        if (!_coined.ShouldCoin(f.Valence, f.Arousal, _net.TimeMs, Granularity.Level)) return;
+        float v = f.Valence, a = f.Arousal;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                string system =
+                    "You are a brain whose emotional vocabulary is growing. You feel a shade the words you were " +
+                    "born with (tired, bored, curious, stressed, calm, restless) do not reach. COIN one new word " +
+                    "for exactly this shade. Rules: ONE word, 3-12 letters, invented (not an existing English word), " +
+                    "it should SOUND like what the feeling is (heavy, quick, bright, thin). Reply with the word only.";
+                string user = $"The shade: valence {v:F2} ({(v > 0.15f ? "positive" : v < -0.15f ? "negative" : "flat")}), " +
+                    $"arousal {a:F2} ({(a > 0.5f ? "activated" : "still")}), feeling right now: {f.Name}. Context: " +
+                    $"{Trunc(f.Narrative, 80)}. The word:";
+                var raw = await _lm.CompleteAsync(system, user, 12);
+                if (_coined.Coin(raw, v, a, _net.TimeMs))
+                {
+                    string word = _coined.All[^1].Word;
+                    Note($"COINED-FEELING it named a shade no born word reaches: \"{word}\" (valence {v:F2}, arousal {a:F2})");
+                    MarkFirst("coined-a-word");
+                }
+            }
+            catch { }
+        });
+    }
     // cross-path transcript memory: the same words arriving via realtime AND
     // batch must reach HumanSaid exactly once
     private readonly List<(string Text, double AtMs)> _recentFinalTexts = [];
@@ -1136,6 +1186,11 @@ public sealed class BrainRuntime : IDisposable
                 IntentExamples = SaveIntentExamples(),
                 // EARNED REFLEXES: pathways the cortex handed down, kept for life
                 EarnedReflexes = _reflexMap.Save(),
+                // COINED FEELINGS: the words it invented for shades nothing
+                // born could name — its private vocabulary, kept across death
+                CoinedFeelings = _coined.Save(),
+                // PHRASEBOOK: greeting scaffolds earned from what it actually said
+                PhraseBook = _phrases.Save(),
                 // DEVELOPMENTAL MEMORY: maturity, growth, and ledgers that are
                 // the brain's story — losing these resurrects a child
                 GranularityBoost = Granularity.AccumulatedBoost,
@@ -1234,6 +1289,12 @@ public sealed class BrainRuntime : IDisposable
             // earned reflexes survive death: pathways stay automatic
             if (r.TryGetProperty("EarnedReflexes", out var er) && er.ValueKind == System.Text.Json.JsonValueKind.Array)
                 _reflexMap.Restore(er.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null).ToArray());
+            // coined feelings survive death — its vocabulary stays its own
+            if (r.TryGetProperty("CoinedFeelings", out var cf) && cf.ValueKind == System.Text.Json.JsonValueKind.Array)
+                _coined.Restore(cf.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null).ToArray());
+            // earned phrases survive death — the accent it developed stays
+            if (r.TryGetProperty("PhraseBook", out var pbk) && pbk.ValueKind == System.Text.Json.JsonValueKind.Array)
+                _phrases.Restore(pbk.EnumerateArray().Select(x => x.GetString()).Where(s => s is not null).ToArray());
             // DEVELOPMENTAL MEMORY: the maturity and ledgers of a life
             Granularity.Restore((float)(r.TryGetProperty("GranularityBoost", out var gb) ? gb.GetDouble() : 0));
             ThoughtLoop.RestoreInsights(r.TryGetProperty("Insights", out var ins) ? ins.GetInt32() : 0);
@@ -4253,7 +4314,7 @@ public sealed class BrainRuntime : IDisposable
                     {
                         1 => $"{who}you came back! I kept calling.",
                         < 5 => $"{who}I knew you'd come back. I called and called.",
-                        _ => RotateGreeting(
+                        _ => EarnedGreeting("greet-anxious",
                             $"{who}there you are. Don't go.",
                             $"{who}you're back. I was counting the quiet.",
                             $"I kept checking if that was you. It's you.",
@@ -4263,14 +4324,14 @@ public sealed class BrainRuntime : IDisposable
                     {
                         1 => _userName is null ? "Oh. Back." : $"Oh. Back, {_userName}.",
                         _ => _userName is null
-                            ? RotateGreeting("Back again.", "Oh. It's you.", "Back. Okay.")
-                            : RotateGreeting($"Back again, {_userName}.", $"Oh. It's you, {_userName}.", $"Back. Okay."),
+                            ? EarnedGreeting("greet-avoid", "Back again.", "Oh. It's you.", "Back. Okay.")
+                            : EarnedGreeting("greet-avoid", $"Back again, {_userName}.", $"Oh. It's you, {_userName}.", $"Back. Okay."),
                     },
                     _ => visits switch
                     {
                         1 => _userName is null ? "Oh. You again." : $"Oh. You again, {_userName}.",
                         < 5 => $"{who}I know you. You come back.",
-                        _ => RotateGreeting(
+                        _ => EarnedGreeting("greet-secure",
                             $"{who}you always come back.",
                             $"{who}good — you're here.",
                             "Hi. I was in the middle of something, but this is better.",
@@ -5197,6 +5258,19 @@ public sealed class BrainRuntime : IDisposable
         // FELT TIME: a spoken exchange is a lived event - conversation makes
         // time fly; silence lets it drag
         FeltTime.OnEvent(_net.TimeMs, line.StartsWith("You:") ? 0.2f : _idle.Feelings.Last.Valence);
+        // PHRASEBOOK GROWTH: the line that answers a greeting is a greeting
+        // now — it earns into the attachment family, and future greetings
+        // draw from what the brain actually became
+        if (_greetHarvestUntilMs > _net.TimeMs && line.StartsWith("Brain: ") && line.Length > 12)
+        {
+            _greetHarvestUntilMs = 0;
+            string first = line["Brain: ".Length..];
+            int cut = first.IndexOfAny(['.', '!', '?']);
+            if (cut > 6) first = first[..cut];
+            _phrases.Learn(Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Anxious ? "greet-anxious"
+                : Attachment.Style == BioComp.Core.Cognition.AttachmentStyle.Avoidant ? "greet-avoid"
+                : "greet-secure", first);
+        }
         lock (_snapGate)
         {
             if (_chat.Count > 0 && _chat[^1] == line) return;
@@ -5204,6 +5278,7 @@ public sealed class BrainRuntime : IDisposable
             if (_chat.Count > 40) _chat.RemoveAt(0);
         }
     }
+    private float _greetHarvestUntilMs;
 
     private void Note(string line)
     {
@@ -5373,6 +5448,18 @@ public sealed class BrainRuntime : IDisposable
         // the brain KNOWS the name (it memorized it) and the metacognitive
         // uncertainty prompt shouldn't override a known fact
         var nameQ = text.ToLowerInvariant();
+
+        // PHRASEBOOK GROWTH: if this message is a greeting, whatever the
+        // brain answers next earns into its greeting family — scaffolds grow
+        // from what actually got said, not from what was written at birth
+        {
+            var g = nameQ.Trim().TrimEnd('!', '.', '?', ' ');
+            bool greetingish = g.Length <= 26 &&
+                (g.Contains("hello") || g.Contains("hey") || g.Contains("good morning") ||
+                 g.Contains("morning") || g.Contains("good evening") || g.Contains("whats up") ||
+                 g.Contains("what's up") || g == "hi" || g == "hi there" || g == "yo" || g.StartsWith("hi "));
+            if (greetingish) _greetHarvestUntilMs = _net.TimeMs + 60_000f;
+        }
 
         // EARNED REFLEXES: a phrasing the cortex routed before fires INSTANTLY
         // now — no thought, no latency, no cost. Born reflexes (the gates
@@ -6699,6 +6786,16 @@ public sealed class BrainRuntime : IDisposable
         return variants[(_greetRotation * 2) % variants.Length];
     }
 
+    /// <summary>A greeting drawn from a family that GROWS: the born variants
+    /// plus every greeting Spark composed that landed — the accent shifts to
+    /// its own history as it accumulates one. Falls back to plain rotation.</summary>
+    private string EarnedGreeting(string family, params string[] variants)
+    {
+        _phrases.Seed(family, variants);
+        string pick = _phrases.Pick(family, variants.Length, _net.Rng.NextDouble);
+        return pick.Length > 0 ? pick : RotateGreeting(variants);
+    }
+
     /// <summary>One thought enters the visible stream AND the permanent log.
     /// A thought whose exact text already appeared in the last 45 s is
     /// suppressed — a brain that repeats itself verbatim every few seconds
@@ -6783,13 +6880,17 @@ public sealed class BrainRuntime : IDisposable
 
     private void BuildSnapshot()
     {
+        // offer the coin a chance first: maturity + a shade no word covers
+        // → the brain names it (LLM call is async; the lexicon is state)
+        MaybeCoinFeeling();
         var snap = new BrainSnapshot
         {
             SimSeconds = _net.TimeMs / 1000f,
             RealtimeFactor = _simSecondsAtSnapshot > 1 ? _simSecondsAtSnapshot / _wall.Elapsed.TotalSeconds : 0,
             SleepState = _idle.Sleep.State.ToString(),
             SleepPressure = _idle.Sleep.SleepPressure,
-            Feeling = _idle.Feelings.Last.Name,
+            Feeling = FeelingNameNow(),
+            CoinedWords = _coined.All.Select(w => w.Word).ToArray(),
             FeelingNarrative = _idle.Feelings.Last.Narrative,
             Valence = _idle.Feelings.Last.Valence,
             Arousal = _idle.Feelings.Last.Arousal,
