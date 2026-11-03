@@ -422,6 +422,10 @@ public sealed class BrainRuntime : IDisposable
     private volatile bool _insightPending;
     private string? _brainName;
     private string? _userName;
+    /// <summary>Cheap live name access for the ASR keyword bias (no snapshot).</summary>
+    public string BrainNameNow => _brainName ?? "";
+    /// <summary>Cheap live name access for the ASR keyword bias (no snapshot).</summary>
+    public string UserNameNow => _userName ?? "";
     /// <summary>ALL known people by name (visitor-id → name). The brain can know
     /// multiple people, not just one — each bond has a name.</summary>
     private readonly Dictionary<string, string> _allKnownNames = [];

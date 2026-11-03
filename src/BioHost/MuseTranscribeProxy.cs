@@ -10,7 +10,7 @@ namespace BioComp.Host;
 ///
 /// HANDSHAKE FORMAT (from https://dev.meta.ai/docs/speech-to-text):
 ///   - Auth is in "authorization.accessToken" as "Bearer <key>" (NOT api_key)
-///   - audioEncoding is "PCM_16KHZ" or "PCM_24KHZ" (NOT "PCM_S16LE")
+///   - audioEncoding is "PCM_24KHZ" (full recognition bandwidth) or "PCM_16KHZ"
 ///   - model is "muse-voice-transcribe-1.0" (NOT "muse-voice")
 ///   - The handshake has NO "type" field
 ///   - Server replies with {"sessionId": "..."} (no type field)
@@ -29,10 +29,14 @@ public sealed class MuseTranscribeProxy : IDisposable
 
     /// <summary>
     /// Connect to Meta's real-time ASR endpoint and send the handshake.
-    /// Format: authorization.accessToken (Bearer), audioEncoding (PCM_16KHZ),
+    /// Format: authorization.accessToken (Bearer), audioEncoding (PCM_24KHZ —
+    /// Muse's full recognition bandwidth; 16k throws away the top half),
     /// model (muse-voice-transcribe-1.0), mode (ENDPOINTING).
+    /// languageBias + keywords bias recognition toward the actual
+    /// conversation vocabulary (names and domain words the user really says).
     /// </summary>
-    public async Task<bool> ConnectAsync(string apiKey, string model = "muse-voice-transcribe-1.0", CancellationToken ct = default)
+    public async Task<bool> ConnectAsync(string apiKey, string model = "muse-voice-transcribe-1.0",
+        CancellationToken ct = default, string[]? keywords = null, string[]? languageBias = null)
     {
         try
         {
@@ -43,15 +47,18 @@ public sealed class MuseTranscribeProxy : IDisposable
             await _meta.ConnectAsync(new Uri("wss://api.meta.ai/v1/asr/realtime"), _cts.Token);
 
             // HANDSHAKE — try the documented format; log everything for debugging
-            var handshake = JsonSerializer.Serialize(new Dictionary<string, object>
+            var hs = new Dictionary<string, object>
             {
                 ["authorization"] = new Dictionary<string, string> { ["accessToken"] = $"Bearer {apiKey}" },
-                ["audioEncoding"] = "PCM_16KHZ",
+                ["audioEncoding"] = "PCM_24KHZ",
                 ["model"] = model,
                 ["mode"] = "ENDPOINTING",
                 ["partialMode"] = "CUMULATIVE",
                 ["emitAudioProgress"] = false,
-            });
+            };
+            if (languageBias is { Length: > 0 }) hs["languageBias"] = languageBias;
+            if (keywords is { Length: > 0 }) hs["keywords"] = keywords;
+            var handshake = JsonSerializer.Serialize(hs);
             Console.WriteLine($"[transcribe-proxy] sending handshake: {handshake[..Math.Min(100, handshake.Length)]}...");
             var hsBytes = Encoding.UTF8.GetBytes(handshake);
             await _meta.SendAsync(new ArraySegment<byte>(hsBytes), WebSocketMessageType.Text, true, _cts.Token);

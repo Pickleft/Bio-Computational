@@ -127,7 +127,7 @@ async function enableBrowserSenses() {
     // Meta kills the session ("ingress slower than real-time"). AudioWorklet
     // runs on the dedicated audio thread — immune to both.
     let lastProcessTime = Date.now();
-    let pending16k = 0;          // 16kHz samples buffered, waiting to be sent
+    let pendingSmp = 0;          // 24kHz samples buffered, waiting to be sent
     let pcmBuffer = [];          // queued Int16Array frames
     let lastSend = 0;
 
@@ -160,27 +160,34 @@ async function enableBrowserSenses() {
         _agcGain = _agcGain * 0.9 + desired * 0.1;
       }
 
-      // resample to 16 kHz (DC-removed and gain-lifted) — ALWAYS fill the
+      // DUAL-RATE RESAMPLE (DC-removed and gain-lifted) — ALWAYS fill the
       // buffer with the true signal. Gating the fill on rms spliced FAKE
       // ZEROS into quiet syllables mid-speech, and streaming ASR reads that
       // as sentence boundaries: chopped fragments, dropped words, and
       // repeated-phrase loops. Real silence is fine; fabricated silence is
       // poison.
-      const ratio = audioCtx.sampleRate / 16000;
-      const outLen = Math.max(1, Math.floor(input.length / ratio));
-      const pcm = new Int16Array(outLen);
-      for (let i = 0; i < outLen; i++) {
-        const pos = i * ratio;
-        const i0 = Math.floor(pos), frac = pos - i0;
-        let v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
-        v = (v - _dcEma) * _agcGain;
-        if (v > 1) v = 1; else if (v < -1) v = -1;
-        pcm[i] = Math.round(v * 32767);
-      }
+      // 24 kHz goes to Meta (Muse's full recognition bandwidth — 16k throws
+      // away the top half of speech); 16 kHz goes to the brain's cochlea
+      // (it expects that rate).
+      const makePcm = (rate) => {
+        const ratio = audioCtx.sampleRate / rate;
+        const outLen = Math.max(1, Math.floor(input.length / ratio));
+        const out = new Int16Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+          const pos = i * ratio;
+          const i0 = Math.floor(pos), frac = pos - i0;
+          let v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
+          v = (v - _dcEma) * _agcGain;
+          if (v > 1) v = 1; else if (v < -1) v = -1;
+          out[i] = Math.round(v * 32767);
+        }
+        return out;
+      };
+      const pcm = makePcm(24000);
       if (rms > 0.004) {
         // BATCH: collect voiced PCM, POST every 100ms (not per-frame) — this
-        // feeds the brain's audition; silence buys nothing there
-        _batchPcm.push(pcm);
+        // feeds the brain's audition (16 kHz); silence buys nothing there
+        _batchPcm.push(makePcm(16000));
         const now = Date.now();
         if (now - _lastBatchPost > 100 && _batchPcm.length > 0) {
           _lastBatchPost = now;
@@ -197,8 +204,8 @@ async function enableBrowserSenses() {
         }
       }
       pcmBuffer.push(pcm);
-      pending16k += outLen;
-      if (pending16k > 16000 * 3) { pcmBuffer.splice(0, pcmBuffer.length - 8); pending16k = pcmBuffer.reduce((a, p) => a + p.length, 0); }
+      pendingSmp += pcm.length;
+      if (pendingSmp > 24000 * 3) { pcmBuffer.splice(0, pcmBuffer.length - 8); pendingSmp = pcmBuffer.reduce((a, p) => a + p.length, 0); }
     };
 
     // PACED SENDER: merges small AudioWorklet frames (~2.6ms each) into
@@ -215,15 +222,15 @@ async function enableBrowserSenses() {
       if (now - lastSend < 95) return;
       lastSend = now;
 
-      // skip stale audio if backlog is huge
-      if (pending16k > 32000) {
+      // skip stale audio if backlog is huge (>2s at 24kHz)
+      if (pendingSmp > 48000) {
         let drop = 0;
-        while (pcmBuffer.length > 1 && drop < pending16k - 24000) {
+        while (pcmBuffer.length > 1 && drop < pendingSmp - 36000) {
           const f = pcmBuffer.shift();
           drop += f.length;
-          pending16k -= f.length;
+          pendingSmp -= f.length;
         }
-        if (drop > 0) console.log("[senses] backlog trim: skipped " + (drop / 16).toFixed(0) + "ms");
+        if (drop > 0) console.log("[senses] backlog trim: skipped " + (drop / 24).toFixed(0) + "ms");
       }
 
       // merge ALL pending frames into ONE chunk and send it
@@ -233,7 +240,7 @@ async function enableBrowserSenses() {
         let off = 0;
         for (const p of pcmBuffer) { merged.set(p, off); off += p.length; }
         pcmBuffer = [];
-        pending16k = 0;
+        pendingSmp = 0;
         if (window.brainBrowserSpeaking === true) {
           // ECHO DUCK: the brain is talking — send silence, not its own voice
           transcribeWs.send(new Int16Array(total).buffer);
@@ -243,7 +250,7 @@ async function enableBrowserSenses() {
       } else if (pcmBuffer.length > 0) {
         // WS not open — clear the buffer (stale audio is useless)
         pcmBuffer = [];
-        pending16k = 0;
+        pendingSmp = 0;
       }
     }, 50);
 

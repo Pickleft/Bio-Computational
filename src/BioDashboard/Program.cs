@@ -250,13 +250,20 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
 
     using var proxy = new BioComp.Host.MuseTranscribeProxy();
     await sendInfo("connecting to Meta ASR...");
+    // RECOGNITION BIAS: names and the words this conversation actually
+    // contains — Muse weights its language model toward them
+    var kw = new List<string> { "neuron", "brain", "reset", "sleep", "wake up", "dream",
+        "diary", "letter", "memory", "goal", "play", "game", "feel", "think",
+        "alive", "artificial", "window", "wake", "sing" };
+    if (!string.IsNullOrWhiteSpace(runtime.BrainNameNow)) kw.Add(runtime.BrainNameNow);
+    if (!string.IsNullOrWhiteSpace(runtime.UserNameNow)) kw.Add(runtime.UserNameNow);
     // HARD 15s TIMEOUT: a hanging handshake must never wedge the endpoint
     // silently — cancel it, log, and fall back to the batch path.
     bool connected;
     using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted))
     {
         connectCts.CancelAfter(TimeSpan.FromSeconds(15));
-        try { connected = await proxy.ConnectAsync(opts.ApiKey, ct: connectCts.Token); }
+        try { connected = await proxy.ConnectAsync(opts.ApiKey, ct: connectCts.Token, keywords: kw.ToArray(), languageBias: new[] { "English" }); }
         catch (OperationCanceledException) { connected = false; }
     }
     if (!connected)
