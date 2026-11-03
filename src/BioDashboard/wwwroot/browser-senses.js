@@ -160,20 +160,26 @@ async function enableBrowserSenses() {
         _agcGain = _agcGain * 0.9 + desired * 0.1;
       }
 
-      // resample to 16 kHz (DC-removed and gain-lifted)
+      // resample to 16 kHz (DC-removed and gain-lifted) — ALWAYS fill the
+      // buffer with the true signal. Gating the fill on rms spliced FAKE
+      // ZEROS into quiet syllables mid-speech, and streaming ASR reads that
+      // as sentence boundaries: chopped fragments, dropped words, and
+      // repeated-phrase loops. Real silence is fine; fabricated silence is
+      // poison.
       const ratio = audioCtx.sampleRate / 16000;
       const outLen = Math.max(1, Math.floor(input.length / ratio));
       const pcm = new Int16Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const pos = i * ratio;
+        const i0 = Math.floor(pos), frac = pos - i0;
+        let v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
+        v = (v - _dcEma) * _agcGain;
+        if (v > 1) v = 1; else if (v < -1) v = -1;
+        pcm[i] = Math.round(v * 32767);
+      }
       if (rms > 0.004) {
-        for (let i = 0; i < outLen; i++) {
-          const pos = i * ratio;
-          const i0 = Math.floor(pos), frac = pos - i0;
-          let v = input[i0] + (input[i0 + 1] - input[i0]) * frac;
-          v = (v - _dcEma) * _agcGain;
-          if (v > 1) v = 1; else if (v < -1) v = -1;
-          pcm[i] = Math.round(v * 32767);
-        }
-        // BATCH: collect voiced PCM, POST every 100ms (not per-frame)
+        // BATCH: collect voiced PCM, POST every 100ms (not per-frame) — this
+        // feeds the brain's audition; silence buys nothing there
         _batchPcm.push(pcm);
         const now = Date.now();
         if (now - _lastBatchPost > 100 && _batchPcm.length > 0) {

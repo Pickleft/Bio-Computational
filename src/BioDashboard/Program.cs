@@ -355,7 +355,8 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
                 // background noise; a real person says something)
                 if (evt.IsFinal && !string.IsNullOrWhiteSpace(evt.Text) && evt.Text.Length > 1)
                 {
-                    string trimmed = evt.Text.Trim().TrimEnd('.', '!', '?', ',', ' ');
+                    string text = CollapseRepeated(evt.Text);
+                    string trimmed = text.Trim().TrimEnd('.', '!', '?', ',', ' ');
                     // ECHO DROP: the brain's own voice is playing through
                     // speakers — a mic pointed at them "hears" the brain's
                     // words. Those are not the person speaking.
@@ -388,16 +389,16 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
                     {
                         Console.WriteLine($"[transcribe] DEDUPED repeated: \"{trimmed}\"");
                     }
-                    else if (!runtime.FinalTranscriptIsNew(evt.Text))
+                    else if (!runtime.FinalTranscriptIsNew(text))
                     {
                         Console.WriteLine($"[transcribe] CROSS-PATH duplicate dropped: \"{trimmed}\"");
                     }
                     else
                     {
-                        Console.WriteLine($"[transcribe] FINAL: \"{evt.Text}\"");
+                        Console.WriteLine($"[transcribe] FINAL: \"{text}\"");
                         lastSent = trimmed;
                         lastSentAt = DateTime.UtcNow;
-                        runtime.HumanSaid(evt.Text);
+                        runtime.HumanSaid(text);
                     }
                 }
                 else if (evt.Type == "partial" && !string.IsNullOrEmpty(evt.Text))
@@ -507,6 +508,20 @@ static bool IsGhostPhrase(string s)
             => true,
         _ => false,
     };
+}
+
+// ASR LOOP COLLAPSE: degraded audio makes streaming models emit the same
+// phrase in a loop INSIDE one final ("i don't want to play. i don't want to
+// play. i don't want to play.") — a person says it once. Only PURE loops
+// collapse (every sentence identical); mixed speech is untouched.
+static string CollapseRepeated(string s)
+{
+    var parts = s.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    if (parts.Length < 2) return s;
+    bool pureLoop = true;
+    for (int i = 1; i < parts.Length; i++)
+        if (!parts[i].Equals(parts[0], StringComparison.OrdinalIgnoreCase)) { pureLoop = false; break; }
+    return pureLoop ? parts[0] : s;
 }
 
 try
