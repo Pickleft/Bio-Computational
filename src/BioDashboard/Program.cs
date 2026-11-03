@@ -265,12 +265,23 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
     {
         try
         {
+            long totalBytes = 0; int frameCount = 0; var lastDebug = DateTime.UtcNow;
             while (!cts.Token.IsCancellationRequested && browserWs.State == WebSocketState.Open)
             {
                 var result = await browserWs.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
                 if (result.MessageType == WebSocketMessageType.Close) break;
                 if (result.Count > 0)
+                {
+                    totalBytes += result.Count;
+                    frameCount++;
+                    // log audio receipt every 2 seconds
+                    if ((DateTime.UtcNow - lastDebug).TotalSeconds > 2)
+                    {
+                        Console.WriteLine($"[transcribe-debug] AUDIO: {frameCount} frames, {totalBytes / 1024}KB total, avg {(result.Count / 2)} samples/frame");
+                        lastDebug = DateTime.UtcNow;
+                    }
                     await proxy.SendAudioAsync(buffer[..result.Count], cts.Token);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -288,7 +299,13 @@ app.Map("/ws/transcribe", async (HttpContext ctx) =>
             while (!cts.Token.IsCancellationRequested && browserWs.State == WebSocketState.Open)
             {
                 var evt = await proxy.ReceiveAsync(cts.Token);
-                if (evt is null) break;
+                if (evt is null)
+                {
+                    Console.WriteLine("[transcribe-debug] proxy.ReceiveAsync returned null — Meta session ended");
+                    break;
+                }
+                // TRANSCRIPT DEBUG: log every single event from Meta
+                Console.WriteLine($"[transcribe-debug] Meta event: type={evt.Type} isFinal={evt.IsFinal} text=\"{evt.Text ?? ""}\" (len={evt.Text?.Length ?? 0})");
                 // "Ingress audio slower than real-time" is RECOVERABLE: Meta
                 // measured a stalled stream (was: gated silence + throttled
                 // sends). The browser now keeps the clock with zero-frames;
