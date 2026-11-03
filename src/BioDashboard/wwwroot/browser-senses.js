@@ -5,6 +5,21 @@
 "use strict";
 
 let senseActive = false;
+let _lastRms = 0;
+let _levelRafStarted = false;
+function _renderLevelBar() {
+  if (!_levelRafStarted) {
+    _levelRafStarted = true;
+    const render = () => {
+      const bar = document.getElementById("audio-level");
+      if (bar) bar.style.width = Math.min(100, _lastRms * 400) + "%";
+      const vadEl = document.getElementById("audio-vad");
+      if (vadEl) vadEl.textContent = _lastRms > 0.01 ? "VOICE" : "quiet";
+      requestAnimationFrame(render);
+    };
+    requestAnimationFrame(render);
+  }
+}
 let camStream = null, micStream = null;
 let videoEl = null, videoCanvas = null, frameTimer = null;
 let audioCtx = null, audioProc = null;
