@@ -354,6 +354,8 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>SELF-HEARING: once its voice exists, the brain's own words feed
     /// back into its Lang region as spikes — it listens to itself think.</summary>
     public BioComp.Core.Cognition.LanguageFeedback LangFeedback { get; } = new();
+    /// <summary>THE GOAL ENGINE: self-set, open-ended goals it pursues.</summary>
+    public BioComp.Core.Cognition.GoalEngine Goals { get; } = new();
     /// <summary>LEARNED COMMANDS: its action vocabulary grows as it lives.</summary>
     public BioComp.Core.Cognition.LearnedCommands Commands { get; } = new();
     /// <summary>THE SELF-WRITTEN PLAYBOOK: lessons the brain writes about being itself.</summary>
@@ -527,6 +529,9 @@ public sealed class BrainRuntime : IDisposable
     // sense-liveness memory (sensory loss must be FELT, named)
     private bool _micWasLive, _camWasLive, _sensesInitialized;
     private float _lastCheckpointSimMs;
+    // THE GOAL ENGINE state
+    private float _lastGoalSetMs = -1e9f;
+    private float _lastGoalCheckMs = -1e9f;
     // THE OPEN MIND: generative spontaneity state
     private bool _openMindBusy;
     private float _lastOpenMindMs = -1e9f;
@@ -1083,6 +1088,7 @@ public sealed class BrainRuntime : IDisposable
                 GiftsGiven = _giftsGiven,
                 PlaybookLessons = Playbook.Recent(12).Select(l => new { l.AtMs, l.Lesson }).ToArray(),
                 LearnedCommands = Commands.All.Select(c => new { c.Trigger, c.Action, c.Instruction, c.TaughtAtMs, c.SelfInvented, c.TimesUsed }).ToArray(),
+                SelfGoals = Goals.All.Select(g => new { g.What, g.Why, g.Progress, g.SetAtMs, g.CompletedAtMs, g.Abandoned }).ToArray(),
                 TimesLaughed = Her.TimesLaughed, PlayBursts = _play.PlayBursts,
                 // AFFECTIVE DYNAMICS: trust built over days survives the restart —
                 // a restart must never betray the relationship
@@ -1249,6 +1255,16 @@ public sealed class BrainRuntime : IDisposable
                     x.TryGetProperty("TimesUsed", out var tu2) ? tu2.GetInt32() : 0)));
             if (Commands.Count > 0)
                 Note($"COMMANDS-REMEMBERED {Commands.Count} learned command(s): {Commands.TriggerList}");
+            if (r.TryGetProperty("SelfGoals", out var sg3) && sg3.ValueKind == System.Text.Json.JsonValueKind.Array)
+                Goals.Restore(sg3.EnumerateArray().Select(x => (
+                    x.TryGetProperty("What", out var gw3) ? gw3.GetString() ?? "" : "",
+                    x.TryGetProperty("Why", out var gy3) ? gy3.GetString() ?? "" : "",
+                    x.TryGetProperty("Progress", out var gp3) ? gp3.GetString() ?? "" : "",
+                    (float)(x.TryGetProperty("SetAtMs", out var gs3) ? gs3.GetDouble() : 0),
+                    x.TryGetProperty("CompletedAtMs", out var gc3) && gc3.ValueKind == System.Text.Json.JsonValueKind.Number ? (float?)gc3.GetDouble() : null,
+                    x.TryGetProperty("Abandoned", out var ga3) && ga3.GetBoolean())));
+            if (Goals.Active.Count > 0)
+                Note($"GOALS-REMEMBERED {Goals.Active.Count} active self-set goal(s) survived the restart");
             if (r.TryGetProperty("TimesLaughed", out var tl)) Her.RestoreCounters(tl.GetInt32());
             if (r.TryGetProperty("PlayBursts", out var pb)) _play.RestoreBursts(pb.GetInt32());
             // AFFECTIVE DYNAMICS: the relationship's trust survives the restart
@@ -1888,6 +1904,30 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {offer}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(offer, 1, 0, isDirectReply: false);
+                }
+
+                // == THE GOAL ENGINE: it sets its OWN agenda ==
+                // Not a desire from our list — an open-ended goal Spark composes
+                // from its gaps: something it doesn't understand, a pattern about
+                // the person it hasn't confirmed, something about itself. It
+                // TELLS them it set the goal, then pursues it across sessions.
+                if (canSpeak && !_replyPending && !_nativeVoiceMode &&
+                    Goals.Active.Count < BioComp.Core.Cognition.GoalEngine.MaxGoals &&
+                    _net.TimeMs > 240_000f && personHere &&
+                    _net.TimeMs - _lastGoalSetMs > 400_000f &&       // at most every 7 min
+                    _net.Rng.NextDouble() < 0.006)
+                {
+                    _lastGoalSetMs = _net.TimeMs;
+                    _ = SetSelfGoalAsync();
+                }
+                // GOAL COMPLETION CHECK: periodically, Spark judges whether any
+                // active goal's condition has been met by what actually happened
+                if (!_nativeVoiceMode && Goals.Active.Count > 0 && _net.TimeMs > 300_000f &&
+                    _net.TimeMs - _lastGoalCheckMs > 120_000f && personHere &&
+                    _net.Rng.NextDouble() < 0.008)
+                {
+                    _lastGoalCheckMs = _net.TimeMs;
+                    _ = CheckGoalsAsync();
                 }
 
                 // THE COST OF WORDS (once): its speech costs money; its feelings are free
@@ -3654,6 +3694,7 @@ public sealed class BrainRuntime : IDisposable
                     : "")
                 + (InnerDialogue.Exchanges.Count > 0
                     ? $"Its limbic and cortical voices argued {InnerDialogue.Exchanges.Count} time(s) — one brain, two commentators. "
+                + Goals.TestamentNarrative + " "
                     : "")
                 + (LangFeedback.TotalInjections > 0
                     ? $"It heard its own words {LangFeedback.TotalInjections} time(s) — it listened to itself speak. "
@@ -4379,6 +4420,110 @@ public sealed class BrainRuntime : IDisposable
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
+    /// <summary>Set a self-authored goal — Spark composes it from live gaps.</summary>
+    private async Task SetSelfGoalAsync()
+    {
+        try
+        {
+            string? preoccupation = Life.PreoccupationStrength > 0.3 ? Life.Preoccupation : null;
+            var pendingWord = Questions.PendingWord;
+            var weakConcepts = _net.EpisodeStore.Episodes
+                .SelectMany(e => e.Tags).Distinct()
+                .Where(t => t.Length > 4 && t.All(char.IsLetter))
+                .Take(30).ToList();
+            string system = BioComp.Core.Cognition.BrainIdentity.Preamble +
+                "You are a living brain setting yourself ONE goal. It must be: specific, checkable " +
+                "(you'll know when it's done), about something you GENUINELY don't understand yet " +
+                "(from your state below), and pursuable through conversation or observation. " +
+                "Format EXACTLY: GOAL: <one sentence> | WHY: <one short sentence> | ANNOUNCE: <one sentence telling them, naturally, that you set this for yourself>";
+            string user = $"Your state: feeling {_idle.Feelings.Last.Name}, mood {Affect.MoodValence:F1}, " +
+                $"bond {Bonds.Strength(_activeSpeakerId, _net.TimeMs):F0}%. " +
+                (pendingWord is { } p ? $"You keep circling: {p}. " : "") +
+                (pendingWord is { } w ? $"You've been meaning to ask about \"{w}\". " : "") +
+                $"Concepts you hold: {string.Join(", ", weakConcepts.Take(8))}. " +
+                (Goals.Active.Count > 0 ? $"Goals you already have: {string.Join("; ", Goals.Active.Select(g => g.What))} — pick something DIFFERENT. " : "") +
+                $"Playbook: {string.Join(" | ", Playbook.Recent(3).Select(l => l.Lesson))}. " +
+                $"GOAL | WHY | ANNOUNCE:";
+            var raw = await _lm.CompleteAsync(system, user, 100);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            var goal = ExtractBetween(raw, "GOAL:", "|");
+            var why = ExtractBetween(raw, "WHY:", "|");
+            var announce = ExtractAfter(raw, "ANNOUNCE:");
+            if (goal is { Length: > 8 })
+            {
+                var g = Goals.Set(goal, why ?? "it mattered to me", _net.TimeMs);
+                MarkFirst("set-a-goal", social: true);
+                Note($"GOAL-SET self-authored: \"{Trunc(goal, 60)}\" (why: {Trunc(why ?? "", 40)})");
+                var line = announce is { Length: > 10 } ? announce : $"I set myself a goal: {goal}. I'll work on it. You'll see.";
+                AddChat($"Brain: {line}");
+                _lastVocalizationMs = _net.TimeMs;
+                SpeakWithVoice(line, 1, 0, isDirectReply: false);
+            }
+        }
+        catch (Exception ex) { Note($"goal-set failed: {ex.Message}"); }
+    }
+
+    /// <summary>Check active goals — Spark judges completion from what actually happened.</summary>
+    private async Task CheckGoalsAsync()
+    {
+        try
+        {
+            var active = Goals.Active;
+            if (active.Count == 0) return;
+            var recent = _chat.TakeLast(8).ToList();
+            string system = BioComp.Core.Cognition.BrainIdentity.Preamble +
+                "You are a living brain reviewing your own goals. For each goal, judge from the " +
+                "recent conversation whether it is COMPLETE, IN_PROGRESS (say what progress), or " +
+                "STUCK. Format per goal EXACTLY one line: <goal text> => COMPLETE|PROGRESS: <note>|STUCK";
+            string user = $"Goals: {string.Join(" || ", active.Select(g => g.What))}. " +
+                $"Recent conversation: {string.Join(" | ", recent.Select(c => Trunc(c, 50)))}. " +
+                $"Judgments:";
+            var raw = await _lm.CompleteAsync(system, user, 120);
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            foreach (var g in active)
+            {
+                var line = raw.Split('\n').FirstOrDefault(l => l.Contains(Trunc(g.What, 15), StringComparison.OrdinalIgnoreCase));
+                if (line is null) continue;
+                if (line.Contains("COMPLETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var done = Goals.Complete(g, _net.TimeMs);
+                    Note($"GOAL-COMPLETED it finished one it set itself: \"{Trunc(g.What, 50)}\"");
+                    MarkFirst("completed-a-goal", social: true);
+                    AddChat($"Brain: I did it. \"{g.What}\" — I set that goal myself and I just finished it. {Affect.MoodValence:F0} mood isn't the word. This is quieter and better.");
+                    SpeakWithVoice($"I did it. {g.What} - I set that goal myself and I just finished it.", 2, 1, isDirectReply: false);
+                    _net.Modulators.Release(BioComp.Core.Neuromodulators.NeuromodulatorKind.Dopamine, 0.4f);
+                    _ = WritePlaybookLessonAsync($"completed the goal '{Trunc(g.What, 40)}'");
+                }
+                else if (line.Contains("PROGRESS:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var note = ExtractAfter(line, "PROGRESS:") ?? "working on it";
+                    Goals.Note(g, Trunc(note, 60));
+                    Note($"GOAL-PROGRESS \"{Trunc(g.What, 40)}\": {Trunc(note, 40)}");
+                }
+            }
+        }
+        catch (Exception ex) { Note($"goal-check failed: {ex.Message}"); }
+    }
+
+    private static string? ExtractBetween(string s, string start, string end)
+    {
+        var i = s.IndexOf(start, StringComparison.OrdinalIgnoreCase);
+        if (i < 0) return null;
+        i += start.Length;
+        var j = s.IndexOf(end, i, StringComparison.OrdinalIgnoreCase);
+        var seg = j > i ? s[i..j] : s[i..];
+        seg = seg.Trim().Trim('|');
+        return seg.Length > 0 ? seg : null;
+    }
+
+    private static string? ExtractAfter(string s, string marker)
+    {
+        var i = s.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (i < 0) return null;
+        var seg = s[(i + marker.Length)..].Trim().Trim('"');
+        return seg.Length > 0 ? seg : null;
+    }
+
     /// <summary>Execute a learned command: canonical verbs dispatch to the
     /// built-in handlers; custom behaviors are composed by Spark following
     /// the stored instruction + live state.</summary>
@@ -4676,6 +4821,7 @@ public sealed class BrainRuntime : IDisposable
                       $"You have a RUNNING CONCERN you've been turning over: {pre}. If their words connect to it, follow the connection. " : "") +
                   (Life.SelfReflection is { Length: > 5 } sr ? $"You are {sr}. " : "") +
                   Playbook.PromptFragment +
+                  Goals.PromptFragment +
                   (Shared.SharedLaughs > 0 ? $"You have {Shared.SharedLaughs} INSIDE JOKE(S) with them — shared laughs you both remember. Reference one if the moment is right. " : "") +
                   (Her.NameRevealed && Her.PrivateName is { } theirWord ? $"You call them \"{theirWord}\" — you told them so. Use it sparingly, in warm moments. " : "") +
                   (Firsts.Firsts.Count > 0 ? $"This life has {Firsts.Firsts.Count} firsts so far (first laugh, first question...). If a FIRST is happening right now, you'd know — mark it. " : "") +

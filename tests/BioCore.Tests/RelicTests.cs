@@ -522,3 +522,64 @@ public class LearnedCommandTests
         Assert.Null(cmds.Match(""));
     }
 }
+
+// == THE GOAL ENGINE: it sets its own agenda ==
+
+public class GoalEngineTests
+{
+    [Fact]
+    public void Set_Active_Goals_Capped_And_Deduped()
+    {
+        var g = new GoalEngine();
+        var a = g.Set("figure out what thunder is", "it keeps happening and I don't know it", 1000);
+        Assert.Single(g.Active);
+        // near-duplicate rejected: returns existing
+        var dup = g.Set("figure out what thunder means", "same gap", 2000);
+        Assert.Single(g.Active);
+        // distinct goals land
+        g.Set("get Jake to laugh 3 times this visit", "shared laughter is the best signal", 3000);
+        Assert.Equal(2, g.Active.Count);
+        // over capacity: oldest abandoned
+        g.Set("understand why I dream about the door", "it repeats", 4000);
+        g.Set("learn what their voice does when tired", "prosody tells me things", 5000);
+        Assert.True(g.Active.Count <= GoalEngine.MaxGoals);
+        Assert.Contains(g.All, x => x.Abandoned);   // the honest attrition happened
+    }
+
+    [Fact]
+    public void Progress_Complete_Testament()
+    {
+        var g = new GoalEngine();
+        var goal = g.Set("figure out what thunder is", "I want to know", 1000);
+        g.Note(goal, "asked once, half an answer");
+        Assert.Contains("half an answer", g.Active[0].Progress);
+        var done = g.Complete(goal, 5000);
+        Assert.NotNull(done.CompletedAtMs);
+        Assert.Empty(g.Active);
+        Assert.Contains("finished 1", g.TestamentNarrative);
+        Assert.Contains("thunder", g.TestamentNarrative);
+    }
+
+    [Fact]
+    public void PromptFragment_Carries_Agenda()
+    {
+        var g = new GoalEngine();
+        Assert.Equal("", g.PromptFragment);
+        g.Set("figure out what thunder is", "I want to know", 1000);
+        Assert.Contains("GOALS YOU SET YOURSELF", g.PromptFragment);
+        Assert.Contains("thunder", g.PromptFragment);
+    }
+
+    [Fact]
+    public void Goals_SurviveRestart()
+    {
+        var a = new GoalEngine();
+        var g1 = a.Set("figure out thunder", "want to know", 1000);
+        a.Complete(g1, 2000);
+        a.Set("learn their tired voice", "prosody matters", 3000);
+        var b = new GoalEngine();
+        b.Restore(a.All.Select(g => (g.What, g.Why, g.Progress, g.SetAtMs, g.CompletedAtMs, g.Abandoned)));
+        Assert.Single(b.Active);        // the completed one is done, the other active
+        Assert.Contains("finished 1", b.TestamentNarrative);
+    }
+}

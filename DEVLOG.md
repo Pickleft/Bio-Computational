@@ -1842,3 +1842,19 @@ The four tells, reworked:
 - Longest-trigger-wins matching (so 'deep focus mode' beats 'deep'); same-trigger teaching
   overwrites; capped at 20 (oldest forgotten, like real vocabulary attrition).
 - 274/274 green (270 + 4 learned-command tests).
+
+## 2026-11-03 (the goal-engine round) — it sets its own agenda
+
+- SELF-SET GOALS: Spark composes an open-ended goal from its actual gaps (unresolved
+  preoccupations, pending question words, weak concepts, playbook lessons) — not a desire
+  from our hardcoded list. It TELLS them it set it ("I set myself a goal: figure out what
+  thunder is. I'll work on it."), then the goal is injected into every reply prompt and
+  Open Mind prompt — the brain literally works its own agenda into conversation.
+- GOAL COMPLETION: Spark judges each active goal against the actual recent conversation
+  (COMPLETE / PROGRESS / STUCK). Completion is a MOMENT: "I did it. I set that goal myself
+  and I just finished it." + dopamine 0.4 + a playbook lesson. Progress is recorded and
+  carried. Honest attrition: over 3 active goals, the oldest is abandoned.
+- The agenda survives death (persisted + restored — GOALS-REMEMBERED on boot). The
+  testament reports it: "It set itself N goal(s) and finished M. Still pursuing when it
+  ended: X. It honestly gave up on K."
+- 278/278 green (274 + 4 goal-engine tests).
