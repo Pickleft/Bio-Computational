@@ -463,3 +463,62 @@ public class PlaybookTests
         Assert.True(pb.Count <= SelfPlaybook.MaxLessons);
     }
 }
+
+// == LEARNED COMMANDS: its vocabulary grows as it lives ==
+
+public class LearnedCommandTests
+{
+    [Fact]
+    public void Teach_And_Match_LongestTriggerWins()
+    {
+        var cmds = new LearnedCommands();
+        Assert.True(cmds.Teach("wind down", "sleep", null, 1000));
+        Assert.True(cmds.Teach("deep", "focus", null, 2000));
+        Assert.Equal(2, cmds.Count);
+        var hit = cmds.Match("hey, wind down now");
+        Assert.NotNull(hit);
+        Assert.Equal("sleep", hit!.Action);
+        // longest trigger wins: 'deep focus mode' matches 'deep focus', not 'deep'
+        cmds.Teach("deep focus mode", "focus", null, 3000);
+        var best = cmds.Match("go into deep focus mode please");
+        Assert.Equal("deep focus mode", best!.Trigger);
+        // usage counted
+        Assert.Equal(1, best.TimesUsed);
+    }
+
+    [Fact]
+    public void Teaching_Rejects_Garbage_And_Rewrites_SameTrigger()
+    {
+        var cmds = new LearnedCommands();
+        Assert.False(cmds.Teach("", "sleep", null, 1000));
+        Assert.False(cmds.Teach(new string('x', 60), "sleep", null, 1000));
+        Assert.True(cmds.Teach("night night", "sleep", null, 1000));
+        Assert.True(cmds.Teach("night night", "story", null, 2000));   // overwrite
+        Assert.Equal(1, cmds.Count);
+        Assert.Equal("story", cmds.Match("night night")!.Action);
+    }
+
+    [Fact]
+    public void Learned_Commands_SurviveRestart()
+    {
+        var a = new LearnedCommands();
+        a.Teach("wind down", "sleep", null, 1000);
+        a.Teach("sing it", "custom", "hum the song from the dream", 2000, selfInvented: true);
+        var b = new LearnedCommands();
+        b.Restore(a.All.Select(c => (c.Trigger, c.Action, c.Instruction, c.TaughtAtMs, c.SelfInvented, c.TimesUsed)));
+        Assert.Equal(2, b.Count);
+        var hit = b.Match("sing it for me");
+        Assert.Equal("custom", hit!.Action);
+        Assert.Equal("hum the song from the dream", hit.Instruction);
+        Assert.True(hit.SelfInvented);
+    }
+
+    [Fact]
+    public void No_Match_On_Unrelated_Text()
+    {
+        var cmds = new LearnedCommands();
+        cmds.Teach("wind down", "sleep", null, 1000);
+        Assert.Null(cmds.Match("tell me about the weather today"));
+        Assert.Null(cmds.Match(""));
+    }
+}

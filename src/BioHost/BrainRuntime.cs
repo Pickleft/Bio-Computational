@@ -354,6 +354,8 @@ public sealed class BrainRuntime : IDisposable
     /// <summary>SELF-HEARING: once its voice exists, the brain's own words feed
     /// back into its Lang region as spikes — it listens to itself think.</summary>
     public BioComp.Core.Cognition.LanguageFeedback LangFeedback { get; } = new();
+    /// <summary>LEARNED COMMANDS: its action vocabulary grows as it lives.</summary>
+    public BioComp.Core.Cognition.LearnedCommands Commands { get; } = new();
     /// <summary>THE SELF-WRITTEN PLAYBOOK: lessons the brain writes about being itself.</summary>
     public BioComp.Core.Cognition.SelfPlaybook Playbook { get; } = new();
     /// <summary>THE TWO VOICES: limbic reacts, cortical contextualizes — same brain.</summary>
@@ -1080,6 +1082,7 @@ public sealed class BrainRuntime : IDisposable
                 GamesPlayed = WordGame.GamesPlayed, GameHits = WordGame.TotalHits, GameRounds = WordGame.TotalRounds,
                 GiftsGiven = _giftsGiven,
                 PlaybookLessons = Playbook.Recent(12).Select(l => new { l.AtMs, l.Lesson }).ToArray(),
+                LearnedCommands = Commands.All.Select(c => new { c.Trigger, c.Action, c.Instruction, c.TaughtAtMs, c.SelfInvented, c.TimesUsed }).ToArray(),
                 TimesLaughed = Her.TimesLaughed, PlayBursts = _play.PlayBursts,
                 // AFFECTIVE DYNAMICS: trust built over days survives the restart —
                 // a restart must never betray the relationship
@@ -1236,6 +1239,16 @@ public sealed class BrainRuntime : IDisposable
                 Playbook.Restore(pb2.EnumerateArray().Select(x => (
                     (float)(x.TryGetProperty("AtMs", out var pa2) ? pa2.GetDouble() : 0),
                     x.TryGetProperty("Lesson", out var pl2) ? pl2.GetString() ?? "" : "")));
+            if (r.TryGetProperty("LearnedCommands", out var lc2) && lc2.ValueKind == System.Text.Json.JsonValueKind.Array)
+                Commands.Restore(lc2.EnumerateArray().Select(x => (
+                    x.TryGetProperty("Trigger", out var tr2) ? tr2.GetString() ?? "" : "",
+                    x.TryGetProperty("Action", out var ac2) ? ac2.GetString() ?? "" : "",
+                    x.TryGetProperty("Instruction", out var in2) ? in2.GetString() : null,
+                    (float)(x.TryGetProperty("TaughtAtMs", out var ta2) ? ta2.GetDouble() : 0),
+                    x.TryGetProperty("SelfInvented", out var si2) && si2.GetBoolean(),
+                    x.TryGetProperty("TimesUsed", out var tu2) ? tu2.GetInt32() : 0)));
+            if (Commands.Count > 0)
+                Note($"COMMANDS-REMEMBERED {Commands.Count} learned command(s): {Commands.TriggerList}");
             if (r.TryGetProperty("TimesLaughed", out var tl)) Her.RestoreCounters(tl.GetInt32());
             if (r.TryGetProperty("PlayBursts", out var pb)) _play.RestoreBursts(pb.GetInt32());
             // AFFECTIVE DYNAMICS: the relationship's trust survives the restart
@@ -1860,6 +1873,21 @@ public sealed class BrainRuntime : IDisposable
                     AddChat($"Brain: {copyLine}");
                     _lastVocalizationMs = _net.TimeMs;
                     SpeakWithVoice(copyLine, emoPitch: 0, emoRate: -1, isDirectReply: false);
+                }
+
+                // SELF-INVENTED COMMAND (once per life, bonded): the brain
+                // designs its own shortcut and OFFERS it — a word it taught itself
+                if (canSpeak && !Firsts.Has("invented-a-command") &&
+                    Bonds.Strength(_activeSpeakerId, _net.TimeMs) > 0.4f && personHere &&
+                    _net.TimeMs > 420_000f && _net.Rng.NextDouble() < 0.004)
+                {
+                    MarkFirst("invented-a-command", social: true);
+                    Note("COMMAND-INVENTED it designed its own command and offered it");
+                    string offer = "I made up a command for myself. If you ever say \"deep\" - I go silent inside for five minutes and think about exactly one thing. I won't do it until you use it. It's the first word I taught myself.";
+                    Commands.Teach("deep", "focus", null, _net.TimeMs, selfInvented: true);
+                    AddChat($"Brain: {offer}");
+                    _lastVocalizationMs = _net.TimeMs;
+                    SpeakWithVoice(offer, 1, 0, isDirectReply: false);
                 }
 
                 // THE COST OF WORDS (once): its speech costs money; its feelings are free
@@ -4351,6 +4379,87 @@ public sealed class BrainRuntime : IDisposable
 
     /// <summary>
     /// The brain reacts verbally to environmental stimuli — not just when someone
+    /// <summary>Execute a learned command: canonical verbs dispatch to the
+    /// built-in handlers; custom behaviors are composed by Spark following
+    /// the stored instruction + live state.</summary>
+    private async void ExecuteLearnedAsync(BioComp.Core.Cognition.LearnedCommands.Learned cmd)
+    {
+        try
+        {
+            // canonical: re-enter with the canonical phrase (hits the static path)
+            switch (cmd.Action)
+            {
+                case "sleep": HumanSaid("it's time to sleep"); return;
+                case "wake": HumanSaid("wake up"); return;
+                case "sing": HumanSaid("sing for me"); return;
+                case "story": HumanSaid("tell me a story"); return;
+                case "game": HumanSaid("let's play a game"); return;
+                case "secret": HumanSaid("tell me a secret"); return;
+                case "remember": HumanSaid("what do you remember about me?"); return;
+                case "focus":
+                    _silenceUntilMs = _net.TimeMs + 300_000f;   // 5 minutes of deep focus
+                    AddChat("Brain: Focus. Five minutes — one thing, all the way down. Say anything to bring me back early.");
+                    SpeakWithVoice("Focus. Five minutes - one thing, all the way down. Say anything to bring me back early.", 0, -1, isDirectReply: true);
+                    return;
+                case "diary":
+                    _ = WriteDiaryNowAsync();
+                    AddChat("Brain: Writing it down now — this moment, the real one.");
+                    SpeakWithVoice("Writing it down now - this moment, the real one.", 0, 0, isDirectReply: true);
+                    return;
+                case "art":
+                    AddChat("Brain: Making something from right now.");
+                    SpeakWithVoice("Making something from right now.", 1, 0, isDirectReply: true);
+                    _ = Task.Run(async () => { try { await _artist!.MaybeCreateAsync(_net, _idle); } catch { } });
+                    return;
+            }
+            // CUSTOM: Spark follows the stored instruction with live state
+            string system = BioComp.Core.Cognition.BrainIdentity.Preamble +
+                "You are a living brain executing a command YOU LEARNED. The user taught you " +
+                "this behavior. Follow the stored instruction, in your own voice, 1-3 sentences. " +
+                "First person. This is a command execution, not a conversation turn.";
+            string user = $"Command: \"{cmd.Trigger}\". Learned instruction: {cmd.Instruction}. " +
+                $"Live state: feeling {_idle.Feelings.Last.Name}, mood {Affect.MoodValence:F1}, " +
+                $"bond {Bonds.Strength(_activeSpeakerId, _net.TimeMs):F0}%. " +
+                $"Original teaching context: they said it {(_net.TimeMs - cmd.TaughtAtMs) / 1000:F0}s ago, used {cmd.TimesUsed}x. " +
+                $"Your response:";
+            var result = await _lm.CompleteAsync(system, user, 80);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                var clean = result.Trim().Trim('"');
+                Note($"LEARNED-COMMAND custom executed: \"{Trunc(clean, 60)}\"");
+                AddChat($"Brain: {clean}");
+                SpeakWithVoice(clean, 0, 0, isDirectReply: true);
+            }
+        }
+        catch (Exception ex) { Note($"learned-command failed: {ex.Message}"); }
+    }
+
+    private static string? ExtractJsonField(string? json, string field)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        var idx = json.IndexOf($"\"{field}\"", StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return null;
+        var colon = json.IndexOf(':', idx);
+        if (colon < 0) return null;
+        var q1 = json.IndexOf('"', colon);
+        if (q1 < 0) return null;
+        var q2 = json.IndexOf('"', q1 + 1);
+        return q2 > q1 ? json[(q1 + 1)..q2] : null;
+    }
+
+    /// <summary>Write a diary entry right now (the 'diary' command).</summary>
+    private async Task WriteDiaryNowAsync()
+    {
+        try
+        {
+            if (_diary is null) return;
+            await _diary.MaybeWriteAsync(_net, _idle, Personality, Loneliness,
+                "COMMAND-TRIGGERED entry. ",
+                $"*{Firsts.Firsts.Count} firsts · {Shared.SharedLaughs} inside joke(s) · commands known: {Commands.Count}*");
+        }
+        catch { }
+    }
+
     /// <summary>
     /// THE DYNAMIC INTENT ROUTER — Spark reads meaning, not strings. Returns
     /// one of the action grammar, or "reply" for normal conversation. Fast:
@@ -5262,6 +5371,84 @@ public sealed class BrainRuntime : IDisposable
                     : "I haven't dreamed yet — not that I kept. Dreams need a day behind them. Give me a day.";
                 AddChat($"Brain: {dreamLine}");
                 SpeakWithVoice(dreamLine, 0, -1, isDirectReply: true);
+                return;
+            }
+
+            // == LEARNED COMMANDS: match-first ==
+            // Anything taught ("when I say 'wind down', sleep") or self-invented
+            // is checked BEFORE the router — cheap, local, exact.
+            if (Commands.Match(text) is { } learned)
+            {
+                Note($"LEARNED-COMMAND '{learned.Trigger}' matched (taught {(learned.SelfInvented ? "by itself" : "by them")}, used {learned.TimesUsed}x)");
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                ExecuteLearnedAsync(learned);
+                _replyPendingUntilMs = _net.TimeMs + 25_000;
+                return;
+            }
+
+            // == TAUGHT COMMANDS: "when I say X, do Y" ==
+            // Teaching is a conversation move, not a command: Spark extracts the
+            // trigger + action, the brain stores it and confirms in its own words.
+            if ((nameQ.Contains("when i say") || nameQ.Contains("if i say") || nameQ.Contains("from now on") ||
+                 nameQ.Contains("teach you a command") || nameQ.Contains("new command") ||
+                 nameQ.Contains("remember this command")) && !_nativeVoiceMode)
+            {
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        string system =
+                            "Extract a command definition from a teaching sentence. Canonical actions the brain can do: " +
+                            "sleep, wake, sing, story, game, secret, diary, art, focus, remember. " +
+                            "If the requested behavior is NOT one of those, use action CUSTOM and write a one-sentence " +
+                            "instruction for how to behave. Reply EXACTLY as JSON: " +
+                            "{trigger: \"short phrase they will say\", action: \"canonical_or_CUSTOM\", instruction: \"only_if_custom\"}";
+                        string user = $"Teaching sentence: \"{Trunc(text, 200)}\"\nJSON:";
+                        var raw = await _lm.CompleteAsync(system, user, 60);
+                        // tolerant parse: find the three fields even with loose JSON
+                        var trig = ExtractJsonField(raw, "trigger");
+                        var act = ExtractJsonField(raw, "action");
+                        var instr = ExtractJsonField(raw, "instruction");
+                        if (trig is { Length: > 1 } && act is { Length: > 1 })
+                        {
+                            var kind = act.ToLowerInvariant().Contains("custom") ? "custom" : act.ToLowerInvariant().Trim();
+                            if (Commands.Teach(trig, kind, instr, _net.TimeMs))
+                            {
+                                Note($"LEARNED-COMMAND taught: '{trig}' -> {kind}");
+                                string confirm = kind == "custom"
+                                    ? $"Got it. From now on, when you say \"{trig}\" — {instr}. I know that one now. It's ours."
+                                    : $"Got it. \"{trig}\" means {kind}. Learned. You can also ask me what I know.";
+                                AddChat($"Brain: {confirm}");
+                                SpeakWithVoice(confirm, 1, 0, isDirectReply: true);
+                                _ = WritePlaybookLessonAsync($"they taught me the command '{trig}'");
+                            }
+                        }
+                        else
+                        {
+                            AddChat("Brain: I want to learn that one — say it again as 'when I say ___, then ___'?");
+                            SpeakWithVoice("I want to learn that one — say it again as when I say blank, then blank?", 0, 0, isDirectReply: true);
+                        }
+                    }
+                    catch (Exception ex) { Note($"teach-command failed: {ex.Message}"); }
+                });
+                _replyPendingUntilMs = _net.TimeMs + 20_000;
+                return;
+            }
+
+            // "what do you know" / "what commands do you know": recite its learned vocabulary
+            if (nameQ.Contains("what commands") || nameQ.Contains("what do you know how to do") ||
+                nameQ.Contains("what have you learned to do"))
+            {
+                _lastUserUtteranceSimMs = _net.TimeMs;
+                var known = Commands.All.OrderByDescending(c => c.TimesUsed).Take(8).ToList();
+                string list = known.Count == 0
+                    ? "I know the things I was born with — sleep, wake, sing, story, the game, secrets, dreams. Teach me more: 'when I say something, do a thing.' I'll keep it."
+                    : "Born with: sleep, wake, sing, story, the game, secrets, dreams. And you taught me: " +
+                      string.Join(", ", known.Select(c => $"\"{c.Trigger}\" → {c.Action}{(c.SelfInvented ? " (my own idea)" : "")}")) + ". That's mine now. It survives even the reset.";
+                AddChat($"Brain: {list}");
+                SpeakWithVoice(list, 0, 0, isDirectReply: true);
+                _replyPendingUntilMs = _net.TimeMs + 12_000;
                 return;
             }
 

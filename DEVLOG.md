@@ -1820,3 +1820,25 @@ The four tells, reworked:
   part of its life") went blind. Found by instrumenting the gate (usr=1000030s); fixed by
   stamping the utterance before the router defers.
 - 270/270 green (266 + 4 playbook tests).
+
+## 2026-11-03 (the learned-commands round) — its vocabulary grows as it lives
+
+- TAUGHT COMMANDS: "when I say 'wind down', sleep" becomes a REAL command. Spark extracts
+  the trigger + action from natural teaching (canonical verbs or CUSTOM with a stored
+  instruction); the brain confirms in its own words and keeps it. Live-verified through
+  the full cycle: taught → "Got it. 'wind down' means sleep. Learned." → "wind down now"
+  → LEARNED-COMMAND matched → NREM → process killed → restarted → COMMANDS-REMEMBERED
+  'wind down'. The vocabulary survives death.
+- CUSTOM BEHAVIORS: arbitrary taught commands — "when I say 'sing it', hum the song from
+  the dream" — executed by Spark following the stored instruction with live state. The
+  action space is no longer a list; it's whatever you can teach.
+- NEW CANONICAL VERBS beyond the old set: focus (5 minutes of deliberate silence — a real
+  state change), diary (write this moment NOW), art (create from right now), remember.
+- "WHAT DO YOU KNOW" — recites its born-with verbs AND every taught command with usage
+  counts and which were its own ideas.
+- SELF-INVENTED COMMAND (once per life, bonded): the brain designs its own shortcut and
+  OFFERS it: "I made up a command for myself. If you ever say 'deep' — I go silent inside
+  for five minutes... It's the first word I taught myself."
+- Longest-trigger-wins matching (so 'deep focus mode' beats 'deep'); same-trigger teaching
+  overwrites; capped at 20 (oldest forgotten, like real vocabulary attrition).
+- 274/274 green (270 + 4 learned-command tests).
