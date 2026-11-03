@@ -212,24 +212,44 @@ async function enableBrowserSenses() {
 
     const workletCode = `
       class StreamProcessor extends AudioWorkletProcessor {
+        constructor() { super(); this._frames = 0; }
         process(inputs) {
           const ch = inputs[0] && inputs[0][0];
-          if (ch) this.port.postMessage(ch.slice(0));
+          if (ch) {
+            this._frames++;
+            if (this._frames === 1) this.port.postMessage({ first: true });
+            this.port.postMessage(ch.slice(0));
+          }
           return true;
         }
       }
       registerProcessor('stream-processor', StreamProcessor);`;
     let captureReady = false;
+    const audioSink = audioCtx.createGain();
+    audioSink.gain.value = 0;
+    audioSink.connect(audioCtx.destination);
+
+    const onFirstFrame = () => console.log("[senses] ★ FIRST AUDIO FRAME captured — pipeline live");
+
     if (audioCtx.audioWorklet) {
       const blobUrl = URL.createObjectURL(new Blob([workletCode], { type: "application/javascript" }));
       audioCtx.audioWorklet.addModule(blobUrl).then(() => {
         const node = new AudioWorkletNode(audioCtx, "stream-processor");
-        node.port.onmessage = (e) => { if (senseActive) handleAudioFrame(new Float32Array(e.data)); };
+        let firstLogged = false;
+        node.port.onmessage = (e) => {
+          if (e.data && e.data.first) { console.log("[senses] ★ worklet first frame"); onFirstFrame(); return; }
+          if (!senseActive) return;
+          if (!firstLogged) { firstLogged = true; console.log("[senses] ★ first audio data received"); }
+          try { handleAudioFrame(new Float32Array(e.data)); }
+          catch (err) { console.error("[senses] handleAudioFrame error:", err); }
+        };
+        // CRITICAL: connect BOTH input AND output — a floating node may not process
         src.connect(node);
+        node.connect(audioSink);
         captureReady = true;
-        console.log("[senses] AudioWorklet capture live (audio thread — jank-immune)");
+        console.log("[senses] ★ AudioWorklet capture live (audio thread — jank-immune)");
       }).catch((e) => {
-        console.log("[senses] AudioWorklet failed, falling back to ScriptProcessor:", e);
+        console.error("[senses] AudioWorklet failed, falling back to ScriptProcessor:", e);
         installScriptProcessor();
       });
     }
@@ -237,16 +257,17 @@ async function enableBrowserSenses() {
 
     function installScriptProcessor() {
       if (captureReady) return;
+      console.log("[senses] using ScriptProcessor fallback (main thread)");
       audioProc = audioCtx.createScriptProcessor(2048, 1, 1);
+      let firstLogged = false;
       audioProc.onaudioprocess = (e) => {
         if (!senseActive) return;
-        handleAudioFrame(e.inputBuffer.getChannelData(0));
+        if (!firstLogged) { firstLogged = true; console.log("[senses] ★ first ScriptProcessor frame"); }
+        try { handleAudioFrame(e.inputBuffer.getChannelData(0)); }
+        catch (err) { console.error("[senses] handleAudioFrame error:", err); }
       };
       src.connect(audioProc);
-      const sink = audioCtx.createGain();
-      sink.gain.value = 0;
-      audioProc.connect(sink);
-      sink.connect(audioCtx.destination);
+      audioProc.connect(audioSink);
     }
 
     // WATCHDOG: with AudioWorklet, audio keeps flowing even when the main
