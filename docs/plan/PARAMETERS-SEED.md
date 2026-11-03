@@ -292,3 +292,27 @@ Enters diary, testament, and the reply prompt when |stretch-1| > 0.35.
 25% of dreams (when a strongly-linked pair exists, hub >= fusion threshold): both memories
 fused into one narrated scene that never happened; the dream itself is ENCODED as a
 "dream-born" episode (we remember dreams; they enter the memory store with their tags).
+
+## Coined feelings (Feldman Barrett 2001: emotional granularity)
+Born vocabulary: 6 words (tired/bored/curious/stressed/calm/restless). Coining is EARNED:
+granularity >= 0.35 AND circumplex distance > 0.35 from every existing word AND 30 sim-min
+since last coin AND one attempt in flight at most (the in-flight gate exists because the
+snapshot loop fires every ~100ms while the LLM call takes ~2s - without it, parallel prompts
+each coin a different word for the same shade). Words: single, 3-12 letters, letters only.
+Match radius 0.30; cap 12, oldest fade; usage bumps strengthen. Persistence: identity
+checkpoint (CoinedFeelings rows).
+
+## Earned reflexes (Hebbian/motor learning: repeated cortical decisions become automatic)
+The ReflexMap stores phrasings (3-8 words, >= 12 chars - specificity so a pathway never
+hijacks a longer sentence) mapped to intents. Fire condition: the pathway substring is most
+of the message (message <= 2x pathway + 8 chars). Learn source: the intent router only
+(canonical dispatch strings can never enter the map - born gates consume them first - so
+the map cannot loop). Cap 60, oldest fade. Persistence: identity checkpoint.
+
+## Dialect memory + phrasebooks (usage-based acquisition: input shapes the system)
+Router few-shot examples: up to 8 of the most recent 40 successfully routed phrasings,
+injected as "this person's past phrasings that routed correctly". Greeting phrasebooks:
+born variants per attachment family + earned lines (first sentence of the reply to any
+greeting-ish message <= 26 chars, 60s harvest window); draws 65/35 earned/born, cap 24 per
+family. Born counts are caller-passed so restore order cannot corrupt semantics. // CALIBRATE:
+the 65/35 split and the 8-example window are unmeasured defaults.
