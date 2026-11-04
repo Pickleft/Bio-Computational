@@ -417,8 +417,22 @@ function connectTranscribeWs() {
   // RE-ENTRANCY GUARD: a reconnect already in flight (CONNECTING) or a live
   // socket means do nothing — stacked reconnects multiplied sessions and
   // churned "session closed" spam when the server was briefly sick
-  if (transcribeWs && (transcribeWs.readyState === WebSocket.OPEN || transcribeWs.readyState === WebSocket.CONNECTING)) {
-    console.log("[transcribe-ws] already open/connecting — skipping reconnect");
+  if (transcribeWs && transcribeWs.readyState === WebSocket.OPEN) {
+    console.log("[transcribe-ws] already open — skipping reconnect");
+    return;
+  }
+  if (transcribeWs && transcribeWs.readyState === WebSocket.CONNECTING) {
+    // a connect that hangs forever (server starved mid-handshake) would block
+    // every future reconnect: force it closed after 10s and retry
+    const hung = transcribeWs;
+    setTimeout(() => {
+      if (transcribeWs === hung && hung.readyState === WebSocket.CONNECTING) {
+        console.log("[transcribe-ws] connect hung >10s — forcing close");
+        try { hung.onclose = null; hung.close(); } catch (e) {}
+        if (transcribeWs === hung) transcribeWs = null;
+        if (senseActive) setTimeout(connectTranscribeWs, 300);
+      }
+    }, 10000);
     return;
   }
   const fin = document.getElementById("live-final");

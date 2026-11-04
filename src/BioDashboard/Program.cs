@@ -174,8 +174,14 @@ app.MapGet("/api/voice", async (string text, float? rate, float? pitch, float? v
     if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
         return Results.BadRequest(new { error = "text required" });
     await voiceGate.WaitAsync();
+    var savedPriority = Thread.CurrentThread.Priority;
     try
     {
+        // synthesis runs BELOW NORMAL: Kokoro at normal priority saturated
+        // the pool and starved the WS forwarding loops — Meta then killed the
+        // session for 'ingress slower than real-time' every time it talked.
+        // The ears and the sim outrank the voice.
+        Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
         var r = Math.Clamp(rate ?? 0.92f, 0.5f, 1.5f);
         var p = Math.Clamp(pitch ?? 1.0f, 0.5f, 1.5f);
         var v = Math.Clamp(volume ?? 1.0f, 0.3f, 1.0f);
@@ -196,7 +202,7 @@ app.MapGet("/api/voice", async (string text, float? rate, float? pitch, float? v
         Console.WriteLine($"[voice] generation failed: {ex.Message}");
         return Results.StatusCode(502);
     }
-    finally { voiceGate.Release(); }
+    finally { Thread.CurrentThread.Priority = savedPriority; voiceGate.Release(); }
 });
 
 // direct-talk toggle: reply WITHOUT the language cortex (composed from state)
